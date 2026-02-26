@@ -72,3 +72,21 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+
+# --- Additional rules for team collaboration (Nova Revolution) ---
+
+# IDE Specific (Rider, VS Code)
+.idea/
+.vscode/
+
+# Engine Generated
+FileOpenOrder/
+Script/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
