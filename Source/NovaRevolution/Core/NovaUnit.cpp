@@ -38,14 +38,23 @@ ANovaUnit::ANovaUnit()
 	Team = ENovaTeam::None;
 }
 
+void ANovaUnit::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	// 1. 설정된 클래스 정보를 바탕으로 부품 생성 및 할당 (에디터 프리뷰용)
+	ConstructUnitParts();
+
+	// 2. 부품들 실제 소켓에 정렬 부착
+	InitializePartAttachments();
+}
+
 void ANovaUnit::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 1. 설정된 클래스 정보를 바탕으로 부품 생성 및 할당
+	// 런타임 시작 시 다시 한번 초기화 및 부착 보강 (NetPlay 대응 등)
 	ConstructUnitParts();
-
-	// 2. 부품들 실제 소켓에 정렬 부착
 	InitializePartAttachments();
 
 	if (AbilitySystemComponent)
@@ -73,6 +82,16 @@ void ANovaUnit::ConstructUnitParts()
 		BodyPartComponent->SetChildActorClass(BodyPartClass);
 	}
 
+	// 기존에 동적으로 생성된 무기 컴포넌트들 제거 (중복 생성 방지)
+	for (UChildActorComponent* Comp : WeaponPartComponents)
+	{
+		if (Comp)
+		{
+			Comp->DestroyComponent();
+		}
+	}
+	WeaponPartComponents.Empty();
+
 	// 무기(Weapons) 할당 및 컴포넌트 생성
 	for (int32 i = 0; i < WeaponSlotConfigs.Num(); ++i)
 	{
@@ -81,10 +100,13 @@ void ANovaUnit::ConstructUnitParts()
 		{
 			// 무기 컴포넌트 동적 생성 및 등록
 			FName CompName = FName(*FString::Printf(TEXT("WeaponPartComponent_%d"), i));
+			
+			// NewObject 시 이름을 명시하여 고유성 유지
 			UChildActorComponent* WeaponComp = NewObject<UChildActorComponent>(this, CompName);
 			
 			if (WeaponComp)
 			{
+				WeaponComp->CreationMethod = EComponentCreationMethod::UserConstructionScript;
 				WeaponComp->RegisterComponent();
 				WeaponComp->SetChildActorClass(Config.WeaponPartClass);
 				WeaponComp->AttachToComponent(BodyPartComponent, FAttachmentTransformRules::SnapToTargetIncludingScale);

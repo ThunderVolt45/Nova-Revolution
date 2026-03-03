@@ -41,6 +41,9 @@ class NOVAREVOLUTION_API ANovaUnit : public ACharacter, public IAbilitySystemInt
 public:
 	ANovaUnit();
 
+	// 에디터 프리뷰 및 런타임 조립을 위한 건설 스크립트
+	virtual void OnConstruction(const FTransform& Transform) override;
+
 	// --- IAbilitySystemInterface ---
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
 
