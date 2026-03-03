@@ -1,5 +1,9 @@
 # 팀 개발 규약
 
+## 명명 규칙 (Naming Convention)
+- **클래스 및 파일 접두어:** 모든 C++ 클래스 및 스크립트 파일의 이름은 `Nova` 접두어를 사용한다. (예: `NovaUnit`, `NovaPlayerController`, `NovaAttributeSet`)
+- **언리얼 엔진 표준 준수:** 그 외 클래스 타입 접두어(A, U, I 등)는 언리얼 엔진의 표준 명명 규칙을 따른다.
+
 ## 코드 리뷰 요구사항
 - 모든 PR은 Repository 관리자의 리뷰 필요
 
