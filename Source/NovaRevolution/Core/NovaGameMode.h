@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
 #include "Core/NovaTypes.h"
+#include "Core/NovaAssemblyTypes.h"
 #include "NovaGameMode.generated.h"
 
 class ANovaBase;
@@ -23,11 +24,18 @@ public:
 	// 기지 파괴 시 호출될 함수 (승패 판정의 트리거)
 	virtual void OnBaseDestroyed(ANovaBase* DestroyedBase);
 
+	// 플레이어의 덱 정보를 반환 (유닛 생산 팩토리 등에서 참조)
+	UFUNCTION(BlueprintPure, Category = "Nova|GameMode")
+	FNovaDeckInfo GetPlayerDeck(int32 PlayerTeamID) const;
+
 protected:
 	virtual void BeginPlay() override;
 
 	// 플레이어별 기지 초기화 로직
 	virtual void InitializePlayerBase();
+
+	// 세이브 데이터로부터 덱 정보 로드
+	virtual void LoadPlayerDecks();
 
 	// 게임 종료 처리
 	void EndMatch(int32 WinningTeamID);
@@ -40,4 +48,7 @@ protected:
 private:
 	// 현재 게임 내에 살아있는 각 팀의 기지 관리
 	TMap<int32, ANovaBase*> TeamBases;
+
+	// 각 팀별 덱 정보 관리
+	TMap<int32, FNovaDeckInfo> TeamDecks;
 };

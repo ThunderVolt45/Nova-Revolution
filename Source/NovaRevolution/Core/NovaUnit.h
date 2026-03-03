@@ -7,28 +7,12 @@
 #include "AbilitySystemInterface.h"
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaTypes.h"
+#include "Core/NovaAssemblyTypes.h"
 #include "NovaUnit.generated.h"
 
 class UAbilitySystemComponent;
 class UNovaAttributeSet;
 struct FOnAttributeChangeData;
-
-/**
- * 유닛의 무기 슬롯 정보를 담는 데이터 구조체
- */
-USTRUCT(BlueprintType)
-struct FNovaWeaponPartSlot
-{
-	GENERATED_BODY()
-
-	// 부착할 무기 부품 클래스 (BP_NovaPart 상속 클래스)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
-	TSubclassOf<class ANovaPart> WeaponPartClass;
-
-	// 이 무기가 부착될 몸통(Body)의 소켓 이름
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
-	FName TargetSocketName;
-};
 
 /**
  * Nova Revolution의 모든 유닛(로봇)의 기본 클래스

@@ -2,6 +2,7 @@
 
 #include "Core/NovaGameMode.h"
 #include "Core/NovaBase.h"
+#include "Core/NovaSaveGame.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -15,8 +16,40 @@ void ANovaGameMode::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 게임 시작 시 기지 배치
+	// 1. 플레이어 덱 정보 로드
+	LoadPlayerDecks();
+
+	// 2. 게임 시작 시 기지 배치
 	InitializePlayerBase();
+}
+
+void ANovaGameMode::LoadPlayerDecks()
+{
+	// 플레이어(Team1)의 덱 로드 시도
+	if (UGameplayStatics::DoesSaveGameExist(TEXT("NovaPlayerSaveSlot"), 0))
+	{
+		if (UNovaSaveGame* LoadGameInstance = Cast<UNovaSaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("NovaPlayerSaveSlot"), 0)))
+		{
+			TeamDecks.Add(1, LoadGameInstance->SavedDeck);
+			UE_LOG(LogTemp, Log, TEXT("Loaded Player Deck with %d units."), LoadGameInstance->SavedDeck.Units.Num());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("No SaveGame found. Using empty deck."));
+		TeamDecks.Add(1, FNovaDeckInfo());
+	}
+
+	// TODO: AI(Team2)의 덱 정보 설정 (데이터 테이블 등에서 로드 가능)
+}
+
+FNovaDeckInfo ANovaGameMode::GetPlayerDeck(int32 PlayerTeamID) const
+{
+	if (TeamDecks.Contains(PlayerTeamID))
+	{
+		return TeamDecks[PlayerTeamID];
+	}
+	return FNovaDeckInfo();
 }
 
 void ANovaGameMode::InitializePlayerBase()
