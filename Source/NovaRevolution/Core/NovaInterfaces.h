@@ -22,11 +22,11 @@ class NOVAREVOLUTION_API INovaTeamInterface
 	GENERATED_BODY()
 
 public:
-	// 현재 소속된 팀을 반환
-	virtual ENovaTeam GetTeam() const = 0;
+	// 현재 소속된 팀 ID를 반환
+	virtual int32 GetTeamID() const = 0;
 
 	// 아군 여부 확인
-	virtual bool IsFriendly(ENovaTeam OtherTeam) const { return GetTeam() == OtherTeam; }
+	virtual bool IsFriendly(int32 OtherTeamID) const { return GetTeamID() == OtherTeamID; }
 };
 
 // --- 유닛 선택 시스템 인터페이스 ---
