@@ -13,5 +13,8 @@
 - feature/*: 기능 개발 브랜치
 - hotfix/*: 긴급 수정 브랜치
 
+## Commit 양식 (Templete)
+- 커밋 제목과 내용은 .gitmessage 파일에 기록된 양식을 따라야 함.
+
 ## PR 양식 (Templete)
 @./WORK_LOG_TEMPLETE.md
