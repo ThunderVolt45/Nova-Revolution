@@ -12,9 +12,11 @@ ANovaPart::ANovaPart()
 	// 두 종류의 메시 컴포넌트 미리 생성 (필요한 것만 블루프린트에서 할당)
 	SkeletalMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkeletalMesh"));
 	SkeletalMesh->SetupAttachment(RootComponent);
+	SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
 	StaticMesh->SetupAttachment(RootComponent);
+	StaticMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 UPrimitiveComponent* ANovaPart::GetMainMesh() const
