@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/NovaBase.h"
+#include "Core/NovaGameMode.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
 #include "GAS/NovaAttributeSet.h"
@@ -64,8 +65,11 @@ void ANovaBase::DestroyBase()
 	// 기지 파괴 시 시각적/게임 로직 처리
 	UE_LOG(LogTemp, Error, TEXT("Base Destroyed: %s (Team: %d)"), *GetName(), (int32)Team);
 
-	// TODO: GameMode에 기지 파괴 이벤트 전달 로직 추가 예정
-	// GetWorld()->GetAuthGameMode<ANovaGameMode>()->OnBaseDestroyed(this);
+	// GameMode에 기지 파괴 이벤트 전달
+	if (ANovaGameMode* GM = GetWorld()->GetAuthGameMode<ANovaGameMode>())
+	{
+		GM->OnBaseDestroyed(this);
+	}
 
 	Destroy();
 }
