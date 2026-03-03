@@ -56,7 +56,7 @@ public:
 	virtual void IssueCommand(const FCommandData& CommandData) override;
 
 	// --- INovaTeamInterface ---
-	virtual ENovaTeam GetTeam() const override { return Team; }
+	virtual int32 GetTeamID() const override { return TeamID; }
 
 	// 사망 처리 함수
 	virtual void Die();
@@ -106,7 +106,7 @@ protected:
 
 	// --- 유닛 기본 정보 ---
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
-	ENovaTeam Team = ENovaTeam::None;
+	int32 TeamID = NovaTeam::None;
 
 	// 선택 여부 (팀원 B가 하이라이트 로직 구현 시 사용)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")

@@ -33,7 +33,8 @@ void ANovaGameMode::InitializePlayerBase()
 
 	for (int32 i = 0; i < PlayerStarts.Num(); ++i)
 	{
-		ENovaTeam AssignedTeam = (i == 0) ? ENovaTeam::Player : ENovaTeam::Enemy;
+		// 첫 번째는 Team1(1), 두 번째는 Team2(2)...
+		int32 AssignedTeamID = i + 1;
 		
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -42,12 +43,10 @@ void ANovaGameMode::InitializePlayerBase()
 		
 		if (NewBase)
 		{
-			// 팀 설정 (내부적으로 인터페이스를 통해 GetTeam 호출 가능)
-			// 실제 구현 시 ANovaBase에 SetTeam(AssignedTeam) 함수를 추가하거나 초기화 로직 필요
-			// 여기서는 로그로 대체하고 팀 관리 맵에 저장
-			TeamBases.Add(AssignedTeam, NewBase);
+			// 팀 관리 맵에 저장
+			TeamBases.Add(AssignedTeamID, NewBase);
 			
-			UE_LOG(LogTemp, Warning, TEXT("Spawned Base for Team: %d at %s"), (int32)AssignedTeam, *PlayerStarts[i]->GetName());
+			UE_LOG(LogTemp, Warning, TEXT("Spawned Base for TeamID: %d at %s"), AssignedTeamID, *PlayerStarts[i]->GetName());
 		}
 	}
 }
@@ -56,18 +55,24 @@ void ANovaGameMode::OnBaseDestroyed(ANovaBase* DestroyedBase)
 {
 	if (!DestroyedBase) return;
 
-	ENovaTeam DestroyedTeam = DestroyedBase->GetTeam();
-	UE_LOG(LogTemp, Error, TEXT("Match Over! Team %d's base has been destroyed."), (int32)DestroyedTeam);
+	int32 DestroyedTeamID = DestroyedBase->GetTeamID();
+	UE_LOG(LogTemp, Error, TEXT("Match Over! Team %d's base has been destroyed."), DestroyedTeamID);
 
 	// 상대 팀 승리 처리
-	ENovaTeam WinningTeam = (DestroyedTeam == ENovaTeam::Player) ? ENovaTeam::Enemy : ENovaTeam::Player;
-	EndMatch(WinningTeam);
+	int32 WinningTeamID = NovaTeam::None;
+	for (auto& Elem : TeamBases)
+	{
+		if (Elem.Key != DestroyedTeamID)
+		{
+			WinningTeamID = Elem.Key;
+			break;
+		}
+	}
+	
+	EndMatch(WinningTeamID);
 }
 
-void ANovaGameMode::EndMatch(ENovaTeam WinningTeam)
+void ANovaGameMode::EndMatch(int32 WinningTeamID)
 {
-	// 게임 종료 UI 호출 및 게임 멈춤 로직 등 추가 예정
-	UE_LOG(LogTemp, Warning, TEXT("WINNER: Team %d"), (int32)WinningTeam);
-
-	// TODO: GameState를 통해 모든 클라이언트에 승패 알림
+	UE_LOG(LogTemp, Warning, TEXT("WINNER: Team %d"), WinningTeamID);
 }

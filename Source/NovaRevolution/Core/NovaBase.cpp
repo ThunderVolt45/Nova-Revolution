@@ -22,7 +22,7 @@ ANovaBase::ANovaBase()
 	AttributeSet = CreateDefaultSubobject<UNovaAttributeSet>(TEXT("AttributeSet"));
 
 	// 초기 설정
-	Team = ENovaTeam::None;
+	TeamID = NovaTeam::None;
 	RallyPoint = FVector::ZeroVector;
 }
 
@@ -51,7 +51,7 @@ UAbilitySystemComponent* ANovaBase::GetAbilitySystemComponent() const
 void ANovaBase::OnSelected()
 {
 	bIsSelected = true;
-	UE_LOG(LogTemp, Log, TEXT("Base Selected: %s (Team: %d)"), *GetName(), (int32)Team);
+	UE_LOG(LogTemp, Log, TEXT("Base Selected: %s (TeamID: %d)"), *GetName(), TeamID);
 }
 
 void ANovaBase::OnDeselected()
@@ -63,7 +63,7 @@ void ANovaBase::OnDeselected()
 void ANovaBase::DestroyBase()
 {
 	// 기지 파괴 시 시각적/게임 로직 처리
-	UE_LOG(LogTemp, Error, TEXT("Base Destroyed: %s (Team: %d)"), *GetName(), (int32)Team);
+	UE_LOG(LogTemp, Error, TEXT("Base Destroyed: %s (TeamID: %d)"), *GetName(), TeamID);
 
 	// GameMode에 기지 파괴 이벤트 전달
 	if (ANovaGameMode* GM = GetWorld()->GetAuthGameMode<ANovaGameMode>())

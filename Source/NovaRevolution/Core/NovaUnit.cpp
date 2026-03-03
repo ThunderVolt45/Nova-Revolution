@@ -36,7 +36,7 @@ ANovaUnit::ANovaUnit()
 	BodyPartComponent->SetupAttachment(LegsPartComponent);
 
 	// 기본 유닛 설정
-	Team = ENovaTeam::None;
+	TeamID = NovaTeam::None;
 }
 
 void ANovaUnit::OnConstruction(const FTransform& Transform)

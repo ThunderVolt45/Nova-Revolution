@@ -30,7 +30,7 @@ protected:
 	virtual void InitializePlayerBase();
 
 	// 게임 종료 처리
-	void EndMatch(ENovaTeam WinningTeam);
+	void EndMatch(int32 WinningTeamID);
 
 	// --- 데이터 ---
 	// 스폰할 기지 클래스 (BP_NovaBase 등으로 할당)
@@ -39,5 +39,5 @@ protected:
 
 private:
 	// 현재 게임 내에 살아있는 각 팀의 기지 관리
-	TMap<ENovaTeam, ANovaBase*> TeamBases;
+	TMap<int32, ANovaBase*> TeamBases;
 };

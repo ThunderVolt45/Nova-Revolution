@@ -33,7 +33,7 @@ public:
 	virtual bool IsSelectable() const override { return true; }
 
 	// --- INovaTeamInterface ---
-	virtual ENovaTeam GetTeam() const override { return Team; }
+	virtual int32 GetTeamID() const override { return TeamID; }
 
 	// 랠리 포인트 설정 및 가져오기
 	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
@@ -60,7 +60,7 @@ protected:
 
 	// --- 속성 ---
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Base")
-	ENovaTeam Team = ENovaTeam::None;
+	int32 TeamID = NovaTeam::None;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Base")
 	FVector RallyPoint;
