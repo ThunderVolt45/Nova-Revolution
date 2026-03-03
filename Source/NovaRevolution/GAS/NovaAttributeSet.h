@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AttributeSet.h"
 #include "AbilitySystemComponent.h"
+#include "GameplayEffectExtension.h"
 #include "NovaAttributeSet.generated.h"
 
 // 속성 접근을 위한 매크로 정의
@@ -25,10 +26,26 @@ class NOVAREVOLUTION_API UNovaAttributeSet : public UAttributeSet
 public:
 	UNovaAttributeSet();
 
+	// 속성이 변경되기 전에 클램핑 등의 처리를 수행
+	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
+
+	// GameplayEffect가 실행된 후 데미지 처리 등의 최종 연산을 수행
+	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
+
 	// 체력 (Health Points)
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
 	FGameplayAttributeData Health;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Health)
+
+	// 최대 체력 (Max Health)
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	FGameplayAttributeData MaxHealth;
+	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, MaxHealth)
+
+	// 임시 데미지 (Meta Attribute - 데미지 계산 시 사용)
+	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	FGameplayAttributeData Damage;
+	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Damage)
 
 	// 와트 (생산 비용 및 현재 가치)
 	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
