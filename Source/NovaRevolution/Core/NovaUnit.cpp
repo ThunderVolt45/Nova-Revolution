@@ -2,6 +2,7 @@
 
 #include "Core/NovaUnit.h"
 #include "Core/NovaPart.h"
+#include "Core/NovaPartData.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
 #include "GAS/NovaAttributeSet.h"
@@ -53,9 +54,12 @@ void ANovaUnit::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 런타임 시작 시 다시 한번 초기화 및 부착 보강 (NetPlay 대응 등)
+	// 런타임 시작 시 다시 한번 초기화 및 부착 보강
 	ConstructUnitParts();
 	InitializePartAttachments();
+
+	// 3. 모든 부품이 부착된 후 스탯 합산 및 초기화
+	InitializeAttributesFromParts();
 
 	if (AbilitySystemComponent)
 	{
@@ -144,6 +148,68 @@ void ANovaUnit::InitializePartAttachments()
 			}
 		}
 	}
+}
+
+void ANovaUnit::InitializeAttributesFromParts()
+{
+	if (!AttributeSet) return;
+
+	// 임시 합산 변수들
+	float TotalWatt = 0.0f;
+	float TotalHealth = 0.0f;
+	float TotalAttack = 0.0f;
+	float TotalDefense = 0.0f;
+	float TotalSpeed = 0.0f;
+	float TotalFireRate = 0.0f;
+	float TotalSight = 0.0f;
+	float TotalRange = 0.0f;
+	float TotalMinRange = 0.0f;
+	float TotalSplashRange = 0.0f;
+
+	// 수집할 모든 부품 액터들을 리스트업
+	TArray<AActor*> PartActors;
+	PartActors.Add(LegsPartComponent->GetChildActor());
+	PartActors.Add(BodyPartComponent->GetChildActor());
+	for (auto WeaponComp : WeaponPartComponents)
+	{
+		PartActors.Add(WeaponComp->GetChildActor());
+	}
+
+	// 각 부품에서 스탯 수집
+	for (AActor* Actor : PartActors)
+	{
+		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		{
+			if (const UNovaPartData* Data = Part->GetPartData())
+			{
+				TotalWatt += Data->Watt;
+				TotalHealth += Data->Health;
+				TotalAttack += Data->Attack;
+				TotalDefense += Data->Defense;
+				TotalSpeed += Data->Speed;
+				TotalFireRate += Data->FireRate;
+				TotalSight += Data->Sight;
+				TotalRange += Data->Range;
+				TotalMinRange += Data->MinRange;
+				TotalSplashRange += Data->SplashRange;
+			}
+		}
+	}
+
+	// AttributeSet 초기화
+	AttributeSet->InitWatt(TotalWatt);
+	AttributeSet->InitHealth(TotalHealth);
+	AttributeSet->InitMaxHealth(TotalHealth); // MaxHealth도 동일하게 초기화
+	AttributeSet->InitAttack(TotalAttack);
+	AttributeSet->InitDefense(TotalDefense);
+	AttributeSet->InitSpeed(TotalSpeed);
+	AttributeSet->InitFireRate(TotalFireRate);
+	AttributeSet->InitSight(TotalSight);
+	AttributeSet->InitRange(TotalRange);
+	AttributeSet->InitMinRange(TotalMinRange);
+	AttributeSet->InitSplashRange(TotalSplashRange);
+
+	UE_LOG(LogTemp, Log, TEXT("Unit Stats Initialized: HP(%f), Watt(%f), Attack(%f)"), TotalHealth, TotalWatt, TotalAttack);
 }
 
 UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const

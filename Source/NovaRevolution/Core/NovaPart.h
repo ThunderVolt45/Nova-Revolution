@@ -20,7 +20,14 @@ public:
 	// 외부에서 메시를 가져오기 위한 유틸리티 함수
 	UPrimitiveComponent* GetMainMesh() const;
 
+	// 부품 스탯 데이터를 가져오는 함수
+	const class UNovaPartData* GetPartData() const { return PartData; }
+
 protected:
+	// 이 부품의 성능 데이터 (PrimaryDataAsset)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part")
+	TObjectPtr<class UNovaPartData> PartData;
+
 	// 부품이 스켈레탈 메시일 경우 사용
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Part")
 	TObjectPtr<USkeletalMeshComponent> SkeletalMesh;

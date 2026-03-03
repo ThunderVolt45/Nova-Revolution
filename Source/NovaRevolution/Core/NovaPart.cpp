@@ -25,5 +25,6 @@ UPrimitiveComponent* ANovaPart::GetMainMesh() const
 	{
 		return SkeletalMesh;
 	}
+	
 	return StaticMesh;
 }

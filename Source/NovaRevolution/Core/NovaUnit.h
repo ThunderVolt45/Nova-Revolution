@@ -94,6 +94,9 @@ protected:
 	void ConstructUnitParts();
 	void InitializePartAttachments();
 
+	// 부품들의 스탯을 합산하여 유닛의 기본 스탯(AttributeSet) 초기화
+	void InitializeAttributesFromParts();
+
 	// --- GAS 구성 ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GAS")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
