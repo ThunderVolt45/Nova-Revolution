@@ -7,16 +7,15 @@
 #include "NovaTypes.generated.h"
 
 /**
- * RTS 팀 구분
+ * RTS 팀 구분 상수
  */
-UENUM(BlueprintType)
-enum class ENovaTeam : uint8
+namespace NovaTeam
 {
-	None,
-	Player,     // 플레이어 (아군)
-	Enemy,      // 적군 (AI)
-	Neutral     // 중립 (중립 건물 등)
-};
+	constexpr int32 None = -1;
+	constexpr int32 Neutral = 0;
+	constexpr int32 Team1 = 1;
+	constexpr int32 Team2 = 2;
+}
 
 /**
  * RTS 명령의 종류 (노바 1492 기준)
