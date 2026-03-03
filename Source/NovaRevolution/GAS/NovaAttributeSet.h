@@ -33,62 +33,62 @@ public:
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 
 	// 체력 (Health Points)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Health;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Health)
 
 	// 최대 체력 (Max Health)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData MaxHealth;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, MaxHealth)
 
 	// 임시 데미지 (Meta Attribute - 데미지 계산 시 사용)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Damage;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Damage)
 
 	// 와트 (생산 비용 및 현재 가치)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Watt;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Watt)
 
 	// 공격력 (Attack Power)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Attack;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Attack)
 
 	// 방어력 (Defense)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Defense;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Defense)
 
 	// 이동 속도 (Movement Speed)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Speed;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Speed)
 
 	// 연사 속도 (Fire Rate - 초당 공격 횟수 등)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData FireRate;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, FireRate)
 
 	// 시야 (Sight Range)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Sight;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Sight)
 
 	// 사거리 (Attack Range)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Range;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Range)
 
 	// 최소 사거리 (Minimum Attack Range)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData MinRange;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, MinRange)
 
 	// 스플래시 범위 (Splash/Area of Effect Range)
-	UPROPERTY(BlueprintReadOnly, Category = "Attributes")
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData SplashRange;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, SplashRange)
 };
