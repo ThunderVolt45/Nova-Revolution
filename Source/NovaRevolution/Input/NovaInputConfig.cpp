@@ -3,6 +3,7 @@
 
 #include "Input/NovaInputConfig.h"
 
+// 특정 태그에 해당하는 입력 액션을 찾아 반환하는 헬퍼 함수
 const UInputAction* UNovaInputConfig::FindAbilityInputActionForTag(const FGameplayTag& InputTag,
                                                                    bool bLogNotFound) const
 {
