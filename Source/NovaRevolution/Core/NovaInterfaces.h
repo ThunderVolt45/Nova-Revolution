@@ -106,10 +106,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
 	virtual float GetMaxUnitWatt() const = 0;
 
+	/** 플레이어 와트 생산 레벨 정보를 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetWattLevel() const = 0;
+
+	/** 플레이어 SP 생산 레벨 정보를 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetSPLevel() const = 0;
+
 	/** 자원 변경 델리게이트 접근자 */
 	virtual FNovaOnResourceChangedSignature& GetOnWattChangedDelegate() = 0;
 	virtual FNovaOnResourceChangedSignature& GetOnSPChangedDelegate() = 0;
 	virtual FNovaOnResourceChangedSignature& GetOnPopulationChangedDelegate() = 0;
+	virtual FNovaOnResourceChangedSignature& GetOnWattLevelChangedDelegate() = 0;
+	virtual FNovaOnResourceChangedSignature& GetOnSPLevelChangedDelegate() = 0;
 };
 
 // --- 명령 전달 시스템 인터페이스 ---

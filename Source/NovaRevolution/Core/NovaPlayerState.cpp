@@ -4,6 +4,7 @@
 #include "Core/NovaPlayerState.h"
 #include "AbilitySystemComponent.h"
 #include "GAS/NovaResourceAttributeSet.h"
+#include "NovaRevolution.h"
 
 ANovaPlayerState::ANovaPlayerState()
 {
@@ -35,6 +36,7 @@ void ANovaPlayerState::BeginPlay()
 				if (FMath::FloorToInt(Data.OldValue) != FMath::FloorToInt(Data.NewValue))
 				{
 					OnWattChanged.Broadcast(Data.NewValue, GetMaxWatt());
+					NOVA_SCREEN(Log, "Watt Changed: %.0f / %.0f", Data.NewValue, GetMaxWatt());
 				}
 			}
 		);
@@ -43,7 +45,12 @@ void ANovaPlayerState::BeginPlay()
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(ResourceAttributeSet->GetCurrentSPAttribute()).AddLambda(
 			[this](const FOnAttributeChangeData& Data)
 			{
-				OnSPChanged.Broadcast(Data.NewValue, GetMaxSP());
+				// 최적화: 정수 값이 변했을 때만 UI 알림 (빈번한 틱 충전 대응)
+				if (FMath::FloorToInt(Data.OldValue) != FMath::FloorToInt(Data.NewValue))
+				{
+					OnSPChanged.Broadcast(Data.NewValue, GetMaxSP());
+					NOVA_SCREEN(Log, "SP Changed: %.1f / %.1f", Data.NewValue, GetMaxSP());
+				}
 			}
 		);
 
@@ -52,6 +59,25 @@ void ANovaPlayerState::BeginPlay()
 			[this](const FOnAttributeChangeData& Data)
 			{
 				OnPopulationChanged.Broadcast(Data.NewValue, GetMaxPopulation());
+				NOVA_SCREEN(Log, "Population Changed: %.0f / %.0f", Data.NewValue, GetMaxPopulation());
+			}
+		);
+
+		// Watt Level 변경 감지
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(ResourceAttributeSet->GetWattLevelAttribute()).AddLambda(
+			[this](const FOnAttributeChangeData& Data)
+			{
+				OnWattLevelChanged.Broadcast(Data.NewValue, 0.0f);
+				NOVA_SCREEN(Warning, "Watt Production Level Up: %.0f", Data.NewValue);
+			}
+		);
+
+		// SP Level 변경 감지
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(ResourceAttributeSet->GetSPLevelAttribute()).AddLambda(
+			[this](const FOnAttributeChangeData& Data)
+			{
+				OnSPLevelChanged.Broadcast(Data.NewValue, 0.0f);
+				NOVA_SCREEN(Warning, "SP Production Level Up: %.0f", Data.NewValue);
 			}
 		);
 	}
@@ -100,4 +126,14 @@ float ANovaPlayerState::GetTotalUnitWatt() const
 float ANovaPlayerState::GetMaxUnitWatt() const
 {
 	return ResourceAttributeSet ? ResourceAttributeSet->GetMaxUnitWatt() : 0.0f;
+}
+
+float ANovaPlayerState::GetWattLevel() const
+{
+	return ResourceAttributeSet ? ResourceAttributeSet->GetWattLevel() : 1.0f;
+}
+
+float ANovaPlayerState::GetSPLevel() const
+{
+	return ResourceAttributeSet ? ResourceAttributeSet->GetSPLevel() : 1.0f;
 }
