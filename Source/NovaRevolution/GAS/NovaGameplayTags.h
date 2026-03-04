@@ -15,6 +15,9 @@ namespace NovaGameplayTags
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Stop); // S: 정지
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Hold); // H: 홀드 (제자리 대기)
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Patrol); // P: 순찰
+	
+	// --- Shift를 눌렀을 때 명령 ---
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Modifier_Select);
 
 	// --- 노바 1492 고유 명령 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Spread); // C: 산개

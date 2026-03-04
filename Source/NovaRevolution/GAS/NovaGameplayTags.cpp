@@ -13,11 +13,14 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Hold, "Input.Hold");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Patrol, "Input.Patrol");
 
+	// Shift 명령
+	UE_DEFINE_GAMEPLAY_TAG(Input_Modifier_Select, "Input.Modifier.Select");
+	
 	// 고유 명령
 	UE_DEFINE_GAMEPLAY_TAG(Input_Spread, "Input.Spread");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Halt, "Input.Halt");
 	UE_DEFINE_GAMEPLAY_TAG(Input_SelectBase, "Input.SelectBase");
-
+	
 	// 숫자 슬롯 (1~0)
 	UE_DEFINE_GAMEPLAY_TAG(Input_Slot_1, "Input.Slot.1");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Slot_2, "Input.Slot.2");
