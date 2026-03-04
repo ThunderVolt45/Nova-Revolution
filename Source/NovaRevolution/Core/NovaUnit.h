@@ -44,6 +44,18 @@ public:
 
 	// 사망 처리 함수
 	virtual void Die();
+	
+public:
+	/** 팩토리로부터 조립 설계도를 전달받아 멤버 변수 초기화 */
+	void SetAssemblyData(const FNovaUnitAssemblyData& Data)
+	{
+		LegsPartClass = Data.LegsClass;
+		BodyPartClass = Data.BodyClass;
+		WeaponSlotConfigs = Data.WeaponSlots;
+	}
+	
+	/** 팀 식별자 설정을 위한 세터 */
+	void SetTeamID(int32 InTeamID) { TeamID = InTeamID; }
 
 protected:
 	virtual void BeginPlay() override;

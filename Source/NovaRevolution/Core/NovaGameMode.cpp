@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "Core/NovaGameMode.h"
+#include "NovaGameMode.h"
+#include "NovaRevolution.h"
 #include "Core/NovaBase.h"
 #include "Core/NovaSaveGame.h"
 #include "Kismet/GameplayStatics.h"
@@ -31,16 +32,14 @@ void ANovaGameMode::LoadPlayerDecks()
 		if (UNovaSaveGame* LoadGameInstance = Cast<UNovaSaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("NovaPlayerSaveSlot"), 0)))
 		{
 			TeamDecks.Add(1, LoadGameInstance->SavedDeck);
-			UE_LOG(LogTemp, Log, TEXT("Loaded Player Deck with %d units."), LoadGameInstance->SavedDeck.Units.Num());
+			NOVA_LOG(Log, "Loaded Player Deck with %d units.", LoadGameInstance->SavedDeck.Units.Num());
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("No SaveGame found. Using empty deck."));
+		NOVA_LOG(Warning, "No SaveGame found. Using empty deck.");
 		TeamDecks.Add(1, FNovaDeckInfo());
 	}
-
-	// TODO: AI(Team2)의 덱 정보 설정 (데이터 테이블 등에서 로드 가능)
 }
 
 FNovaDeckInfo ANovaGameMode::GetPlayerDeck(int32 PlayerTeamID) const
@@ -49,6 +48,7 @@ FNovaDeckInfo ANovaGameMode::GetPlayerDeck(int32 PlayerTeamID) const
 	{
 		return TeamDecks[PlayerTeamID];
 	}
+	
 	return FNovaDeckInfo();
 }
 
@@ -56,7 +56,7 @@ void ANovaGameMode::InitializePlayerBase()
 {
 	if (!BaseClass)
 	{
-		UE_LOG(LogTemp, Error, TEXT("BaseClass is not set in NovaGameMode!"));
+		NOVA_LOG(Error, "BaseClass is not set in NovaGameMode!");
 		return;
 	}
 
@@ -79,7 +79,7 @@ void ANovaGameMode::InitializePlayerBase()
 			// 팀 관리 맵에 저장
 			TeamBases.Add(AssignedTeamID, NewBase);
 			
-			UE_LOG(LogTemp, Warning, TEXT("Spawned Base for TeamID: %d at %s"), AssignedTeamID, *PlayerStarts[i]->GetName());
+			NOVA_LOG(Warning, "Spawned Base for TeamID: %d at %s", AssignedTeamID, *PlayerStarts[i]->GetName());
 		}
 	}
 }
@@ -89,7 +89,7 @@ void ANovaGameMode::OnBaseDestroyed(ANovaBase* DestroyedBase)
 	if (!DestroyedBase) return;
 
 	int32 DestroyedTeamID = DestroyedBase->GetTeamID();
-	UE_LOG(LogTemp, Error, TEXT("Match Over! Team %d's base has been destroyed."), DestroyedTeamID);
+	NOVA_SCREEN(Error, "Match Over! Team %d's base has been destroyed.", DestroyedTeamID);
 
 	// 상대 팀 승리 처리
 	int32 WinningTeamID = NovaTeam::None;
@@ -107,5 +107,5 @@ void ANovaGameMode::OnBaseDestroyed(ANovaBase* DestroyedBase)
 
 void ANovaGameMode::EndMatch(int32 WinningTeamID)
 {
-	UE_LOG(LogTemp, Warning, TEXT("WINNER: Team %d"), WinningTeamID);
+	NOVA_SCREEN(Warning, "WINNER: Team %d", WinningTeamID);
 }
