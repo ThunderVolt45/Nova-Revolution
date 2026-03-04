@@ -54,4 +54,9 @@ public:
 	// 스플래시 범위 (필요시)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float SplashRange = 0.0f;
+
+	// --- 애니메이션 데이터 ---
+	// 이 부품이 공격 시 재생할 몽타주 (무기 부품용)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Animation")
+	TObjectPtr<class UAnimMontage> AttackMontage;
 };
