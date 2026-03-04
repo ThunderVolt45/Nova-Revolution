@@ -34,7 +34,7 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
    ANovaGameMode* GM = Cast<ANovaGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
    if (!GM) return false;
 	
-	// [중요 수정]: TargetTeamID를 인자로 전달하여 해당 팀의 덱 데이터를 안전하게 불러옵니다.
+	// TargetTeamID를 인자로 전달하여 해당 팀의 덱 데이터를 안전하게 불러옵니다.
     FNovaDeckInfo CurrentDeck = GM->GetPlayerDeck(TargetTeamID);
 
    // 4. 덱 슬롯 유효성 검사
@@ -83,29 +83,25 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData,const FTransform& SpawnTransform, int32 TeamID)
 {
 	// 지연 스폰을 사용하여 BeginPlay 이전에 데이터 주입
-	// NovaUnit* NewUnit = GetWorld()->SpawnActorDeferred<ANovaUnit>(ANovaUnit::StaticClass(), SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
-	// if (NewUnit)
-	// {
-	// 		// 수정된 ANovaUnit의 Setter 함수 호출
-	// 	NewUnit->SetAssemblyData(AssemblyData);
-	// 	NewUnit->SetTeamID(TeamID); // int32 기반 팀 ID 설정
-	// 	UGameplayStatics::FinishSpawningActor(NewUnit, SpawnTransform);
-	// }
-	//
-	// return NewUnit;
+	ANovaUnit* NewUnit = GetWorld()->SpawnActorDeferred<ANovaUnit>(ANovaUnit::StaticClass(), SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+	if (NewUnit)
+	{
+		// 수정된 ANovaUnit의 Setter 함수 호출
+		NewUnit->SetAssemblyData(AssemblyData);
+		NewUnit->SetTeamID(TeamID); // int32 기반 팀 ID 설정
+		UGameplayStatics::FinishSpawningActor(NewUnit, SpawnTransform);
+	}
 	
-	UE_LOG(LogTemp, Warning, TEXT("Factory: ExecuteUnitProduction is currently a dummy implementation. Returning nullptr."));
-
-    return nullptr;
+	return NewUnit;
 }
 
 bool UNovaUnitFactory::CheckAndConsumeResources(class ANovaPlayerState* PS, float Cost)
 {
 	if (!PS || !PS->GetAttributeSet()) return false;
 	float CurrentWatt = PS->GetAttributeSet()->GetWatt();
-	 if (CurrentWatt < Cost) return false;
+	if (CurrentWatt < Cost) return false;
 
-	// TODO: GAS GameplayEffect를 사용하여 서버측에서 안전하게 자원 차감 구현
+	// Check TODO: GAS GameplayEffect를 사용하여 서버측에서 안전하게 자원 차감 구현
 	// PS->GetAttributeSet()->SetWatt(CurrentWatt - Cost);
 	return true;
 }
