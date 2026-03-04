@@ -3,6 +3,7 @@
 #include "Core/NovaResourceComponent.h"
 #include "Core/NovaPlayerState.h"
 #include "GAS/NovaResourceAttributeSet.h"
+#include "GAS/NovaGameplayTags.h"
 #include "AbilitySystemComponent.h"
 #include "GameplayEffectTypes.h"
 
@@ -36,8 +37,7 @@ void UNovaResourceComponent::BeginPlay()
 	}
 }
 
-void UNovaResourceComponent::TickComponent(float DeltaTime, enum ELevelTick TickType,
-	FActorComponentTickFunction* ThisTickFunction)
+void UNovaResourceComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
@@ -76,13 +76,10 @@ void UNovaResourceComponent::ConsumeResources(float WattCost, float SPCost)
 	FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(ModifyResourceEffectClass, 1.0f, EffectContext);
 	if (SpecHandle.IsValid())
 	{
-		// SetByCaller 등을 활용해 동적으로 비용 전달 (태그가 정의되어 있다고 가정)
-		// 만약 태그가 정의되어 있지 않다면 임시로 직접 수정 로직으로 대체 가능하지만, 
-		// 여기서는 GE 기반 설계를 위해 태그 기반 수정을 권장함.
-		
+		// SetByCaller를 활용해 동적으로 비용 전달
 		// WattCost와 SPCost를 음수로 전달하여 차감
-		SpecHandle.Data.Get()->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(TEXT("Data.Resource.Watt")), -WattCost);
-		SpecHandle.Data.Get()->SetSetByCallerMagnitude(FGameplayTag::RequestGameplayTag(TEXT("Data.Resource.SP")), -SPCost);
+		SpecHandle.Data.Get()->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_Watt, -WattCost);
+		SpecHandle.Data.Get()->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_SP, -SPCost);
 
 		ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
 	}

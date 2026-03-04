@@ -29,4 +29,8 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Slot_8, "Input.Slot.8");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Slot_9, "Input.Slot.9");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Slot_0, "Input.Slot.0");
+
+	// 자원 관련 데이터
+	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_Watt, "Data.Resource.Watt");
+	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_SP, "Data.Resource.SP");
 }
