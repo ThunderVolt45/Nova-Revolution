@@ -2,8 +2,9 @@
 
 #include "Core/NovaPart.h"
 #include "Core/NovaPartData.h"
-#include "Animation/AnimInstance.h"
+#include "Core/Animation/NovaAnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
+
 
 ANovaPart::ANovaPart()
 {
@@ -36,17 +37,9 @@ void ANovaPart::SetMovementSpeed(float Speed)
 {
 	if (SkeletalMesh)
 	{
-		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
-		if (AnimInst)
+		if (UNovaAnimInstance* AnimInst = Cast<UNovaAnimInstance>(SkeletalMesh->GetAnimInstance()))
 		{
-			static FName ParamName(TEXT("MovementSpeed"));
-			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
-			{
-				if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
-				{
-					FloatProp->SetPropertyValue_InContainer(AnimInst, Speed);
-				}
-			}
+			AnimInst->MovementSpeed = Speed;
 		}
 	}
 }
@@ -55,17 +48,9 @@ void ANovaPart::SetRotationRate(float Rate)
 {
 	if (SkeletalMesh)
 	{
-		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
-		if (AnimInst)
+		if (UNovaAnimInstance* AnimInst = Cast<UNovaAnimInstance>(SkeletalMesh->GetAnimInstance()))
 		{
-			static FName ParamName(TEXT("RotationRate"));
-			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
-			{
-				if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
-				{
-					FloatProp->SetPropertyValue_InContainer(AnimInst, Rate);
-				}
-			}
+			AnimInst->RotationRate = Rate;
 		}
 	}
 }
@@ -74,17 +59,9 @@ void ANovaPart::SetIsDead(bool bDead)
 {
 	if (SkeletalMesh)
 	{
-		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
-		if (AnimInst)
+		if (UNovaAnimInstance* AnimInst = Cast<UNovaAnimInstance>(SkeletalMesh->GetAnimInstance()))
 		{
-			static FName ParamName(TEXT("bIsDead"));
-			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
-			{
-				if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Prop))
-				{
-					BoolProp->SetPropertyValue_InContainer(AnimInst, bDead);
-				}
-			}
+			AnimInst->bIsDead = bDead;
 		}
 	}
 }
