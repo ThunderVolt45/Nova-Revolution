@@ -23,6 +23,14 @@ public:
 	// 부품 스탯 데이터를 가져오는 함수
 	const class UNovaPartData* GetPartData() const { return PartData; }
 
+	/** 애니메이션 제어: 이동 속도 연동 (다리 부품용) */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Animation")
+	virtual void SetMovementSpeed(float Speed);
+
+	/** 애니메이션 제어: 공격 애니메이션 재생 (무기 부품용) */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Animation")
+	virtual void PlayAttackAnimation();
+
 protected:
 	// 이 부품의 성능 데이터 (PrimaryDataAsset)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part")

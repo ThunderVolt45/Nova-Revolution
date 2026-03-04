@@ -7,6 +7,7 @@
 #include "AttributeSet.h"
 #include "GAS/NovaAttributeSet.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -37,6 +38,22 @@ ANovaUnit::ANovaUnit()
 
 	// 기본 유닛 설정
 	TeamID = NovaTeam::None;
+}
+
+void ANovaUnit::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// 1. 다리(Legs) 애니메이션 업데이트: 이동 속도 전달
+	if (LegsPartComponent)
+	{
+		if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
+		{
+			// 현재 속도의 크기를 전달 (ABP에서 BlendSpace 등에 활용)
+			float CurrentSpeed = GetVelocity().Size();
+			LegsActor->SetMovementSpeed(CurrentSpeed);
+		}
+	}
 }
 
 void ANovaUnit::OnConstruction(const FTransform& Transform)
@@ -212,6 +229,12 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitMinRange(TotalMinRange);
 	AttributeSet->InitSplashRange(TotalSplashRange);
 
+	// 최대 이동 속도 설정 반영
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("Unit Stats Initialized: HP(%f), Watt(%f), Attack(%f)"), TotalHealth, TotalWatt,
 	       TotalAttack);
 }
@@ -246,6 +269,18 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 	// TODO: 팀원 C가 구현할 AIController로의 명령 전달 로직
 	// 예: GetController<ANovaAIController>()->ReceiveCommand(CommandData);
 	UE_LOG(LogTemp, Log, TEXT("Unit Received Command: Type %d"), (int32)CommandData.CommandType);
+
+	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
+	if (CommandData.CommandType == ECommandType::Attack)
+	{
+		for (auto WeaponComp : WeaponPartComponents)
+		{
+			if (ANovaPart* WeaponActor = Cast<ANovaPart>(WeaponComp->GetChildActor()))
+			{
+				WeaponActor->PlayAttackAnimation();
+			}
+		}
+	}
 }
 
 void ANovaUnit::Die()

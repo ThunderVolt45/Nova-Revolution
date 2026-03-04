@@ -1,6 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/NovaPart.h"
+#include "Core/NovaPartData.h"
+#include "Animation/AnimInstance.h"
+#include "Components/SkeletalMeshComponent.h"
 
 ANovaPart::ANovaPart()
 {
@@ -27,4 +30,37 @@ UPrimitiveComponent* ANovaPart::GetMainMesh() const
 	}
 	
 	return StaticMesh;
+}
+
+void ANovaPart::SetMovementSpeed(float Speed)
+{
+	if (SkeletalMesh)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst)
+		{
+			// ABP에 정의된 'MovementSpeed' 파라미터 갱신
+			static FName SpeedParamName(TEXT("MovementSpeed"));
+			
+			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(SpeedParamName))
+			{
+				if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
+				{
+					FloatProp->SetPropertyValue_InContainer(AnimInst, Speed);
+				}
+			}
+		}
+	}
+}
+
+void ANovaPart::PlayAttackAnimation()
+{
+	if (SkeletalMesh && PartData && PartData->AttackMontage)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst && !AnimInst->Montage_IsPlaying(PartData->AttackMontage))
+		{
+			AnimInst->Montage_Play(PartData->AttackMontage);
+		}
+	}
 }
