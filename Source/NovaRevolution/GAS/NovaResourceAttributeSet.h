@@ -66,4 +66,14 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Resources")
 	FGameplayAttributeData MaxUnitWatt;
 	ATTRIBUTE_ACCESSORS(UNovaResourceAttributeSet, MaxUnitWatt)
+
+	// 플레이어 와트 생산 레벨 (Watt Production Level)
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Resources")
+	FGameplayAttributeData WattLevel;
+	ATTRIBUTE_ACCESSORS(UNovaResourceAttributeSet, WattLevel)
+
+	// 플레이어 SP 생산 레벨 (SP Production Level)
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Resources")
+	FGameplayAttributeData SPLevel;
+	ATTRIBUTE_ACCESSORS(UNovaResourceAttributeSet, SPLevel)
 };

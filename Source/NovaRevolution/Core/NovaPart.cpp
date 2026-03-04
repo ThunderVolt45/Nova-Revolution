@@ -1,6 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/NovaPart.h"
+#include "Core/NovaPartData.h"
+#include "Core/Animation/NovaAnimInstance.h"
+#include "Components/SkeletalMeshComponent.h"
+
 
 ANovaPart::ANovaPart()
 {
@@ -27,4 +31,49 @@ UPrimitiveComponent* ANovaPart::GetMainMesh() const
 	}
 	
 	return StaticMesh;
+}
+
+void ANovaPart::SetMovementSpeed(float Speed)
+{
+	if (SkeletalMesh)
+	{
+		if (UNovaAnimInstance* AnimInst = Cast<UNovaAnimInstance>(SkeletalMesh->GetAnimInstance()))
+		{
+			AnimInst->MovementSpeed = Speed;
+		}
+	}
+}
+
+void ANovaPart::SetRotationRate(float Rate)
+{
+	if (SkeletalMesh)
+	{
+		if (UNovaAnimInstance* AnimInst = Cast<UNovaAnimInstance>(SkeletalMesh->GetAnimInstance()))
+		{
+			AnimInst->RotationRate = Rate;
+		}
+	}
+}
+
+void ANovaPart::SetIsDead(bool bDead)
+{
+	if (SkeletalMesh)
+	{
+		if (UNovaAnimInstance* AnimInst = Cast<UNovaAnimInstance>(SkeletalMesh->GetAnimInstance()))
+		{
+			AnimInst->bIsDead = bDead;
+		}
+	}
+}
+
+void ANovaPart::PlayAttackAnimation()
+{
+	if (SkeletalMesh && PartData && PartData->AttackMontage)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst && !AnimInst->Montage_IsPlaying(PartData->AttackMontage))
+		{
+			AnimInst->Montage_Play(PartData->AttackMontage);
+		}
+	}
 }
