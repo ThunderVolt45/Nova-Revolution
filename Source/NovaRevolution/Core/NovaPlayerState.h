@@ -24,6 +24,7 @@ public:
 
 	// AttributeSet 접근자
 	class UNovaAttributeSet* GetAttributeSet() const { return AttributeSet; }
+	class UNovaResourceAttributeSet* GetResourceAttributeSet() const { return ResourceAttributeSet; }
 
 protected:
 	// GAS 컴포넌트
@@ -33,4 +34,8 @@ protected:
 	// 속성 세트
 	UPROPERTY()
 	class UNovaAttributeSet* AttributeSet;
+
+	// 자원 속성 세트
+	UPROPERTY()
+	class UNovaResourceAttributeSet* ResourceAttributeSet;
 };

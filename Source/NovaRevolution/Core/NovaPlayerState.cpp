@@ -4,6 +4,7 @@
 #include "Core/NovaPlayerState.h"
 #include "AbilitySystemComponent.h"
 #include "GAS/NovaAttributeSet.h"
+#include "GAS/NovaResourceAttributeSet.h"
 
 ANovaPlayerState::ANovaPlayerState()
 {
@@ -16,6 +17,9 @@ ANovaPlayerState::ANovaPlayerState()
 
 	// AttributeSet 생성
 	AttributeSet = CreateDefaultSubobject<UNovaAttributeSet>(TEXT("AttributeSet"));
+
+	// 자원 속성 세트 생성
+	ResourceAttributeSet = CreateDefaultSubobject<UNovaResourceAttributeSet>(TEXT("ResourceAttributeSet"));
 
 	// Net Update Frequency 설정 (네트워크 반응성 향상)
 	SetNetUpdateFrequency(100.0f);
