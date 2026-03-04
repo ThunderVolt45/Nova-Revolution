@@ -7,6 +7,7 @@
 #include "GameFramework/PlayerController.h"
 #include "NovaPlayerController.generated.h"
 
+struct FInputActionValue;
 class UInputMappingContext;
 
 /**
@@ -28,9 +29,17 @@ protected:
 	// 커스텀 입력 컴포넌트를 사용하기 위해 오버라이드 합니다.
 	virtual void SetupInputComponent() override;
 	
+	// 에디터에서 할당할 IMC
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
+	TObjectPtr<UInputMappingContext> IMC;
+	
 	// 에디터에서 할당할 입력 설정 데이터 에셋
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	TObjectPtr<class UNovaInputConfig> InputConfig;
+	
+	// 에디터에서 할당할 카메라 이동 입력 액션
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
+	TObjectPtr<class UInputAction> MoveCameraAction;
 	
 	// --- 입력 처리 함수 (콜백) ---
 	// UNovaInputComponent에서 태그를 매개변수로 넘겨주게 됩니다.
@@ -38,8 +47,11 @@ protected:
 	void Input_AbilityInputTagReleased(FGameplayTag InputTag);
 	void Input_AbilityInputTagHeld(FGameplayTag InputTag);
 	
+	// 실제 카메라 이동 처리 함수
+	void MoveCamera(const FInputActionValue& Value);
+	
 	// --- 유닛 선택 관리 ---
-	// 현재 마우스로 선택한 액터들을 담아두는 배열입니다.
+	// 현재 마우스로 선택한 액터들을 담아두는 배열
 	UPROPERTY(BlueprintReadOnly, Category="Nova|Selection")
 	TArray<TObjectPtr<AActor>> SelectedUnits;
 	
