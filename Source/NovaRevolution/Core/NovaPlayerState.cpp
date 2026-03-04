@@ -3,7 +3,6 @@
 
 #include "Core/NovaPlayerState.h"
 #include "AbilitySystemComponent.h"
-#include "GAS/NovaAttributeSet.h"
 #include "GAS/NovaResourceAttributeSet.h"
 
 ANovaPlayerState::ANovaPlayerState()
@@ -14,9 +13,6 @@ ANovaPlayerState::ANovaPlayerState()
 
 	// 복제 모드 설정 (RTS는 보통 혼합 혹은 전체 복제 사용)
 	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Mixed);
-
-	// AttributeSet 생성
-	AttributeSet = CreateDefaultSubobject<UNovaAttributeSet>(TEXT("AttributeSet"));
 
 	// 자원 속성 세트 생성
 	ResourceAttributeSet = CreateDefaultSubobject<UNovaResourceAttributeSet>(TEXT("ResourceAttributeSet"));
