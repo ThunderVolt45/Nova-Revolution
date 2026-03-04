@@ -5,9 +5,11 @@
 #include "Core/NovaPartData.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
+#include "NovaRevolution.h"
 #include "GAS/NovaAttributeSet.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "WorldPartition/ContentBundle/ContentBundleLog.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -36,7 +38,7 @@ ANovaUnit::ANovaUnit()
 	BodyPartComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("BodyPartComponent"));
 	BodyPartComponent->SetupAttachment(LegsPartComponent);
 
-	// 기본 유닛 설정
+	// 기본 팀 ID 설정
 	TeamID = NovaTeam::None;
 }
 
@@ -44,14 +46,23 @@ void ANovaUnit::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// 1. 다리(Legs) 애니메이션 업데이트: 이동 속도 전달
+	if (bIsDead) return;
+
 	if (LegsPartComponent)
 	{
 		if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
 		{
-			// 현재 속도의 크기를 전달 (ABP에서 BlendSpace 등에 활용)
+			// 1. 이동 속도 전달
 			float CurrentSpeed = GetVelocity().Size();
 			LegsActor->SetMovementSpeed(CurrentSpeed);
+
+			// 2. 회전 속도 계산 및 전달
+			float CurrentYaw = GetActorRotation().Yaw;
+			float YawDelta = FMath::FindDeltaAngleDegrees(LastYaw, CurrentYaw);
+			float RotationRate = YawDelta / DeltaTime; // 초당 회전 각도
+			
+			LegsActor->SetRotationRate(RotationRate);
+			LastYaw = CurrentYaw;
 		}
 	}
 }
@@ -87,29 +98,21 @@ void ANovaUnit::BeginPlay()
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
 		                      .AddUObject(this, &ANovaUnit::OnHealthChanged);
 	}
+
+	// 초기 Yaw 설정
+	LastYaw = GetActorRotation().Yaw;
 }
 
 void ANovaUnit::ConstructUnitParts()
 {
-	// 다리(Legs) 할당
-	if (LegsPartClass)
-	{
-		LegsPartComponent->SetChildActorClass(LegsPartClass);
-	}
-
-	// 몸통(Body) 할당
-	if (BodyPartClass)
-	{
-		BodyPartComponent->SetChildActorClass(BodyPartClass);
-	}
+	// 다리와 몸통 부품 할당
+	if (LegsPartClass) LegsPartComponent->SetChildActorClass(LegsPartClass);
+	if (BodyPartClass) BodyPartComponent->SetChildActorClass(BodyPartClass);
 
 	// 기존에 동적으로 생성된 무기 컴포넌트들 제거 (중복 생성 방지)
 	for (UChildActorComponent* Comp : WeaponPartComponents)
 	{
-		if (Comp)
-		{
-			Comp->DestroyComponent();
-		}
+		if (Comp) Comp->DestroyComponent();
 	}
 	WeaponPartComponents.Empty();
 
@@ -146,8 +149,7 @@ void ANovaUnit::InitializePartAttachments()
 		if (UPrimitiveComponent* LegsMesh = LegsActor->GetMainMesh())
 		{
 			// 몸통을 지정된 소켓에 부착
-			BodyPartComponent->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
-			                                     BodyTargetSocketName);
+			BodyPartComponent->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
 		}
 	}
 
@@ -162,7 +164,8 @@ void ANovaUnit::InitializePartAttachments()
 				{
 					// 각 무기를 슬롯 설정에 지정된 전용 소켓에 부착
 					WeaponPartComponents[i]->AttachToComponent(
-						BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+						BodyMesh, 
+						FAttachmentTransformRules::SnapToTargetIncludingScale, 
 						WeaponSlotConfigs[i].TargetSocketName);
 				}
 			}
@@ -174,7 +177,6 @@ void ANovaUnit::InitializeAttributesFromParts()
 {
 	if (!AttributeSet) return;
 
-	// 임시 합산 변수들
 	float TotalWatt = 0.0f;
 	float TotalHealth = 0.0f;
 	float TotalAttack = 0.0f;
@@ -190,10 +192,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	TArray<AActor*> PartActors;
 	PartActors.Add(LegsPartComponent->GetChildActor());
 	PartActors.Add(BodyPartComponent->GetChildActor());
-	for (auto WeaponComp : WeaponPartComponents)
-	{
-		PartActors.Add(WeaponComp->GetChildActor());
-	}
+	for (auto WeaponComp : WeaponPartComponents) PartActors.Add(WeaponComp->GetChildActor());
 
 	// 각 부품에서 스탯 수집
 	for (AActor* Actor : PartActors)
@@ -219,7 +218,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	// AttributeSet 초기화
 	AttributeSet->InitWatt(TotalWatt);
 	AttributeSet->InitHealth(TotalHealth);
-	AttributeSet->InitMaxHealth(TotalHealth); // MaxHealth도 동일하게 초기화
+	AttributeSet->InitMaxHealth(TotalHealth);
 	AttributeSet->InitAttack(TotalAttack);
 	AttributeSet->InitDefense(TotalDefense);
 	AttributeSet->InitSpeed(TotalSpeed);
@@ -235,8 +234,8 @@ void ANovaUnit::InitializeAttributesFromParts()
 		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("Unit Stats Initialized: HP(%f), Watt(%f), Attack(%f)"), TotalHealth, TotalWatt,
-	       TotalAttack);
+	NOVA_LOG(Log, "Unit Stats Initialized: HP(%f), Watt(%f), Attack(%f)",
+		TotalHealth, TotalWatt, TotalAttack);
 }
 
 UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
@@ -266,9 +265,12 @@ bool ANovaUnit::IsSelectable() const
 
 void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 {
+	// 죽은 상태에서는 명령 수행 불가
+	if (bIsDead) return;
+	
 	// TODO: 팀원 C가 구현할 AIController로의 명령 전달 로직
 	// 예: GetController<ANovaAIController>()->ReceiveCommand(CommandData);
-	UE_LOG(LogTemp, Log, TEXT("Unit Received Command: Type %d"), (int32)CommandData.CommandType);
+	NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
 
 	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
 	if (CommandData.CommandType == ECommandType::Attack)
@@ -285,21 +287,39 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 
 void ANovaUnit::Die()
 {
+	if (bIsDead)
+	{
+		return;
+	}
+	
 	// 유닛 사망 처리 로직
-	UE_LOG(LogTemp, Error, TEXT("Unit Died: %s"), *GetName());
+	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
+	bIsDead = true;
 
 	// 충돌 비활성화 및 소멸 처리 (필요에 따라 래그돌 또는 파편화 연출 추가 가능)
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
+	
+	// 모든 부품에 사망 상태 전달
+	TArray<AActor*> PartActors;
+	PartActors.Add(LegsPartComponent->GetChildActor());
+	PartActors.Add(BodyPartComponent->GetChildActor());
+	for (auto WeaponComp : WeaponPartComponents) PartActors.Add(WeaponComp->GetChildActor());
 
-	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (즉시 Destroy 또는 애니메이션 대기)
+	for (AActor* Actor : PartActors)
+	{
+		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		{
+			Part->SetIsDead(true);
+		}
+	}
+	
+	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (오브젝트 풀링 적용?)
 	// Destroy();
 }
 
 void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 {
 	// 체력이 0 이하가 되면 Die() 호출
-	if (Data.NewValue <= 0.0f)
-	{
-		Die();
-	}
+	if (Data.NewValue <= 0.0f) Die();
 }

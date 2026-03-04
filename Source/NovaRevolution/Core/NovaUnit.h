@@ -110,7 +110,14 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
 	bool bIsSelected = false;
 
+	// 사망 여부
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
+	bool bIsDead = false;
+
 private:
+	// 이전 프레임의 Yaw (회전 속도 계산용)
+	float LastYaw = 0.0f;
+
 	// 속성 변경 시 호출될 콜백 함수 (UI 업데이트 등)
 	void OnHealthChanged(const FOnAttributeChangeData& Data);
 };

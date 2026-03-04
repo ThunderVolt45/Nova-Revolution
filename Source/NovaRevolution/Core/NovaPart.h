@@ -27,6 +27,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Animation")
 	virtual void SetMovementSpeed(float Speed);
 
+	/** 애니메이션 제어: 회전 속도 연동 (다리 부품용) */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Animation")
+	virtual void SetRotationRate(float Rate);
+
+	/** 애니메이션 제어: 사망 상태 연동 */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Animation")
+	virtual void SetIsDead(bool bDead);
+
 	/** 애니메이션 제어: 공격 애니메이션 재생 (무기 부품용) */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Animation")
 	virtual void PlayAttackAnimation();

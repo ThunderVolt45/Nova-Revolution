@@ -39,14 +39,50 @@ void ANovaPart::SetMovementSpeed(float Speed)
 		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
 		if (AnimInst)
 		{
-			// ABP에 정의된 'MovementSpeed' 파라미터 갱신
-			static FName SpeedParamName(TEXT("MovementSpeed"));
-			
-			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(SpeedParamName))
+			static FName ParamName(TEXT("MovementSpeed"));
+			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
 			{
 				if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
 				{
 					FloatProp->SetPropertyValue_InContainer(AnimInst, Speed);
+				}
+			}
+		}
+	}
+}
+
+void ANovaPart::SetRotationRate(float Rate)
+{
+	if (SkeletalMesh)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst)
+		{
+			static FName ParamName(TEXT("RotationRate"));
+			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
+			{
+				if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
+				{
+					FloatProp->SetPropertyValue_InContainer(AnimInst, Rate);
+				}
+			}
+		}
+	}
+}
+
+void ANovaPart::SetIsDead(bool bDead)
+{
+	if (SkeletalMesh)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst)
+		{
+			static FName ParamName(TEXT("bIsDead"));
+			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
+			{
+				if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Prop))
+				{
+					BoolProp->SetPropertyValue_InContainer(AnimInst, bDead);
 				}
 			}
 		}
