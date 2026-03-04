@@ -1,6 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/NovaPart.h"
+#include "Core/NovaPartData.h"
+#include "Animation/AnimInstance.h"
+#include "Components/SkeletalMeshComponent.h"
 
 ANovaPart::ANovaPart()
 {
@@ -27,4 +30,73 @@ UPrimitiveComponent* ANovaPart::GetMainMesh() const
 	}
 	
 	return StaticMesh;
+}
+
+void ANovaPart::SetMovementSpeed(float Speed)
+{
+	if (SkeletalMesh)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst)
+		{
+			static FName ParamName(TEXT("MovementSpeed"));
+			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
+			{
+				if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
+				{
+					FloatProp->SetPropertyValue_InContainer(AnimInst, Speed);
+				}
+			}
+		}
+	}
+}
+
+void ANovaPart::SetRotationRate(float Rate)
+{
+	if (SkeletalMesh)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst)
+		{
+			static FName ParamName(TEXT("RotationRate"));
+			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
+			{
+				if (FFloatProperty* FloatProp = CastField<FFloatProperty>(Prop))
+				{
+					FloatProp->SetPropertyValue_InContainer(AnimInst, Rate);
+				}
+			}
+		}
+	}
+}
+
+void ANovaPart::SetIsDead(bool bDead)
+{
+	if (SkeletalMesh)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst)
+		{
+			static FName ParamName(TEXT("bIsDead"));
+			if (FProperty* Prop = AnimInst->GetClass()->FindPropertyByName(ParamName))
+			{
+				if (FBoolProperty* BoolProp = CastField<FBoolProperty>(Prop))
+				{
+					BoolProp->SetPropertyValue_InContainer(AnimInst, bDead);
+				}
+			}
+		}
+	}
+}
+
+void ANovaPart::PlayAttackAnimation()
+{
+	if (SkeletalMesh && PartData && PartData->AttackMontage)
+	{
+		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
+		if (AnimInst && !AnimInst->Montage_IsPlaying(PartData->AttackMontage))
+		{
+			AnimInst->Montage_Play(PartData->AttackMontage);
+		}
+	}
 }
