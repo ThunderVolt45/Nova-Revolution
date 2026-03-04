@@ -9,11 +9,15 @@
 #include "GAS/NovaAttributeSet.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "WorldPartition/ContentBundle/ContentBundleLog.h"
+#include "Core/AI/NovaAIController.h"
 
 ANovaUnit::ANovaUnit()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	// AI 설정: 스폰 시 자동으로 전용 AI 컨트롤러 생성 및 빙의
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+	AIControllerClass = ANovaAIController::StaticClass();
 
 	// 상속받은 기본 메시는 사용하지 않으므로 숨김 및 충돌 비활성화
 	if (GetMesh())
@@ -40,6 +44,20 @@ ANovaUnit::ANovaUnit()
 
 	// 기본 팀 ID 설정
 	TeamID = NovaTeam::None;
+
+	// 이동 설정: 캐릭터가 이동 방향으로 자동 회전
+	if (GetCharacterMovement())
+	{
+		GetCharacterMovement()->bOrientRotationToMovement = true;
+		GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.0f, 0.0f);
+		GetCharacterMovement()->bConstrainToPlane = true;
+		GetCharacterMovement()->bSnapToPlaneAtStart = true;
+	}
+
+	// 컨트롤러 회전 사용 안 함 (이동 방향 회전 우선)
+	bUseControllerRotationPitch = false;
+	bUseControllerRotationRoll = false;
+	bUseControllerRotationYaw = false;
 }
 
 void ANovaUnit::Tick(float DeltaTime)
@@ -218,7 +236,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	// AttributeSet 초기화
 	AttributeSet->InitWatt(TotalWatt);
 	AttributeSet->InitHealth(TotalHealth);
-	AttributeSet->InitMaxHealth(TotalHealth);
+	AttributeSet->InitMaxHealth(TotalHealth); // MaxHealth도 동일하게 초기화
 	AttributeSet->InitAttack(TotalAttack);
 	AttributeSet->InitDefense(TotalDefense);
 	AttributeSet->InitSpeed(TotalSpeed);
@@ -228,15 +246,22 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitMinRange(TotalMinRange);
 	AttributeSet->InitSplashRange(TotalSplashRange);
 
+	// 디버깅: 속도가 0일 경우 테스트를 위해 최소 속도 부여
+	if (TotalSpeed <= 0.0f)
+	{
+		NOVA_SCREEN(Error, "Unit Speed is 0! Forcing speed to 300 for testing.");
+		TotalSpeed = 300.0f;
+	}
+
 	// 최대 이동 속도 설정 반영
 	if (GetCharacterMovement())
 	{
 		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
 	}
 
-	NOVA_LOG(Log, "Unit Stats Initialized: HP(%f), Watt(%f), Attack(%f)",
-		TotalHealth, TotalWatt, TotalAttack);
-}
+	NOVA_SCREEN(Log, "Unit Stats Initialized: HP(%.f), Speed(%.f), Watt(%.f)", TotalHealth, TotalSpeed, TotalWatt);
+	}
+
 
 UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
 {
@@ -268,8 +293,12 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 	// 죽은 상태에서는 명령 수행 불가
 	if (bIsDead) return;
 	
-	// TODO: 팀원 C가 구현할 AIController로의 명령 전달 로직
-	// 예: GetController<ANovaAIController>()->ReceiveCommand(CommandData);
+	// 1. 전용 AI 컨트롤러에게 명령 전달 (이동, 추적 등)
+	if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(GetController()))
+	{
+		CmdInterface->IssueCommand(CommandData);
+	}
+
 	NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
 
 	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
