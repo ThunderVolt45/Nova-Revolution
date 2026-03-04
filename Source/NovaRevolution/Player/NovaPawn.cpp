@@ -19,7 +19,7 @@ ANovaPawn::ANovaPawn()
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
 	CameraComponent->SetupAttachment(RootComponent);
 	CameraComponent->SetRelativeLocation(FVector(0.0f, 0.0f, 1500.f));
-	CameraComponent->SetRelativeRotation(FRotator(-90.f, 0.0f, 0.0f));
+	CameraComponent->SetRelativeRotation(FRotator(-75.f, 0.0f, 0.0f));
 	
 	// 이동 컴포넌트
 	MovementComponent = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("MovementComponent"));
