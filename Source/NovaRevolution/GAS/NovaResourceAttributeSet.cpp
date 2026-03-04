@@ -4,6 +4,11 @@
 
 UNovaResourceAttributeSet::UNovaResourceAttributeSet()
 {
+	InitCurrentWatt(600.f);
+	InitMaxWatt(2000.f);
+	InitCurrentSP(40.f);
+	InitMaxSP(100.f);
+	InitMaxPopulation(20.f);
 }
 
 void UNovaResourceAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -26,5 +31,13 @@ void UNovaResourceAttributeSet::PreAttributeChange(const FGameplayAttribute& Att
 	else if (Attribute == GetTotalUnitWattAttribute())
 	{
 		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxUnitWatt());
+	}
+	else if (Attribute == GetWattLevelAttribute())
+	{
+		NewValue = FMath::Max(NewValue, 1.0f); // 최소 레벨 1 유지
+	}
+	else if (Attribute == GetSPLevelAttribute())
+	{
+		NewValue = FMath::Max(NewValue, 1.0f); // 최소 레벨 1 유지
 	}
 }

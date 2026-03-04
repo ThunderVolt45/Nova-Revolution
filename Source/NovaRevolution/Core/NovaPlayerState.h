@@ -52,10 +52,18 @@ public:
 	UFUNCTION()
 	virtual float GetMaxUnitWatt() const override;
 
+	UFUNCTION()
+	virtual float GetWattLevel() const override;
+
+	UFUNCTION()
+	virtual float GetSPLevel() const override;
+
 	// INovaResourceInterface 구현 (델리게이트)
 	virtual FNovaOnResourceChangedSignature& GetOnWattChangedDelegate() override { return OnWattChanged; }
 	virtual FNovaOnResourceChangedSignature& GetOnSPChangedDelegate() override { return OnSPChanged; }
 	virtual FNovaOnResourceChangedSignature& GetOnPopulationChangedDelegate() override { return OnPopulationChanged; }
+	virtual FNovaOnResourceChangedSignature& GetOnWattLevelChangedDelegate() override { return OnWattLevelChanged; }
+	virtual FNovaOnResourceChangedSignature& GetOnSPLevelChangedDelegate() override { return OnSPLevelChanged; }
 
 	/** 블루프린트에서 직접 접근 가능한 델리게이트 */
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
@@ -66,6 +74,12 @@ public:
 
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
 	FNovaOnResourceChangedSignature OnPopulationChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
+	FNovaOnResourceChangedSignature OnWattLevelChanged;
+
+	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
+	FNovaOnResourceChangedSignature OnSPLevelChanged;
 
 	// AttributeSet 접근자
 	class UNovaResourceAttributeSet* GetResourceAttributeSet() const { return ResourceAttributeSet; }
