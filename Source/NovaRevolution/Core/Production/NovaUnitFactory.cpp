@@ -7,7 +7,7 @@
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaPlayerState.h"
 #include "Core/NovaUnit.h"
-#include "GAS/NovaAttributeSet.h"
+#include "Core/NovaResourceComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner, const FVector& RallyPoint)
@@ -97,11 +97,22 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
 
 bool UNovaUnitFactory::CheckAndConsumeResources(class ANovaPlayerState* PS, float Cost)
 {
-	if (!PS || !PS->GetAttributeSet()) return false;
-	float CurrentWatt = PS->GetAttributeSet()->GetWatt();
-	if (CurrentWatt < Cost) return false;
+	if (!PS) return false;
 
-	// Check TODO: GAS GameplayEffect를 사용하여 서버측에서 안전하게 자원 차감 구현
-	// PS->GetAttributeSet()->SetWatt(CurrentWatt - Cost);
-	return true;
+	UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>();
+	if (!ResourceComp) return false;
+
+	// 자원 및 인구수 체크 (유닛 생산 시 Watt 비용만 전달)
+	if (ResourceComp->CanAfford(Cost, 0.0f) && ResourceComp->CanSpawnUnit(Cost))
+	{
+		// 자원 소모
+		ResourceComp->ConsumeResources(Cost, 0.0f);
+		
+		// 인구수 업데이트 (+1 유닛, +Cost 와트 합계)
+		ResourceComp->UpdatePopulation(1.0f, Cost);
+		
+		return true;
+	}
+
+	return false;
 }

@@ -54,6 +54,64 @@ public:
 	virtual bool IsSelectable() const { return true; }
 };
 
+// --- 자원 시스템 인터페이스 ---
+
+/** 자원 변경 알림을 위한 델리게이트 (BlueprintAssignable 용도로 사용 가능) */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FNovaOnResourceChangedSignature, float, NewValue, float, MaxValue);
+
+UINTERFACE(MinimalAPI, BlueprintType, NotBlueprintable)
+class UNovaResourceInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * 자원 정보(Watt, SP, Population)를 제공하는 인터페이스
+ * HUD(UI)에서 플레이어의 현재 자원 상태를 파악할 때 사용합니다.
+ */
+class NOVAREVOLUTION_API INovaResourceInterface
+{
+	GENERATED_BODY()
+
+public:
+	/** 현재 와트(Watt) 정보를 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetCurrentWatt() const = 0;
+
+	/** 최대 와트(Max Watt) 제한을 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetMaxWatt() const = 0;
+
+	/** 현재 스킬 포인트(SP) 정보를 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetCurrentSP() const = 0;
+
+	/** 최대 스킬 포인트(Max SP) 제한을 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetMaxSP() const = 0;
+
+	/** 현재 인구수(Population) 정보를 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetCurrentPopulation() const = 0;
+
+	/** 최대 인구수(Max Population) 제한을 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetMaxPopulation() const = 0;
+
+	/** 현재 필드 위 유닛들의 와트 총합을 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetTotalUnitWatt() const = 0;
+
+	/** 필드 위 유닛들의 와트 총합 제한을 가져옵니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	virtual float GetMaxUnitWatt() const = 0;
+
+	/** 자원 변경 델리게이트 접근자 */
+	virtual FNovaOnResourceChangedSignature& GetOnWattChangedDelegate() = 0;
+	virtual FNovaOnResourceChangedSignature& GetOnSPChangedDelegate() = 0;
+	virtual FNovaOnResourceChangedSignature& GetOnPopulationChangedDelegate() = 0;
+};
+
 // --- 명령 전달 시스템 인터페이스 ---
 UINTERFACE(MinimalAPI)
 class UNovaCommandInterface : public UInterface
