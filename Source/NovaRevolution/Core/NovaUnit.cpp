@@ -68,7 +68,7 @@ void ANovaUnit::BeginPlay()
 
 		// 속성 변경 콜백 등록
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
-			.AddUObject(this, &ANovaUnit::OnHealthChanged);
+		                      .AddUObject(this, &ANovaUnit::OnHealthChanged);
 	}
 }
 
@@ -104,17 +104,17 @@ void ANovaUnit::ConstructUnitParts()
 		{
 			// 무기 컴포넌트 동적 생성 및 등록
 			FName CompName = FName(*FString::Printf(TEXT("WeaponPartComponent_%d"), i));
-			
+
 			// NewObject 시 이름을 명시하여 고유성 유지
 			UChildActorComponent* WeaponComp = NewObject<UChildActorComponent>(this, CompName);
-			
+
 			if (WeaponComp)
 			{
 				WeaponComp->CreationMethod = EComponentCreationMethod::UserConstructionScript;
 				WeaponComp->RegisterComponent();
 				WeaponComp->SetChildActorClass(Config.WeaponPartClass);
 				WeaponComp->AttachToComponent(BodyPartComponent, FAttachmentTransformRules::SnapToTargetIncludingScale);
-				
+
 				WeaponPartComponents.Add(WeaponComp);
 			}
 		}
@@ -129,7 +129,8 @@ void ANovaUnit::InitializePartAttachments()
 		if (UPrimitiveComponent* LegsMesh = LegsActor->GetMainMesh())
 		{
 			// 몸통을 지정된 소켓에 부착
-			BodyPartComponent->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
+			BodyPartComponent->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+			                                     BodyTargetSocketName);
 		}
 	}
 
@@ -143,7 +144,9 @@ void ANovaUnit::InitializePartAttachments()
 				if (i < WeaponSlotConfigs.Num())
 				{
 					// 각 무기를 슬롯 설정에 지정된 전용 소켓에 부착
-					WeaponPartComponents[i]->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, WeaponSlotConfigs[i].TargetSocketName);
+					WeaponPartComponents[i]->AttachToComponent(
+						BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+						WeaponSlotConfigs[i].TargetSocketName);
 				}
 			}
 		}
@@ -209,7 +212,8 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitMinRange(TotalMinRange);
 	AttributeSet->InitSplashRange(TotalSplashRange);
 
-	UE_LOG(LogTemp, Log, TEXT("Unit Stats Initialized: HP(%f), Watt(%f), Attack(%f)"), TotalHealth, TotalWatt, TotalAttack);
+	UE_LOG(LogTemp, Log, TEXT("Unit Stats Initialized: HP(%f), Watt(%f), Attack(%f)"), TotalHealth, TotalWatt,
+	       TotalAttack);
 }
 
 UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
@@ -251,7 +255,7 @@ void ANovaUnit::Die()
 
 	// 충돌 비활성화 및 소멸 처리 (필요에 따라 래그돌 또는 파편화 연출 추가 가능)
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	
+
 	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (즉시 Destroy 또는 애니메이션 대기)
 	// Destroy();
 }
