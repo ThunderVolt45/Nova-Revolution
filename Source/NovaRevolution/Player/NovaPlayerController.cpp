@@ -5,8 +5,10 @@
 
 #include "EnhancedInputSubsystems.h"
 #include "NovaPawn.h"
+#include "NovaRevolution.h"
 #include "Blueprint/UserWidget.h"
 #include "Core/NovaInterfaces.h"
+#include "Core/NovaLog.h"
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
@@ -95,7 +97,7 @@ void ANovaPlayerController::PlayerTick(float DeltaTime)
 {
 	Super::PlayerTick(DeltaTime);
 
-	// 마우스 스크롤링 기능
+	// 마우스 화면 스크롤링 기능
 	if (bEnableEdgeScrolling)
 	{
 		float MouseX, MouseY;
@@ -149,6 +151,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		bIsShiftDown = true;
 	}
 
+	// 마우스 좌클릭 (선택)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
 		// 1. 현재 마우스 좌표를 시작점으로 저장
@@ -156,29 +159,95 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		bIsDraggingBox = false; // 드래그 상태 초기화
 	}
 
-	// 우클릭 (스마트 명령)
+	// 마우스 우클릭 (스마트 명령)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
 	{
-		if (SelectedUnits.Num() > 0)
+		// 선택된 명령이 있다면 우클릭 시 취소
+		if (PendingCommandType != ECommandType::None)
 		{
+			CancelPendingCommand();
+			NOVA_SCREEN(Warning, "Pending Command Canceled.");
+		}
+		// 그렇지 않다면 스마트 명령 (이동 또는 공격)
+		else if (SelectedUnits.Num() > 0)
+		{
+			// 지정 대상에 대한 정보 전달 (Location 또는 Actor)
 			FCommandData Command;
 			Command.CommandType = ECommandType::Move; // 기본은 이동
 			Command.TargetLocation = CursorHit.Location;
 			Command.TargetActor = CursorHit.GetActor();
 
-			for (AActor* Unit : SelectedUnits)
-			{
-				if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
-				{
-					CmdInterface->IssueCommand(Command);
-				}
-			}
+			// 선택된 유닛들에게 명령 전달
+			IssueCommandToSelectedUnits(Command);
 		}
+		return;
+	}
+
+	// 누르는 즉시 실행되는 명령 : Stop(S), Hold(H), Spread(C), Halt(L)
+	ECommandType ImmediateCmd = ECommandType::None;
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Stop)) ImmediateCmd = ECommandType::Stop;
+	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Hold)) ImmediateCmd = ECommandType::Hold;
+	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Spread)) ImmediateCmd = ECommandType::Spread;
+	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Halt)) ImmediateCmd = ECommandType::Halt;
+	if (ImmediateCmd != ECommandType::None && SelectedUnits.Num() > 0)
+	{
+		FCommandData CmdData;
+		CmdData.CommandType = ImmediateCmd;
+		IssueCommandToSelectedUnits(CmdData);
+
+		// TODO: 나중에 UI 작업 (커서 모양 변경 등)
+		NOVA_SCREEN(Warning, "Command Executed: %d", (int32)ImmediateCmd);
+		// 다른 대기 중인 명령이 있었다면 취소
+		CancelPendingCommand();
+		// 명령 실행 후 즉시 return
+		return;
+	}
+
+	// 지정 대상/지점이 필요한 명령 : Attack(A), Patrol(P), Move(M) 
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Attack))
+	{
+		PendingCommandType = ECommandType::Attack;
+		// TODO: 나중에 UI 작업 (커서 모양 변경 등)
+		NOVA_SCREEN(Warning, "Command: Attack(A). Click to Execute.");
+	}
+	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Patrol))
+	{
+		PendingCommandType = ECommandType::Patrol;
+		// TODO: 나중에 UI 작업 (커서 모양 변경 등)
+		NOVA_SCREEN(Warning, "Command: Patrol(P). Click to Execute.");
+	}
+	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Move))
+	{
+		PendingCommandType = ECommandType::Move;
+		// TODO: 나중에 UI 작업 (커서 모양 변경 등)
+		NOVA_SCREEN(Warning, "Command: Move(M). Click to Execute.");
 	}
 }
 
 void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 {
+	// 명령 수행
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
+	{
+		// 대기 중인 명령이 있다면 수행
+		if (PendingCommandType != ECommandType::None && SelectedUnits.Num() > 0)
+		{
+			FHitResult CursorHit;
+			GetCursorHitResult(CursorHit);
+
+			FCommandData CmdData;
+			CmdData.CommandType = PendingCommandType;
+			CmdData.TargetLocation = CursorHit.Location;
+			CmdData.TargetActor = CursorHit.GetActor();
+
+			IssueCommandToSelectedUnits(CmdData);
+
+			// 명령 수행 후 초기화
+			CancelPendingCommand();
+			return;
+		}
+	}
+
 	// Shift 키를 떼는 순간 다중 선택 모드 해제!
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Select))
 	{
@@ -294,8 +363,8 @@ void ANovaPlayerController::ApplyCameraMovement(float ForwardInput, float RightI
 
 void ANovaPlayerController::Input_Zoom(const FInputActionValue& Value)
 {
-	float ZoomValue = Value.Get<float>();	// 휠을 위로 +1, 아래로 -1
-	
+	float ZoomValue = Value.Get<float>(); // 휠을 위로 +1, 아래로 -1
+
 	// 조종 중인 Pawn을 가져와서 UpdateZoom 호출
 	if (ANovaPawn* NovaPawn = Cast<ANovaPawn>(GetPawn()))
 	{
@@ -353,6 +422,24 @@ void ANovaPlayerController::PerformBoxSelection()
 			}
 		}
 	}
+}
+
+// 유닛들에게 명령 전송
+void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& CommandData)
+{
+	for (AActor* Unit : SelectedUnits)
+	{
+		if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
+		{
+			CmdInterface->IssueCommand(CommandData);
+		}
+	}
+}
+
+void ANovaPlayerController::CancelPendingCommand()
+{
+	PendingCommandType = ECommandType::None;
+	// TODO: 나중에 커서 모양 복구
 }
 
 void ANovaPlayerController::GetCursorHitResult(FHitResult& OutHitResult)

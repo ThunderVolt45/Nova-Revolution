@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
+#include "Core/NovaTypes.h"
 #include "GameFramework/PlayerController.h"
 #include "NovaPlayerController.generated.h"
 
@@ -26,27 +27,27 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	
+
 	// 커스텀 입력 컴포넌트를 사용하기 위해 오버라이드 합니다.
 	virtual void SetupInputComponent() override;
 
 	// 매 프레임 마우스 엣지 체크를 위해 오버라이드
 	virtual void PlayerTick(float DeltaTime) override;
-	
+
 	// 현재 드래그 상태인지 여부
 	bool bIsDraggingBox = false;
-	
+
 	// 현재 Shift(다중 선택) 모드인지 여부
 	bool bIsShiftDown = false;
-	
+
 	// 엣지 스크롤링 활성화 여부
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	bool bEnableEdgeScrolling = true;
-	
+
 	// 화면 끝에서 몇 픽셀 이내일 때 화면을 이동시킬지 설정
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	float EdgeScrollMargin = 15.f;
-	
+
 	// 에디터에서 할당할 IMC
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	TObjectPtr<UInputMappingContext> IMC;
@@ -58,25 +59,29 @@ protected:
 	// 에디터에서 할당할 카메라 이동 입력 액션
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	TObjectPtr<UInputAction> MoveCameraAction;
-	
+
 	// 에디터에서 할당할 카메라 줌 액션
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	TObjectPtr<UInputAction> ZoomAction;
-	
+
 	// 현재 마우스로 선택한 액터들을 담아두는 배열
 	UPROPERTY(BlueprintReadOnly, Category="Nova|Selection")
 	TArray<TObjectPtr<AActor>> SelectedUnits;
-	
+
+	// 현재 대기 중인 명령 타입 (None이 아니면 다음 좌클릭 시 해당 명령 수행)
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Command")
+	ECommandType PendingCommandType = ECommandType::None;
+
 	// 드래그 시작 시점의 화면 좌표 (픽셀 단위)
 	FVector2D DragStartPos;
-	
+
 	// UNovaInputComponent에서 태그를 매개변수로 넘겨주게 됩니다.
 	// 마우스 Pressed
 	void Input_AbilityInputTagPressed(FGameplayTag InputTag);
-	
+
 	// 마우스 Released
 	void Input_AbilityInputTagReleased(FGameplayTag InputTag);
-	
+
 	// 마우스 Held
 	void Input_AbilityInputTagHeld(FGameplayTag InputTag);
 
@@ -85,13 +90,19 @@ protected:
 
 	// 공통 카메라 이동처리 함수 (키보드와 마우스 엣지에서 공용으로 사용)
 	void ApplyCameraMovement(float ForwardInput, float RightInput);
-	
+
 	// 카메라 줌 처리 함수
 	void Input_Zoom(const FInputActionValue& Value);
-	
+
 	// 드래그 선택을 수행하는 실제 판정 함수
 	void PerformBoxSelection();
 	
+	// 선택된 유닛들에게 실제 명령을 하달하는 헬퍼 함수
+	void IssueCommandToSelectedUnits(const FCommandData& CommandData);
+	
+	// 명령 취소 (우클릭 시 대기 중인 명령 해제 - ESC로 취소 추가 예정)
+	void CancelPendingCommand();
+
 protected:
 	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
