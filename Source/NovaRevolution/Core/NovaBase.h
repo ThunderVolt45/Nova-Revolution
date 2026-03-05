@@ -17,7 +17,7 @@ struct FOnAttributeChangeData;
  * 플레이어의 거점 기지 클래스
  */
 UCLASS()
-class NOVAREVOLUTION_API ANovaBase : public AActor, public IAbilitySystemInterface, public INovaSelectableInterface, public INovaTeamInterface
+class NOVAREVOLUTION_API ANovaBase : public AActor, public IAbilitySystemInterface, public INovaSelectableInterface, public INovaTeamInterface, public INovaCommandInterface
 {
 	GENERATED_BODY()
 	
@@ -31,6 +31,9 @@ public:
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
 	virtual bool IsSelectable() const override { return true; }
+
+	// --- INovaCommandInterface ---
+	virtual void IssueCommand(const FCommandData& CommandData) override;
 
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
