@@ -56,7 +56,9 @@ public:
 	void SetAssemblyData(const FNovaUnitAssemblyData& Data)
 	{
 		LegsPartClass = Data.LegsClass;
+		LegsPartID = Data.LegsPartID;
 		BodyPartClass = Data.BodyClass;
+		BodyPartID = Data.BodyPartID;
 		WeaponSlotConfigs = Data.WeaponSlots;
 	}
 	
@@ -71,7 +73,16 @@ protected:
 
 	// --- 유닛 부품 설정 (에디터/데이터 주입용) ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	TObjectPtr<class UDataTable> PartDataTable;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	FName LegsPartID;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TSubclassOf<class ANovaPart> LegsPartClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	FName BodyPartID;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TSubclassOf<class ANovaPart> BodyPartClass;
