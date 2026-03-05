@@ -26,7 +26,7 @@ class NOVAREVOLUTION_API UNovaUnitFactory : public UWorldSubsystem
 	
 	private:
 	/** 실제 유닛 생성 및 조립 데이터 주입 */
-	class ANovaUnit* ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData, const FTransform& SpawnTransform,  int32 TeamID);
+	class ANovaUnit* ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData, const FTransform& SpawnTransform,  int32 TeamID, const FVector& RallyPoint);
 	/** 자원(Watt) 확인 및 차감 로직 */
 	bool CheckAndConsumeResources(class ANovaPlayerState* PS, float Cost);
 };

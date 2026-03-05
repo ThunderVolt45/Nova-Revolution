@@ -61,18 +61,10 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
    SpawnTransform.SetLocation(SpawnLocation);
 
    // 7. 실제 유닛 즉시 스폰 및 데이터 주입
-   ANovaUnit* NewUnit = ExecuteUnitProduction(TargetData, SpawnTransform, TargetTeamID);
+   ANovaUnit* NewUnit = ExecuteUnitProduction(TargetData, SpawnTransform, TargetTeamID, RallyPoint);
 
    if (NewUnit)
    {
-        // 8. 초기 명령 하사: 랠리 포인트 이동 (Initial Command Integration)
-         FCommandData MoveCmd;
-         MoveCmd.CommandType = ECommandType::Move;
-         MoveCmd.TargetLocation = RallyPoint;
-
-         // 인터페이스 기반 명령 전달
-         NewUnit->IssueCommand(MoveCmd);
-
         UE_LOG(LogTemp, Log, TEXT("Factory: Unit '%s' successfully spawned for Team %d."), *TargetData.UnitName, TargetTeamID);
          return true;
    }
@@ -80,15 +72,17 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
     return false;
 }
 
-class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData,const FTransform& SpawnTransform, int32 TeamID)
+class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData, const FTransform& SpawnTransform, int32 TeamID, const FVector& RallyPoint)
 {
 	// 지연 스폰을 사용하여 BeginPlay 이전에 데이터 주입
 	ANovaUnit* NewUnit = GetWorld()->SpawnActorDeferred<ANovaUnit>(ANovaUnit::StaticClass(), SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
 	if (NewUnit)
 	{
-		// 수정된 ANovaUnit의 Setter 함수 호출
+		// 데이터 주입
 		NewUnit->SetAssemblyData(AssemblyData);
-		NewUnit->SetTeamID(TeamID); // int32 기반 팀 ID 설정
+		NewUnit->SetTeamID(TeamID);
+		NewUnit->SetInitialRallyLocation(RallyPoint); // 랠리 포인트 설정
+		
 		UGameplayStatics::FinishSpawningActor(NewUnit, SpawnTransform);
 	}
 	

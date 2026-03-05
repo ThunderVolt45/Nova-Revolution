@@ -18,6 +18,18 @@ namespace NovaTeam
 }
 
 /**
+ * 선택 가능한 액터의 타입 구분
+ */
+UENUM(BlueprintType)
+enum class ENovaSelectableType : uint8
+{
+	None,
+	Unit,       // 유닛 (로봇)
+	Base,       // 기지 (건물)
+	Interactive // 기타 상호작용 가능한 대상
+};
+
+/**
  * RTS 명령의 종류 (노바 1492 기준)
  */
 UENUM(BlueprintType)

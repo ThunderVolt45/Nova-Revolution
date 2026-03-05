@@ -30,8 +30,9 @@
 - hotfix/*: 긴급 수정 브랜치
 
 ## Commit 양식 (Templete)
-- 커밋 제목과 내용은 .gitmessage 파일에 기록된 양식을 따라야 함.
+- 커밋 제목과 내용은 다음 양식을 따라야 함.
+@../.gitmessage
 
 ## PR 양식 (Templete)
-- Pull Request 제목과 내용은 .gitmessage 파일에 기록된 양식을 따라야 함.
+- Pull Request 제목과 내용은 다음 양식을 따라야 함.
 @./WORK_LOG_TEMPLETE.md
