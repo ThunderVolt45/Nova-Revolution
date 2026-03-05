@@ -20,9 +20,7 @@ void UNovaActionWidget::NativeConstruct()
 
 	// 2. 초기 상태 설정
 	ClearAllSlots();
-
-	// 2. 생성 시 모든 슬롯을 비어있는 상태로 초기화
-	ClearAllSlots();
+	
 }
 
 void UNovaActionWidget::ClearAllSlots()
