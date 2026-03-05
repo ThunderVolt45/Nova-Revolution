@@ -59,7 +59,7 @@ void ANovaPlayerState::BeginPlay()
 			[this](const FOnAttributeChangeData& Data)
 			{
 				OnPopulationChanged.Broadcast(Data.NewValue, GetMaxPopulation());
-				NOVA_SCREEN(Log, "Population Changed: %.0f / %.0f", Data.NewValue, GetMaxPopulation());
+				// NOVA_SCREEN(Log, "Population Changed: %.0f / %.0f", Data.NewValue, GetMaxPopulation());
 			}
 		);
 
@@ -68,7 +68,7 @@ void ANovaPlayerState::BeginPlay()
 			[this](const FOnAttributeChangeData& Data)
 			{
 				OnWattLevelChanged.Broadcast(Data.NewValue, 0.0f);
-				NOVA_SCREEN(Warning, "Watt Production Level Up: %.0f", Data.NewValue);
+				// NOVA_SCREEN(Warning, "Watt Production Level Up: %.0f", Data.NewValue);
 			}
 		);
 
@@ -77,7 +77,7 @@ void ANovaPlayerState::BeginPlay()
 			[this](const FOnAttributeChangeData& Data)
 			{
 				OnSPLevelChanged.Broadcast(Data.NewValue, 0.0f);
-				NOVA_SCREEN(Warning, "SP Production Level Up: %.0f", Data.NewValue);
+				// NOVA_SCREEN(Warning, "SP Production Level Up: %.0f", Data.NewValue);
 			}
 		);
 	}
