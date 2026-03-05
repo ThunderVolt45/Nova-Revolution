@@ -6,6 +6,7 @@
 #include "AttributeSet.h"
 #include "GAS/NovaAttributeSet.h"
 #include "Core/Production/NovaUnitFactory.h"
+#include "NovaRevolution.h"
 
 ANovaBase::ANovaBase()
 {

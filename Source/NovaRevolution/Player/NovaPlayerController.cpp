@@ -263,12 +263,30 @@ void ANovaPlayerController::PerformBoxSelection()
 	{
 		if (!bIsShiftDown) { ClearSelection(); }
 
+		// 유닛이 하나라도 있는지 확인
+		bool bContainsUnit = false;
+		for (AActor* Actor : ActorsInRect)
+		{
+			if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Actor))
+			{
+				if (Selectable->GetSelectableType() == ENovaSelectableType::Unit)
+				{
+					bContainsUnit = true;
+					break;
+				}
+			}
+		}
+
 		for (AActor* Unit : ActorsInRect)
 		{
 			if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Unit))
 			{
-				Selectable->OnSelected();
-				SelectedUnits.AddUnique(Unit); // 중복 방지
+				// 유닛이 포함되어 있다면 유닛 타입만 선택, 아니면 모두 선택
+				if (!bContainsUnit || Selectable->GetSelectableType() == ENovaSelectableType::Unit)
+				{
+					Selectable->OnSelected();
+					SelectedUnits.AddUnique(Unit);
+				}
 			}
 		}
 	}

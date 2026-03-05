@@ -31,6 +31,7 @@ public:
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
 	virtual bool IsSelectable() const override { return true; }
+	virtual ENovaSelectableType GetSelectableType() const override { return ENovaSelectableType::Base; }
 
 	// --- INovaCommandInterface ---
 	virtual void IssueCommand(const FCommandData& CommandData) override;
