@@ -171,23 +171,34 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		// 그렇지 않다면 스마트 명령 (이동 또는 공격)
 		else if (SelectedUnits.Num() > 0)
 		{
-			// 지정 대상에 대한 정보 전달 (Location 또는 Actor)
-			FCommandData Command;
-			Command.CommandType = ECommandType::Move; // 기본은 이동
-			Command.TargetLocation = CursorHit.Location;
-			Command.TargetActor = CursorHit.GetActor();
+			FCommandData CmdData;
+			CmdData.CommandType = ECommandType::Move;
+			CmdData.TargetLocation = CursorHit.Location;
+			
+			AActor* HitActor = CursorHit.GetActor();
+			if (HitActor)
+			{
+				if (HitActor->GetClass()->ImplementsInterface(UNovaSelectableInterface::StaticClass()))
+				{
+					CmdData.TargetActor = HitActor;
+				}
+				else
+				{
+					// 지형이나 일반 오브젝트인 경우 Actor는 무시하고 위치만 전달
+					CmdData.TargetActor = nullptr;
+				}
+			}
 
 			// 선택된 유닛들에게 명령 전달
-			IssueCommandToSelectedUnits(Command);
+			IssueCommandToSelectedUnits(CmdData);
 		}
 		return;
 	}
 
-	// 누르는 즉시 실행되는 명령 : Stop(S), Hold(H), Spread(C), Halt(L)
+	// 누르는 즉시 실행되는 명령 : Stop(S), Hold(H), Halt(L)
 	ECommandType ImmediateCmd = ECommandType::None;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Stop)) ImmediateCmd = ECommandType::Stop;
 	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Hold)) ImmediateCmd = ECommandType::Hold;
-	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Spread)) ImmediateCmd = ECommandType::Spread;
 	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Halt)) ImmediateCmd = ECommandType::Halt;
 	if (ImmediateCmd != ECommandType::None && SelectedUnits.Num() > 0)
 	{
@@ -203,7 +214,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		return;
 	}
 
-	// 지정 대상/지점이 필요한 명령 : Attack(A), Patrol(P), Move(M) 
+	// 지정 대상/지점이 필요한 명령 : Attack(A), Patrol(P), Move(M), Spread(C)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Attack))
 	{
 		PendingCommandType = ECommandType::Attack;
@@ -222,6 +233,12 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		// TODO: 나중에 UI 작업 (커서 모양 변경 등)
 		NOVA_SCREEN(Warning, "Command: Move(M). Click to Execute.");
 	}
+	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Spread))
+	{
+		PendingCommandType = ECommandType::Spread;
+		// TODO: 나중에 UI 작업 (커서 모양 변경 등)
+		NOVA_SCREEN(Warning, "Command: Spread(S). Click to Execute.");
+	}
 }
 
 void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
@@ -238,7 +255,21 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 			FCommandData CmdData;
 			CmdData.CommandType = PendingCommandType;
 			CmdData.TargetLocation = CursorHit.Location;
-			CmdData.TargetActor = CursorHit.GetActor();
+
+			// TargetActor가 실제로 유닛(Unit)이나 기지(Base)인지 검사
+			AActor* HitActor = CursorHit.GetActor();
+			if (HitActor)
+			{
+				// 인터페이스를 가지고 있거나 특정 클래스(Unit/Base)인 경우메만 TargetActor로 인정
+				if (HitActor->GetClass()->ImplementsInterface(UNovaSelectableInterface::StaticClass()))
+				{
+					CmdData.TargetActor = HitActor;
+				}
+				else
+				{
+					CmdData.TargetActor = nullptr;
+				}
+			}
 
 			IssueCommandToSelectedUnits(CmdData);
 
@@ -389,7 +420,6 @@ void ANovaPlayerController::PerformBoxSelection()
 	                                            AllSelectableActors);
 
 	TArray<AActor*> ActorsInRect;
-
 	for (AActor* Actor : AllSelectableActors)
 	{
 		if (Actor)
@@ -408,7 +438,7 @@ void ANovaPlayerController::PerformBoxSelection()
 		}
 	}
 
-	// 5. 최종 선택 처리 (Shift 상태 반영 가능)
+	// 최종 선택 처리 (Shift 상태 반영 가능)
 	if (ActorsInRect.Num() > 0)
 	{
 		if (!bIsShiftDown) { ClearSelection(); }
