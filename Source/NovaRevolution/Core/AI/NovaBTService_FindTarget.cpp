@@ -24,6 +24,28 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 {
 	Super::TickNode(OwnerComp, NodeMemory, DeltaSeconds);
 
+	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
+	if (!BB) return;
+
+	// 현재 명령 상태 확인
+	// ECommandType은 NovaTypes.h에 정의되어 있으며, uint8로 캐스팅하여 비교
+	uint8 CommandTypeValue = BB->GetValueAsEnum(TEXT("CommandType"));
+	ECommandType CurrentCommand = static_cast<ECommandType>(CommandTypeValue);
+
+	// 이미 명시적인 타겟이 있는 Attack 명령인 경우 탐색 건너뜀
+	if (CurrentCommand == ECommandType::Attack)
+	{
+		if (BB->GetValueAsObject(TargetActorKey.SelectedKeyName) != nullptr)
+		{
+			return;
+		}
+	}
+	// Move, Patrol, Halt, Stop 등은 자동 타겟팅을 하지 않음 (기획에 따라 다름)
+	else if (CurrentCommand != ECommandType::None && CurrentCommand != ECommandType::Hold)
+	{
+		return;
+	}
+
 	APawn* ControllingPawn = OwnerComp.GetAIOwner()->GetPawn();
 	if (!ControllingPawn) return;
 

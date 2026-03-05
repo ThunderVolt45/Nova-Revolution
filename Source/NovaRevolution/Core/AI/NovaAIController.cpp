@@ -27,31 +27,40 @@ void ANovaAIController::OnPossess(APawn* InPawn)
 	Super::OnPossess(InPawn);
 
 	// 비헤이비어 트리 실행
-	if (BehaviorTreeAsset && BehaviorTreeAsset->BlackboardAsset)
+	if (BehaviorTreeAsset)
 	{
-		InitializeBlackboard(*BlackboardComponent, *BehaviorTreeAsset->BlackboardAsset);
-		RunBehaviorTree(BehaviorTreeAsset);
+		bool bSuccess = RunBehaviorTree(BehaviorTreeAsset);
+		if (bSuccess)
+		{
+			NOVA_LOG(Log, "AIController: Successfully started Behavior Tree [%s] for Pawn [%s]", *BehaviorTreeAsset->GetName(), *InPawn->GetName());
+		}
+		else
+		{
+			NOVA_LOG(Error, "AIController: Failed to run Behavior Tree [%s] for Pawn [%s]", *BehaviorTreeAsset->GetName(), *InPawn->GetName());
+		}
 	}
 	else
 	{
-		NOVA_LOG(Warning, "AIController: BehaviorTreeAsset is not assigned in %s!", *GetName());
+		NOVA_LOG(Warning, "AIController: BehaviorTreeAsset is NOT assigned in %s! (Pawn: %s)", *GetName(), InPawn ? *InPawn->GetName() : TEXT("NULL"));
 	}
 }
 
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 {
-	// 블랙보드 데이터 갱신 (BT에서 이를 보고 상태 전환)
 	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
+		// 1. 블랙보드 데이터 업데이트
 		BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)CommandData.CommandType);
 		
-		// 명령 타입에 따른 추가 데이터 설정
 		switch (CommandData.CommandType)
 		{
 		case ECommandType::Move:
+		case ECommandType::Patrol:
 			BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
 			BlackboardComponent->ClearValue(TargetActorKey);
-			NOVA_LOG(Log, "AIController: Move command synced to BB (%s)", *CommandData.TargetLocation.ToString());
+			NOVA_LOG(Log, "AIController: %s command synced to BB (%s)", 
+				CommandData.CommandType == ECommandType::Move ? TEXT("Move") : TEXT("Patrol"),
+				*CommandData.TargetLocation.ToString());
 			break;
 
 		case ECommandType::Attack:
@@ -59,20 +68,41 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 			{
 				BlackboardComponent->SetValueAsObject(TargetActorKey, CommandData.TargetActor);
 				BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetActor->GetActorLocation());
-				NOVA_LOG(Log, "AIController: Attack command synced to BB (Target: %s)", *CommandData.TargetActor->GetName());
+				NOVA_LOG(Log, "AIController: Attack command (Actor) synced to BB (Target: %s)", *CommandData.TargetActor->GetName());
+			}
+			else
+			{
+				BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+				BlackboardComponent->ClearValue(TargetActorKey);
+				NOVA_LOG(Log, "AIController: Attack command (Location) synced to BB (%s)", *CommandData.TargetLocation.ToString());
 			}
 			break;
 
 		case ECommandType::Stop:
 		case ECommandType::Hold:
+		case ECommandType::Halt:
 			BlackboardComponent->ClearValue(TargetLocationKey);
 			BlackboardComponent->ClearValue(TargetActorKey);
-			StopMovement(); // 물리적 정지는 즉시 수행
-			NOVA_LOG(Log, "AIController: Stop command synced to BB.");
+			StopMovement();
+			NOVA_LOG(Log, "AIController: %s command synced to BB.", 
+				CommandData.CommandType == ECommandType::Stop ? TEXT("Stop") : 
+				(CommandData.CommandType == ECommandType::Hold ? TEXT("Hold") : TEXT("Halt")));
+			break;
+
+		case ECommandType::Spread:
+			BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+			BlackboardComponent->ClearValue(TargetActorKey);
+			NOVA_LOG(Log, "AIController: Spread command synced to BB.");
 			break;
 
 		default:
 			break;
+		}
+
+		// 2. 비헤이비어 트리 강제 재시작 (즉각적인 반응성 확보)
+		if (BehaviorTreeComponent)
+		{
+			BehaviorTreeComponent->RestartLogic();
 		}
 	}
 }
