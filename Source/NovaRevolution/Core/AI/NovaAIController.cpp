@@ -32,12 +32,16 @@ void ANovaAIController::OnPossess(APawn* InPawn)
 		InitializeBlackboard(*BlackboardComponent, *BehaviorTreeAsset->BlackboardAsset);
 		RunBehaviorTree(BehaviorTreeAsset);
 	}
+	else
+	{
+		NOVA_LOG(Warning, "AIController: BehaviorTreeAsset is not assigned in %s!", *GetName());
+	}
 }
 
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 {
-	// 블랙보드에 명령 타입 저장 (BT에서 이를 보고 상태 전환)
-	if (BlackboardComponent)
+	// 블랙보드 데이터 갱신
+	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
 		BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)CommandData.CommandType);
 	}
@@ -65,7 +69,7 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 void ANovaAIController::HandleMoveCommand(const FVector& TargetLocation)
 {
 	// 블랙보드 데이터 갱신
-	if (BlackboardComponent)
+	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
 		BlackboardComponent->SetValueAsVector(TargetLocationKey, TargetLocation);
 		BlackboardComponent->ClearValue(TargetActorKey);
@@ -84,7 +88,7 @@ void ANovaAIController::HandleAttackCommand(AActor* TargetActor)
 	if (!TargetActor) return;
 
 	// 블랙보드 데이터 갱신
-	if (BlackboardComponent)
+	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
 		BlackboardComponent->SetValueAsObject(TargetActorKey, TargetActor);
 		BlackboardComponent->SetValueAsVector(TargetLocationKey, TargetActor->GetActorLocation());
@@ -109,7 +113,7 @@ void ANovaAIController::HandleAttackCommand(AActor* TargetActor)
 void ANovaAIController::HandleStopCommand()
 {
 	// 블랙보드 초기화
-	if (BlackboardComponent)
+	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
 		BlackboardComponent->ClearValue(TargetLocationKey);
 		BlackboardComponent->ClearValue(TargetActorKey);
