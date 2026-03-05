@@ -3,6 +3,8 @@
 #include "Core/AI/NovaAIController.h"
 #include "VisualLogger/VisualLogger.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "NovaRevolution.h"
+#include "Core/NovaUnit.h"
 
 ANovaAIController::ANovaAIController()
 {
@@ -38,35 +40,35 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 
 void ANovaAIController::HandleMoveCommand(const FVector& TargetLocation)
 {
-	// 기존 이동 중지
-	StopMovement();
+	ANovaUnit* NovaUnit = Cast<ANovaUnit>(GetPawn());
+	check(NovaUnit); // NovaAIController는 ANovaUnit 전용이어야 합니다.
 
-	// 상세 설정과 함께 이동 명령 수행
-	FAIMoveRequest MoveRequest;
-	MoveRequest.SetGoalLocation(TargetLocation);
-	MoveRequest.SetAcceptanceRadius(5.0f);
-	MoveRequest.SetAllowPartialPath(true); // 경로가 끊겨도 최대한 가까이 이동
-
-	FPathFollowingRequestResult Result = MoveTo(MoveRequest);
-	
-	UE_LOG(LogTemp, Log, TEXT("AIController: Moving to %s (Result: %d)"), *TargetLocation.ToString(), (int32)Result.Code);
+	NovaUnit->MoveToLocation(TargetLocation);
+	NOVA_LOG(Log, "AIController: Move command issued via NovaUnit to %s", *TargetLocation.ToString());
 }
 
 void ANovaAIController::HandleAttackCommand(AActor* TargetActor)
 {
 	if (!TargetActor) return;
 
+	ANovaUnit* NovaUnit = Cast<ANovaUnit>(GetPawn());
+	check(NovaUnit);
+
+	// 공격 대상에게 다가가기 위해 FAIMoveRequest 설정 (AcceptanceRadius는 임시 사거리)
 	FAIMoveRequest MoveRequest;
 	MoveRequest.SetGoalActor(TargetActor);
-	MoveRequest.SetAcceptanceRadius(100.0f); // 임시 사거리
+	MoveRequest.SetAcceptanceRadius(100.0f);
+	MoveRequest.SetAllowPartialPath(true);
+	MoveRequest.SetProjectGoalLocation(true);
+	MoveRequest.SetRequireNavigableEndLocation(false);
 
 	MoveTo(MoveRequest);
 	
-	UE_LOG(LogTemp, Log, TEXT("AIController: Attacking target %s"), *TargetActor->GetName());
+	NOVA_LOG(Log, "AIController: Attacking target %s", *TargetActor->GetName());
 }
 
 void ANovaAIController::HandleStopCommand()
 {
 	StopMovement();
-	UE_LOG(LogTemp, Log, TEXT("AIController: Movement Stopped."));
+	NOVA_LOG(Log, "AIController: Movement Stopped.");
 }

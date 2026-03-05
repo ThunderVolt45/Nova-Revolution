@@ -50,6 +50,9 @@ public:
 	// 선택 해제 시 호출 (데칼 끄기 등)
 	virtual void OnDeselected() = 0;
 
+	// 선택 가능한 타입 반환 (기본값 None)
+	virtual ENovaSelectableType GetSelectableType() const { return ENovaSelectableType::None; }
+
 	// 선택 가능한 상태인지 확인
 	virtual bool IsSelectable() const { return true; }
 };

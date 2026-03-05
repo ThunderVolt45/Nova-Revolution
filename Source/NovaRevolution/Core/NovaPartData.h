@@ -3,21 +3,46 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
+#include "Engine/DataTable.h"
 #include "NovaPartData.generated.h"
 
 /**
- * 유닛 부품의 성능 수치를 담는 데이터 에셋
+ * 부품의 종류 구분
  */
-UCLASS(BlueprintType)
-class NOVAREVOLUTION_API UNovaPartData : public UPrimaryDataAsset
+UENUM(BlueprintType)
+enum class ENovaPartType : uint8
+{
+	None,
+	Legs,
+	Body,
+	Weapon,
+	Accessory
+};
+
+/**
+ * 데이터 테이블에서 부품 스펙을 관리하기 위한 구조체
+ */
+USTRUCT(BlueprintType)
+struct FNovaPartSpecRow : public FTableRowBase
 {
 	GENERATED_BODY()
 
 public:
+	// 부품 이름 (표시용)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part")
+	FString PartName;
+
+	// 부품 종류
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part")
+	ENovaPartType PartType = ENovaPartType::None;
+
 	// 와트
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float Watt = 0.0f;
+
+	// 무게 (조립 시 유효성 검사용: 다리 무게 >= 몸통+무기+악세 무게)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
+	float Weight = 0.0f;
 
 	// 체력
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
@@ -51,12 +76,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float MinRange = 0.0f;
 
-	// 스플래시 범위 (필요시)
+	// 스플래시 범위
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float SplashRange = 0.0f;
-
-	// --- 애니메이션 데이터 ---
-	// 이 부품이 공격 시 재생할 몽타주 (무기 부품용)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Animation")
-	TObjectPtr<class UAnimMontage> AttackMontage;
 };

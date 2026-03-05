@@ -37,9 +37,13 @@ public:
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
 	virtual bool IsSelectable() const override;
+	virtual ENovaSelectableType GetSelectableType() const override { return ENovaSelectableType::Unit; }
 
 	// --- INovaCommandInterface ---
 	virtual void IssueCommand(const FCommandData& CommandData) override;
+
+	/** 유닛을 특정 위치로 이동시키는 함수 */
+	virtual bool MoveToLocation(const FVector& TargetLocation, float AcceptanceRadius = 5.0f);
 
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
@@ -52,19 +56,33 @@ public:
 	void SetAssemblyData(const FNovaUnitAssemblyData& Data)
 	{
 		LegsPartClass = Data.LegsClass;
+		LegsPartID = Data.LegsPartID;
 		BodyPartClass = Data.BodyClass;
+		BodyPartID = Data.BodyPartID;
 		WeaponSlotConfigs = Data.WeaponSlots;
 	}
 	
 	/** 팀 식별자 설정을 위한 세터 */
 	void SetTeamID(int32 InTeamID) { TeamID = InTeamID; }
 
+	/** 생성 시 초기 이동 목표(랠리 포인트) 설정 */
+	void SetInitialRallyLocation(const FVector& InLocation) { InitialRallyLocation = InLocation; }
+
 protected:
 	virtual void BeginPlay() override;
 
 	// --- 유닛 부품 설정 (에디터/데이터 주입용) ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	TObjectPtr<class UDataTable> PartDataTable;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	FName LegsPartID;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TSubclassOf<class ANovaPart> LegsPartClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	FName BodyPartID;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TSubclassOf<class ANovaPart> BodyPartClass;
@@ -113,6 +131,10 @@ protected:
 	// 사망 여부
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
 	bool bIsDead = false;
+
+	// 생성 시 초기 목표 지점 (랠리 포인트)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
+	FVector InitialRallyLocation = FVector::ZeroVector;
 
 private:
 	// 이전 프레임의 Yaw (회전 속도 계산용)
