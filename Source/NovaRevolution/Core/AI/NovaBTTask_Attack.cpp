@@ -28,11 +28,14 @@ EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& Owne
 	if (!AIC || !BB) return EBTNodeResult::Failed;
 
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(AIC->GetPawn());
-	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
+	if (!MyUnit) return EBTNodeResult::Failed;
 
-	if (!MyUnit || !Target)
+	// 타겟 액터와 목표 지점 모두 없는 경우에만 실패 처리
+	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
+	FVector GoalLocation = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
+
+	if (!Target && GoalLocation.IsZero())
 	{
-		// 타겟이 없다면 즉시 Idle 전환
 		BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
 		return EBTNodeResult::Failed;
 	}
@@ -54,43 +57,65 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(AIC->GetPawn());
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
+	FVector GoalLocation = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 
-	// 타겟이 사라졌거나 죽은 경우
-	if (!MyUnit || !Target || Target->IsPendingKillPending())
+	if (!MyUnit)
 	{
-		AIC->StopMovement();
-		
-		// 상태를 Idle로 초기화
-		BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
-		BB->ClearValue(TargetActorKey.SelectedKeyName);
-		BB->ClearValue(TargetLocationKey.SelectedKeyName);
-
-		NOVA_LOG(Log, "Unit %s target lost or destroyed. Transitioning to Idle.", *MyUnit->GetName());
-		FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		return;
 	}
 
-	float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
-	float Range = GetAttackRange(MyUnit);
-	float RangeSq = FMath::Square(Range);
-
-	// 1. 사거리 확인
-	if (DistanceSq <= RangeSq)
+	// 1. 우선순위: 타겟 액터가 있는 경우 (추격 및 공격)
+	if (Target && !Target->IsPendingKillPending())
 	{
-		// 사거리 내라면 이동 중단 후 공격
-		AIC->StopMovement();
-		
-		float CurrentTime = GetWorld()->GetTimeSeconds();
-		if (CurrentTime - LastAttackTime >= AttackInterval)
+		float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
+		float Range = GetAttackRange(MyUnit);
+		float RangeSq = FMath::Square(Range);
+
+		if (DistanceSq <= RangeSq)
 		{
-			PerformAttack(MyUnit, Target);
-			LastAttackTime = CurrentTime;
+			// 사거리 내라면 이동 중단 후 공격
+			AIC->StopMovement();
+			
+			float CurrentTime = GetWorld()->GetTimeSeconds();
+			if (CurrentTime - LastAttackTime >= AttackInterval)
+			{
+				PerformAttack(MyUnit, Target);
+				LastAttackTime = CurrentTime;
+			}
+		}
+		else
+		{
+			// 사거리 밖이라면 추적 이동
+			AIC->MoveToActor(Target, Range * 0.95f); 
 		}
 	}
+	// 2. 타겟 액터가 없지만 목표 지점이 있는 경우 (공격 이동 중)
+	else if (!GoalLocation.IsZero())
+	{
+		// 목표 지점으로 이동 요청
+		AIC->MoveToLocation(GoalLocation, 10.0f);
+
+		// 목표 지점에 거의 도달했는지 확인
+		if (AIC->GetPathFollowingComponent()->DidMoveReachGoal())
+		{
+			// 적을 발견하지 못하고 지점에 도달했으므로 Idle 전환
+			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
+			BB->ClearValue(TargetLocationKey.SelectedKeyName);
+			
+			NOVA_LOG(Log, "Unit %s finished Attack-Move to location. No target found, transitioning to Idle.", *MyUnit->GetName());
+			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+		}
+	}
+	// 3. 둘 다 없는 경우 (타겟 소실 및 지점 도달 등)
 	else
 	{
-		// 사거리 밖이라면 추적 이동
-		AIC->MoveToActor(Target, Range * 0.98f); 
+		AIC->StopMovement();
+		BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
+		BB->ClearValue(TargetActorKey.SelectedKeyName);
+
+		NOVA_LOG(Log, "Unit %s attack command finished (No target/location).", *MyUnit->GetName());
+		FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 	}
 }
 
