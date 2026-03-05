@@ -4,6 +4,7 @@
 #include "Player/NovaPlayerController.h"
 
 #include "EnhancedInputSubsystems.h"
+#include "NovaPawn.h"
 #include "Blueprint/UserWidget.h"
 #include "Core/NovaInterfaces.h"
 #include "GAS/NovaGameplayTags.h"
@@ -81,7 +82,12 @@ void ANovaPlayerController::SetupInputComponent()
 	if (MoveCameraAction)
 	{
 		NovaInputComponent->BindAction(MoveCameraAction, ETriggerEvent::Triggered, this,
-		                               &ANovaPlayerController::MoveCamera);
+		                               &ThisClass::Input_MoveCamera);
+	}
+	if (ZoomAction)
+	{
+		NovaInputComponent->BindAction(ZoomAction, ETriggerEvent::Triggered, this,
+		                               &ThisClass::Input_Zoom);
 	}
 }
 
@@ -122,7 +128,7 @@ void ANovaPlayerController::PlayerTick(float DeltaTime)
 			{
 				RightInput = 1.f;
 			}
-			
+
 			// 마우스가 경계이 있다면 카메라 이동 적용
 			if (ForwardInput != 0.f || RightInput != 0.f)
 			{
@@ -256,11 +262,11 @@ void ANovaPlayerController::Input_AbilityInputTagHeld(FGameplayTag InputTag)
 	}
 }
 
-void ANovaPlayerController::MoveCamera(const FInputActionValue& Value)
+void ANovaPlayerController::Input_MoveCamera(const FInputActionValue& Value)
 {
 	// 입력 값 가져오기
 	FVector2D InputVector = Value.Get<FVector2D>();
-	
+
 	// 공통 함수로 입력을 넘김. (Y는 Forward, X는 Right)
 	ApplyCameraMovement(InputVector.Y, InputVector.X);
 }
@@ -268,13 +274,13 @@ void ANovaPlayerController::MoveCamera(const FInputActionValue& Value)
 void ANovaPlayerController::ApplyCameraMovement(float ForwardInput, float RightInput)
 {
 	APawn* ControlledPawn = GetPawn();
-	
+
 	if (ControlledPawn)
 	{
 		// 카메라의 현재 회전 방향을 기준으로 앞/옆 방향 계산
 		const FRotator Rotation = GetControlRotation();
 		const FRotator YawRotation(0.f, Rotation.Yaw, 0.f);
-		
+
 		// 앞/뒤 이동 벡터 계산
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 		// 좌/우 이동 벡터 계산
@@ -283,6 +289,17 @@ void ANovaPlayerController::ApplyCameraMovement(float ForwardInput, float RightI
 		// Pawn에게 이동 명령 전달 (속도는 Pawn의 MovementComponent에서 조절)
 		ControlledPawn->AddMovementInput(ForwardDirection, ForwardInput);
 		ControlledPawn->AddMovementInput(RightDirection, RightInput);
+	}
+}
+
+void ANovaPlayerController::Input_Zoom(const FInputActionValue& Value)
+{
+	float ZoomValue = Value.Get<float>();	// 휠을 위로 +1, 아래로 -1
+	
+	// 조종 중인 Pawn을 가져와서 UpdateZoom 호출
+	if (ANovaPawn* NovaPawn = Cast<ANovaPawn>(GetPawn()))
+	{
+		NovaPawn->UpdateZoom(ZoomValue);
 	}
 }
 

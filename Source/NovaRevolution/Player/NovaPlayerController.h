@@ -8,7 +8,9 @@
 #include "NovaPlayerController.generated.h"
 
 struct FInputActionValue;
+class UNovaInputConfig;
 class UInputMappingContext;
+class UInputAction;
 
 /**
  * ANovaPlayerController
@@ -51,11 +53,15 @@ protected:
 
 	// 에디터에서 할당할 입력 설정 데이터 에셋
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
-	TObjectPtr<class UNovaInputConfig> InputConfig;
+	TObjectPtr<UNovaInputConfig> InputConfig;
 
 	// 에디터에서 할당할 카메라 이동 입력 액션
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
-	TObjectPtr<class UInputAction> MoveCameraAction;
+	TObjectPtr<UInputAction> MoveCameraAction;
+	
+	// 에디터에서 할당할 카메라 줌 액션
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
+	TObjectPtr<UInputAction> ZoomAction;
 	
 	// 현재 마우스로 선택한 액터들을 담아두는 배열
 	UPROPERTY(BlueprintReadOnly, Category="Nova|Selection")
@@ -75,10 +81,13 @@ protected:
 	void Input_AbilityInputTagHeld(FGameplayTag InputTag);
 
 	// 실제 카메라 이동 처리 함수 -> 마우스 스크롤링 추가되어 공용 함수 ApplyCameraMovement이용
-	void MoveCamera(const FInputActionValue& Value);
+	void Input_MoveCamera(const FInputActionValue& Value);
 
 	// 공통 카메라 이동처리 함수 (키보드와 마우스 엣지에서 공용으로 사용)
 	void ApplyCameraMovement(float ForwardInput, float RightInput);
+	
+	// 카메라 줌 처리 함수
+	void Input_Zoom(const FInputActionValue& Value);
 	
 	// 드래그 선택을 수행하는 실제 판정 함수
 	void PerformBoxSelection();
