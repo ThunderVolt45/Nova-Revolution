@@ -7,6 +7,10 @@
 #include "Core/NovaInterfaces.h"
 #include "NovaAIController.generated.h"
 
+class UBehaviorTreeComponent;
+class UBlackboardComponent;
+class UBehaviorTree;
+
 /**
  * Nova Revolution의 유닛 제어를 담당하는 전용 AI 컨트롤러
  */
@@ -24,9 +28,25 @@ public:
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
 
+	// --- AI 컴포넌트 ---
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI")
+	TObjectPtr<UBehaviorTreeComponent> BehaviorTreeComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI")
+	TObjectPtr<UBlackboardComponent> BlackboardComponent;
+
+	// --- 설정 ---
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|AI")
+	TObjectPtr<UBehaviorTree> BehaviorTreeAsset;
+
 private:
 	/** 명령 처리 유틸리티 함수들 */
 	void HandleMoveCommand(const FVector& TargetLocation);
 	void HandleAttackCommand(AActor* TargetActor);
 	void HandleStopCommand();
+
+	/** 블랙보드 키 이름 정의 */
+	static const FName TargetLocationKey;
+	static const FName TargetActorKey;
+	static const FName CommandTypeKey;
 };
