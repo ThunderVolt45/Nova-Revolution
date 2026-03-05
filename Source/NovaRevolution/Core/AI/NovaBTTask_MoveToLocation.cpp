@@ -6,6 +6,7 @@
 #include "NavigationSystem.h"
 #include "NovaRevolution.h"
 #include "Core/NovaUnit.h"
+#include "Core/NovaTypes.h"
 #include "Navigation/PathFollowingComponent.h"
 
 UNovaBTTask_MoveToLocation::UNovaBTTask_MoveToLocation()
@@ -15,6 +16,7 @@ UNovaBTTask_MoveToLocation::UNovaBTTask_MoveToLocation()
 
 	// 블랙보드 키 필터링 (Vector 타입만 선택 가능하게 함)
 	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_MoveToLocation, TargetLocationKey));
+	CommandTypeKey.AddEnumFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_MoveToLocation, CommandTypeKey), StaticEnum<ECommandType>());
 }
 
 EBTNodeResult::Type UNovaBTTask_MoveToLocation::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
@@ -58,6 +60,12 @@ EBTNodeResult::Type UNovaBTTask_MoveToLocation::ExecuteTask(UBehaviorTreeCompone
 		return EBTNodeResult::Failed;
 
 	case EPathFollowingRequestResult::AlreadyAtGoal:
+		// 이미 도착한 경우 즉시 상태 초기화
+		if (UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent())
+		{
+			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
+			BB->ClearValue(TargetLocationKey.SelectedKeyName);
+		}
 		return EBTNodeResult::Succeeded;
 
 	case EPathFollowingRequestResult::RequestSuccessful:
@@ -86,6 +94,13 @@ void UNovaBTTask_MoveToLocation::TickTask(UBehaviorTreeComponent& OwnerComp, uin
 		// 경로 추종이 멈춘 경우 (도착 또는 중단)
 		if (AIC->GetPathFollowingComponent()->DidMoveReachGoal())
 		{
+			// 이동 완료 후 상태 초기화
+			if (UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent())
+			{
+				BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
+				BB->ClearValue(TargetLocationKey.SelectedKeyName);
+				NOVA_LOG(Log, "Unit %s reached destination, transitioning to Idle.", *AIC->GetPawn()->GetName());
+			}
 			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 		}
 		else

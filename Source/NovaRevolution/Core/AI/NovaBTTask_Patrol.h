@@ -4,35 +4,37 @@
 
 #include "CoreMinimal.h"
 #include "BehaviorTree/BTTaskNode.h"
-#include "NovaBTTask_MoveToLocation.generated.h"
+#include "NovaBTTask_Patrol.generated.h"
 
 /**
- * 블랙보드의 목표 지점으로 유닛을 이동시키는 태스크
- * ANovaUnit의 직접 이동 로직을 BT 태스크로 이관하여 관리합니다.
+ * 지정된 목표 지점과 현재 위치(순찰 시작 지점)를 왕복하는 순찰 태스크
  */
 UCLASS()
-class NOVAREVOLUTION_API UNovaBTTask_MoveToLocation : public UBTTaskNode
+class NOVAREVOLUTION_API UNovaBTTask_Patrol : public UBTTaskNode
 {
 	GENERATED_BODY()
 
 public:
-	UNovaBTTask_MoveToLocation();
+	UNovaBTTask_Patrol();
 
 	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) override;
 
 protected:
-	/** 비헤이비어 트리의 틱 동안 이동 상태 감시 */
 	virtual void TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds) override;
 
-	/** 목표 지점이 저장된 블랙보드 키 */
+	/** 순찰 목표 지점이 저장된 블랙보드 키 */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	FBlackboardKeySelector TargetLocationKey;
 
-	/** 완료 후 상태를 초기화할 블랙보드 키 */
+	/** 순찰 시작 지점을 저장할 블랙보드 키 (Vector) */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
-	FBlackboardKeySelector CommandTypeKey;
+	FBlackboardKeySelector PatrolOriginKey;
 
 	/** 도달 인정 거리 */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	float AcceptanceRadius = 10.0f;
+
+private:
+	/** 현재 목표가 Origin인지 TargetLocation인지 여부 */
+	bool bMovingToOrigin = false;
 };
