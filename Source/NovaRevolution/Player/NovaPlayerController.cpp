@@ -4,6 +4,7 @@
 #include "Player/NovaPlayerController.h"
 
 #include "EnhancedInputSubsystems.h"
+#include "Blueprint/UserWidget.h"
 #include "Core/NovaInterfaces.h"
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
@@ -21,18 +22,35 @@ ANovaPlayerController::ANovaPlayerController()
 void ANovaPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// Local Player Subsystem 가져오기
-	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
-		GetLocalPlayer()))
+	
+	// 1. 로컬 플레이어(내 화면)인지 확인 (UI 생성 및 입력 설정의 필수 조건)
+	if (IsLocalPlayerController())
 	{
-		// IMC가 에디터에서 할당되었는지 확인 후 추가
-		if (IMC)
+		// 기존 코드 내부로 이동
+		// Local Player Subsystem 가져오기
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
+			GetLocalPlayer()))
 		{
-			// 우선순위 0으로 추가
-			Subsystem->AddMappingContext(IMC, 0);
+			// IMC가 에디터에서 할당되었는지 확인 후 추가
+			if (IMC)
+			{
+				// 우선순위 0으로 추가
+				Subsystem->AddMappingContext(IMC, 0);
+			}
+		}
+		
+		// --- 새로운 로직: 메인 HUD 생성 및 표시 ---
+		// 에디터(BP_NovaPlayerController)에서 MainHUDClass가 할당되었는지 확인
+		if (MainHUDClass)
+		{
+			MainHUDInstance = CreateWidget<UUserWidget>(this, MainHUDClass);
+			if (MainHUDInstance)
+			{
+				MainHUDInstance->AddToViewport();
+			}
 		}
 	}
+	
 }
 
 void ANovaPlayerController::SetupInputComponent()

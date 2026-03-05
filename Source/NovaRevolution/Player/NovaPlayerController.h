@@ -68,6 +68,15 @@ protected:
 
 	// 드래그 선택을 수행하는 실제 판정 함수
 	void PerformBoxSelection();
+	
+protected:
+	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
+	TSubclassOf<class UUserWidget> MainHUDClass;
+
+	/** 생성된 HUD 인스턴스 저장용 */
+	UPROPERTY()
+	class UUserWidget* MainHUDInstance;
 
 private:
 	// 마우스 커서 아래에 무엇이 있는지 감지하는 헬퍼 함수
