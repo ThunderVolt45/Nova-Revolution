@@ -5,6 +5,7 @@ namespace NovaGameplayTags
 	// 기본 조작
 	UE_DEFINE_GAMEPLAY_TAG(Input_Select, "Input.Select");
 	UE_DEFINE_GAMEPLAY_TAG(Input_Command, "Input.Command");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Zoom, "Input.Zoom");
 
 	// 표준 명령
 	UE_DEFINE_GAMEPLAY_TAG(Input_Move, "Input.Move");

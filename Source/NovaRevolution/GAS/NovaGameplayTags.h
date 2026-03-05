@@ -8,6 +8,7 @@ namespace NovaGameplayTags
 	// --- 기본 마우스 조작 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Select); // 좌클릭: 선택 / 드래그
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Command); // 우클릭: 스마트 명령 (이동/공격/상호작용)
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Zoom); // 휠 굴리기: 줌
 
 	// --- RTS 표준 명령 (단축키) ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Move); // M: 강제 이동
@@ -17,7 +18,7 @@ namespace NovaGameplayTags
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Patrol); // P: 순찰
 	
 	// --- Shift를 눌렀을 때 명령 ---
-	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Modifier_Select);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Modifier_Select);	// 선택 유닛 추가/제거
 
 	// --- 노바 1492 고유 명령 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Spread); // C: 산개
