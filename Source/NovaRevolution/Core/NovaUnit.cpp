@@ -10,6 +10,8 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Core/AI/NovaAIController.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "NavigationSystem.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -260,7 +262,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	}
 
 	NOVA_SCREEN(Log, "Unit Stats Initialized: HP(%.f), Speed(%.f), Watt(%.f)", TotalHealth, TotalSpeed, TotalWatt);
-	}
+}
 
 
 UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
@@ -345,6 +347,49 @@ void ANovaUnit::Die()
 	
 	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (오브젝트 풀링 적용?)
 	// Destroy();
+}
+
+bool ANovaUnit::MoveToLocation(const FVector& TargetLocation, float AcceptanceRadius)
+{
+	if (bIsDead) return false;
+
+	ANovaAIController* AIC = Cast<ANovaAIController>(GetController());
+	if (!AIC) return false;
+
+	FVector FinalGoal = TargetLocation;
+
+	// 1. 수동으로 목표 지점을 네비메쉬 위로 투영 (클릭 지점이 도달 불가능한 곳일 때를 대비)
+	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (NavSys)
+	{
+		FNavLocation ProjectedLocation;
+		// 넉넉한 범위(1000) 내에서 가장 가까운 네비메쉬 지점 찾기
+		if (NavSys->ProjectPointToNavigation(TargetLocation, ProjectedLocation, FVector(1000.f, 1000.f, 1000.f)))
+		{
+			FinalGoal = ProjectedLocation.Location;
+		}
+	}
+
+	// 2. 이동 요청 설정
+	FAIMoveRequest MoveRequest;
+	MoveRequest.SetGoalLocation(FinalGoal);
+	MoveRequest.SetAcceptanceRadius(AcceptanceRadius);
+	MoveRequest.SetAllowPartialPath(true);       // 경로가 끊겨도 최대한 가까이 이동
+	MoveRequest.SetProjectGoalLocation(true);
+	MoveRequest.SetRequireNavigableEndLocation(false); // 도달 불가능한 지점이라도 실패 처리하지 않음
+
+	FPathFollowingRequestResult Result = AIC->MoveTo(MoveRequest);
+	
+	if (Result.Code == EPathFollowingRequestResult::Failed)
+	{
+		NOVA_LOG(Warning, "MoveToLocation Failed! Unit: %s, Goal: %s", *GetName(), *FinalGoal.ToString());
+	}
+	else
+	{
+		NOVA_LOG(Log, "MoveToLocation Started. Unit: %s, ResultCode: %d", *GetName(), (int32)Result.Code);
+	}
+
+	return Result.Code == EPathFollowingRequestResult::RequestSuccessful || Result.Code == EPathFollowingRequestResult::AlreadyAtGoal;
 }
 
 void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)

@@ -36,7 +36,7 @@ void ANovaPlayerState::BeginPlay()
 				if (FMath::FloorToInt(Data.OldValue) != FMath::FloorToInt(Data.NewValue))
 				{
 					OnWattChanged.Broadcast(Data.NewValue, GetMaxWatt());
-					NOVA_SCREEN(Log, "Watt Changed: %.0f / %.0f", Data.NewValue, GetMaxWatt());
+					// NOVA_SCREEN(Log, "Watt Changed: %.0f / %.0f", Data.NewValue, GetMaxWatt());
 				}
 			}
 		);
@@ -49,7 +49,7 @@ void ANovaPlayerState::BeginPlay()
 				if (FMath::FloorToInt(Data.OldValue) != FMath::FloorToInt(Data.NewValue))
 				{
 					OnSPChanged.Broadcast(Data.NewValue, GetMaxSP());
-					NOVA_SCREEN(Log, "SP Changed: %.1f / %.1f", Data.NewValue, GetMaxSP());
+					// NOVA_SCREEN(Log, "SP Changed: %.1f / %.1f", Data.NewValue, GetMaxSP());
 				}
 			}
 		);
