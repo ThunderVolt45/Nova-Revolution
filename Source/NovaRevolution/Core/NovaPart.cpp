@@ -4,7 +4,7 @@
 #include "Core/NovaPartData.h"
 #include "Core/Animation/NovaAnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
-
+#include "NovaRevolution.h"
 
 ANovaPart::ANovaPart()
 {
@@ -21,6 +21,31 @@ ANovaPart::ANovaPart()
 	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
 	StaticMesh->SetupAttachment(RootComponent);
 	StaticMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void ANovaPart::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 데이터 테이블로부터 스펙 초기화
+	InitializePartSpec();
+}
+
+void ANovaPart::InitializePartSpec()
+{
+	if (PartDataTable && !PartID.IsNone())
+	{
+		FNovaPartSpecRow* FoundRow = PartDataTable->FindRow<FNovaPartSpecRow>(PartID, TEXT("ANovaPart::InitializePartSpec"));
+		if (FoundRow)
+		{
+			PartSpec = *FoundRow;
+			NOVA_LOG(Log, "Part '%s' initialized with Spec from DataTable (PartID: %s)", *GetName(), *PartID.ToString());
+			return;
+		}
+		
+		NOVA_CHECK(false, "Failed to find PartID '%s' in DataTable '%s' for Part '%s'", 
+			*PartID.ToString(), *PartDataTable->GetName(), *GetName());
+	}
 }
 
 UPrimitiveComponent* ANovaPart::GetMainMesh() const
@@ -68,12 +93,13 @@ void ANovaPart::SetIsDead(bool bDead)
 
 void ANovaPart::PlayAttackAnimation()
 {
-	if (SkeletalMesh && PartData && PartData->AttackMontage)
+	// 클래스에 직접 할당된 AttackMontage를 사용합니다.
+	if (SkeletalMesh && AttackMontage)
 	{
 		UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance();
-		if (AnimInst && !AnimInst->Montage_IsPlaying(PartData->AttackMontage))
+		if (AnimInst && !AnimInst->Montage_IsPlaying(AttackMontage))
 		{
-			AnimInst->Montage_Play(PartData->AttackMontage);
+			AnimInst->Montage_Play(AttackMontage);
 		}
 	}
 }

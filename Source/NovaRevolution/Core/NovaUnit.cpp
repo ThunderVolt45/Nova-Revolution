@@ -157,9 +157,7 @@ void ANovaUnit::ConstructUnitParts()
 			// 무기 컴포넌트 동적 생성 및 등록
 			FName CompName = FName(*FString::Printf(TEXT("WeaponPartComponent_%d"), i));
 
-			// NewObject 시 이름을 명시하여 고유성 유지
 			UChildActorComponent* WeaponComp = NewObject<UChildActorComponent>(this, CompName);
-
 			if (WeaponComp)
 			{
 				WeaponComp->CreationMethod = EComponentCreationMethod::UserConstructionScript;
@@ -178,6 +176,10 @@ void ANovaUnit::InitializePartAttachments()
 	// 1. 다리(Legs) 내에서 몸통(Body)이 붙을 소켓을 찾음
 	if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
 	{
+		// 데이터 주입
+		LegsActor->SetPartID(LegsPartID);
+		LegsActor->SetPartDataTable(PartDataTable);
+
 		if (UPrimitiveComponent* LegsMesh = LegsActor->GetMainMesh())
 		{
 			// 몸통을 지정된 소켓에 부착
@@ -188,12 +190,23 @@ void ANovaUnit::InitializePartAttachments()
 	// 2. 몸통(Body) 내에서 무기(Weapons)들이 붙을 소켓들을 찾음
 	if (ANovaPart* BodyActor = Cast<ANovaPart>(BodyPartComponent->GetChildActor()))
 	{
+		// 데이터 주입
+		BodyActor->SetPartID(BodyPartID);
+		BodyActor->SetPartDataTable(PartDataTable);
+
 		if (UPrimitiveComponent* BodyMesh = BodyActor->GetMainMesh())
 		{
 			for (int32 i = 0; i < WeaponPartComponents.Num(); ++i)
 			{
 				if (i < WeaponSlotConfigs.Num())
 				{
+					// 무기 데이터 주입
+					if (ANovaPart* WeaponActor = Cast<ANovaPart>(WeaponPartComponents[i]->GetChildActor()))
+					{
+						WeaponActor->SetPartID(WeaponSlotConfigs[i].PartID);
+						WeaponActor->SetPartDataTable(PartDataTable);
+					}
+
 					// 각 무기를 슬롯 설정에 지정된 전용 소켓에 부착
 					WeaponPartComponents[i]->AttachToComponent(
 						BodyMesh, 
@@ -231,19 +244,19 @@ void ANovaUnit::InitializeAttributesFromParts()
 	{
 		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
 		{
-			if (const UNovaPartData* Data = Part->GetPartData())
-			{
-				TotalWatt += Data->Watt;
-				TotalHealth += Data->Health;
-				TotalAttack += Data->Attack;
-				TotalDefense += Data->Defense;
-				TotalSpeed += Data->Speed;
-				TotalFireRate += Data->FireRate;
-				TotalSight += Data->Sight;
-				TotalRange += Data->Range;
-				TotalMinRange += Data->MinRange;
-				TotalSplashRange += Data->SplashRange;
-			}
+			// 데이터 테이블 방식 (PartSpec) 참조
+			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
+			
+			TotalWatt += Spec.Watt;
+			TotalHealth += Spec.Health;
+			TotalAttack += Spec.Attack;
+			TotalDefense += Spec.Defense;
+			TotalSpeed += Spec.Speed;
+			TotalFireRate += Spec.FireRate;
+			TotalSight += Spec.Sight;
+			TotalRange += Spec.Range;
+			TotalMinRange += Spec.MinRange;
+			TotalSplashRange += Spec.SplashRange;
 		}
 	}
 

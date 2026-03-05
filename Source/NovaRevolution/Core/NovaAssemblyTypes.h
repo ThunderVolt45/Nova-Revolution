@@ -14,6 +14,10 @@ struct FNovaWeaponPartSlot
 {
 	GENERATED_BODY()
 
+	// 부품 식별 ID (데이터 테이블 조회용)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	FName PartID;
+
 	// 부착할 무기 부품 클래스 (ANovaPart 상속 클래스)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TSubclassOf<class ANovaPart> WeaponPartClass;
@@ -31,9 +35,17 @@ struct FNovaUnitAssemblyData
 {
 	GENERATED_BODY()
 
+	// 다리 부품 ID
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Assembly")
+	FName LegsPartID;
+
 	// 다리 부품 클래스
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Assembly")
 	TSubclassOf<class ANovaPart> LegsClass;
+
+	// 몸통 부품 ID
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Assembly")
+	FName BodyPartID;
 
 	// 몸통 부품 클래스
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Assembly")
