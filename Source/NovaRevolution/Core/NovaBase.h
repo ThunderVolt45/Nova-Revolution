@@ -17,7 +17,7 @@ struct FOnAttributeChangeData;
  * 플레이어의 거점 기지 클래스
  */
 UCLASS()
-class NOVAREVOLUTION_API ANovaBase : public AActor, public IAbilitySystemInterface, public INovaSelectableInterface, public INovaTeamInterface
+class NOVAREVOLUTION_API ANovaBase : public AActor, public IAbilitySystemInterface, public INovaSelectableInterface, public INovaTeamInterface, public INovaCommandInterface
 {
 	GENERATED_BODY()
 	
@@ -31,6 +31,10 @@ public:
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
 	virtual bool IsSelectable() const override { return true; }
+	virtual ENovaSelectableType GetSelectableType() const override { return ENovaSelectableType::Base; }
+
+	// --- INovaCommandInterface ---
+	virtual void IssueCommand(const FCommandData& CommandData) override;
 
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
@@ -41,6 +45,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Nova|Base")
 	FVector GetRallyPoint() const { return RallyPoint; }
+
+	/** 특정 덱 슬롯의 유닛 생산 요청 */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
+	bool ProduceUnit(int32 SlotIndex);
 
 	// 기지 파괴 처리
 	virtual void DestroyBase();

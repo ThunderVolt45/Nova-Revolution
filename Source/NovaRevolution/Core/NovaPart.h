@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Core/NovaPartData.h"
 #include "NovaPart.generated.h"
 
 /**
@@ -17,11 +18,19 @@ class NOVAREVOLUTION_API ANovaPart : public AActor
 public:	
 	ANovaPart();
 
+	/** 부품 정보 설정을 위한 함수 (주로 ANovaUnit에서 호출) */
+	void SetPartID(const FName& InID) { PartID = InID; }
+	void SetPartDataTable(class UDataTable* InTable) 
+	{ 
+		PartDataTable = InTable; 
+		InitializePartSpec();
+	}
+
 	// 외부에서 메시를 가져오기 위한 유틸리티 함수
 	UPrimitiveComponent* GetMainMesh() const;
 
-	// 부품 스탯 데이터를 가져오는 함수
-	const class UNovaPartData* GetPartData() const { return PartData; }
+	// 데이터 테이블 기반 스펙을 가져오는 함수
+	const FNovaPartSpecRow& GetPartSpec() const { return PartSpec; }
 
 	/** 애니메이션 제어: 이동 속도 연동 (다리 부품용) */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Animation")
@@ -40,9 +49,29 @@ public:
 	virtual void PlayAttackAnimation();
 
 protected:
-	// 이 부품의 성능 데이터 (PrimaryDataAsset)
+	virtual void BeginPlay() override;
+
+	// 데이터 테이블에서 스펙을 불러오는 함수
+	void InitializePartSpec();
+
+protected:
+	// 부품 식별 ID (데이터 테이블의 Row Name과 일치해야 함)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part")
-	TObjectPtr<class UNovaPartData> PartData;
+	FName PartID;
+
+	// 부품 스펙 데이터 테이블
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part")
+	TObjectPtr<class UDataTable> PartDataTable;
+
+	// 현재 부품에 할당된 최종 스펙
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Part")
+	FNovaPartSpecRow PartSpec;
+
+	// --- 애니메이션 데이터 ---
+	// 이 부품이 공격 시 재생할 몽타주 (무기 부품용)
+	// 부품 에셋마다 고유한 애니메이션이 필요하므로 클래스에서 직접 들고 있습니다.
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part|Animation")
+	TObjectPtr<class UAnimMontage> AttackMontage;
 
 	// 부품이 스켈레탈 메시일 경우 사용
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Part")

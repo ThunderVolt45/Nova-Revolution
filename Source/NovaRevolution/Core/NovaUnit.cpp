@@ -10,6 +10,8 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Core/AI/NovaAIController.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "NavigationSystem.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -119,6 +121,18 @@ void ANovaUnit::BeginPlay()
 
 	// 초기 Yaw 설정
 	LastYaw = GetActorRotation().Yaw;
+
+	// --- 랠리 포인트 이동 로직 추가 ---
+	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
+	if (!InitialRallyLocation.IsNearlyZero())
+	{
+		FCommandData MoveCmd;
+		MoveCmd.CommandType = ECommandType::Move;
+		MoveCmd.TargetLocation = InitialRallyLocation;
+		
+		IssueCommand(MoveCmd);
+		NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
+	}
 }
 
 void ANovaUnit::ConstructUnitParts()
@@ -143,9 +157,7 @@ void ANovaUnit::ConstructUnitParts()
 			// 무기 컴포넌트 동적 생성 및 등록
 			FName CompName = FName(*FString::Printf(TEXT("WeaponPartComponent_%d"), i));
 
-			// NewObject 시 이름을 명시하여 고유성 유지
 			UChildActorComponent* WeaponComp = NewObject<UChildActorComponent>(this, CompName);
-
 			if (WeaponComp)
 			{
 				WeaponComp->CreationMethod = EComponentCreationMethod::UserConstructionScript;
@@ -164,6 +176,10 @@ void ANovaUnit::InitializePartAttachments()
 	// 1. 다리(Legs) 내에서 몸통(Body)이 붙을 소켓을 찾음
 	if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
 	{
+		// 데이터 주입
+		LegsActor->SetPartID(LegsPartID);
+		LegsActor->SetPartDataTable(PartDataTable);
+
 		if (UPrimitiveComponent* LegsMesh = LegsActor->GetMainMesh())
 		{
 			// 몸통을 지정된 소켓에 부착
@@ -174,12 +190,23 @@ void ANovaUnit::InitializePartAttachments()
 	// 2. 몸통(Body) 내에서 무기(Weapons)들이 붙을 소켓들을 찾음
 	if (ANovaPart* BodyActor = Cast<ANovaPart>(BodyPartComponent->GetChildActor()))
 	{
+		// 데이터 주입
+		BodyActor->SetPartID(BodyPartID);
+		BodyActor->SetPartDataTable(PartDataTable);
+
 		if (UPrimitiveComponent* BodyMesh = BodyActor->GetMainMesh())
 		{
 			for (int32 i = 0; i < WeaponPartComponents.Num(); ++i)
 			{
 				if (i < WeaponSlotConfigs.Num())
 				{
+					// 무기 데이터 주입
+					if (ANovaPart* WeaponActor = Cast<ANovaPart>(WeaponPartComponents[i]->GetChildActor()))
+					{
+						WeaponActor->SetPartID(WeaponSlotConfigs[i].PartID);
+						WeaponActor->SetPartDataTable(PartDataTable);
+					}
+
 					// 각 무기를 슬롯 설정에 지정된 전용 소켓에 부착
 					WeaponPartComponents[i]->AttachToComponent(
 						BodyMesh, 
@@ -210,26 +237,35 @@ void ANovaUnit::InitializeAttributesFromParts()
 	TArray<AActor*> PartActors;
 	PartActors.Add(LegsPartComponent->GetChildActor());
 	PartActors.Add(BodyPartComponent->GetChildActor());
-	for (auto WeaponComp : WeaponPartComponents) PartActors.Add(WeaponComp->GetChildActor());
+	
+	// 무기 부품은 여러 개가 붙을 수 있지만 모두 같은 종류를 붙일 예정이므로 스펙은 첫 번째 것 하나만 반영함
+	for (auto WeaponComp : WeaponPartComponents)
+	{
+		if (AActor* WeaponActor = WeaponComp->GetChildActor())
+		{
+			PartActors.Add(WeaponActor);
+			break; // 첫 번째 무기만 추가하고 중단
+		}
+	}
 
 	// 각 부품에서 스탯 수집
 	for (AActor* Actor : PartActors)
 	{
 		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
 		{
-			if (const UNovaPartData* Data = Part->GetPartData())
-			{
-				TotalWatt += Data->Watt;
-				TotalHealth += Data->Health;
-				TotalAttack += Data->Attack;
-				TotalDefense += Data->Defense;
-				TotalSpeed += Data->Speed;
-				TotalFireRate += Data->FireRate;
-				TotalSight += Data->Sight;
-				TotalRange += Data->Range;
-				TotalMinRange += Data->MinRange;
-				TotalSplashRange += Data->SplashRange;
-			}
+			// 데이터 테이블 방식 (PartSpec) 참조
+			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
+			
+			TotalWatt += Spec.Watt;
+			TotalHealth += Spec.Health;
+			TotalAttack += Spec.Attack;
+			TotalDefense += Spec.Defense;
+			TotalSpeed += Spec.Speed;
+			TotalFireRate += Spec.FireRate;
+			TotalSight += Spec.Sight;
+			TotalRange += Spec.Range;
+			TotalMinRange += Spec.MinRange;
+			TotalSplashRange += Spec.SplashRange;
 		}
 	}
 
@@ -260,7 +296,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	}
 
 	NOVA_SCREEN(Log, "Unit Stats Initialized: HP(%.f), Speed(%.f), Watt(%.f)", TotalHealth, TotalSpeed, TotalWatt);
-	}
+}
 
 
 UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
@@ -345,6 +381,49 @@ void ANovaUnit::Die()
 	
 	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (오브젝트 풀링 적용?)
 	// Destroy();
+}
+
+bool ANovaUnit::MoveToLocation(const FVector& TargetLocation, float AcceptanceRadius)
+{
+	if (bIsDead) return false;
+
+	ANovaAIController* AIC = Cast<ANovaAIController>(GetController());
+	if (!AIC) return false;
+
+	FVector FinalGoal = TargetLocation;
+
+	// 1. 수동으로 목표 지점을 네비메쉬 위로 투영 (클릭 지점이 도달 불가능한 곳일 때를 대비)
+	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (NavSys)
+	{
+		FNavLocation ProjectedLocation;
+		// 넉넉한 범위(1000) 내에서 가장 가까운 네비메쉬 지점 찾기
+		if (NavSys->ProjectPointToNavigation(TargetLocation, ProjectedLocation, FVector(1000.f, 1000.f, 1000.f)))
+		{
+			FinalGoal = ProjectedLocation.Location;
+		}
+	}
+
+	// 2. 이동 요청 설정
+	FAIMoveRequest MoveRequest;
+	MoveRequest.SetGoalLocation(FinalGoal);
+	MoveRequest.SetAcceptanceRadius(AcceptanceRadius);
+	MoveRequest.SetAllowPartialPath(true);       // 경로가 끊겨도 최대한 가까이 이동
+	MoveRequest.SetProjectGoalLocation(true);
+	MoveRequest.SetRequireNavigableEndLocation(false); // 도달 불가능한 지점이라도 실패 처리하지 않음
+
+	FPathFollowingRequestResult Result = AIC->MoveTo(MoveRequest);
+	
+	if (Result.Code == EPathFollowingRequestResult::Failed)
+	{
+		NOVA_LOG(Warning, "MoveToLocation Failed! Unit: %s, Goal: %s", *GetName(), *FinalGoal.ToString());
+	}
+	else
+	{
+		NOVA_LOG(Log, "MoveToLocation Started. Unit: %s, ResultCode: %d", *GetName(), (int32)Result.Code);
+	}
+
+	return Result.Code == EPathFollowingRequestResult::RequestSuccessful || Result.Code == EPathFollowingRequestResult::AlreadyAtGoal;
 }
 
 void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
