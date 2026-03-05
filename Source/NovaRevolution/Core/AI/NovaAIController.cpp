@@ -3,72 +3,106 @@
 #include "Core/AI/NovaAIController.h"
 #include "VisualLogger/VisualLogger.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "BehaviorTree/BehaviorTreeComponent.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "BehaviorTree/BehaviorTree.h"
 #include "NovaRevolution.h"
 #include "Core/NovaUnit.h"
+
+const FName ANovaAIController::TargetLocationKey(TEXT("TargetLocation"));
+const FName ANovaAIController::TargetActorKey(TEXT("TargetActor"));
+const FName ANovaAIController::CommandTypeKey(TEXT("CommandType"));
 
 ANovaAIController::ANovaAIController()
 {
 	bSetControlRotationFromPawnOrientation = true;
+
+	// 컴포넌트 초기화
+	BehaviorTreeComponent = CreateDefaultSubobject<UBehaviorTreeComponent>(TEXT("BehaviorTreeComponent"));
+	BlackboardComponent = CreateDefaultSubobject<UBlackboardComponent>(TEXT("BlackboardComponent"));
 }
 
 void ANovaAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
+
+	// 비헤이비어 트리 실행
+	if (BehaviorTreeAsset)
+	{
+		bool bSuccess = RunBehaviorTree(BehaviorTreeAsset);
+		if (bSuccess)
+		{
+			NOVA_LOG(Log, "AIController: Successfully started Behavior Tree [%s] for Pawn [%s]", *BehaviorTreeAsset->GetName(), *InPawn->GetName());
+		}
+		else
+		{
+			NOVA_LOG(Error, "AIController: Failed to run Behavior Tree [%s] for Pawn [%s]", *BehaviorTreeAsset->GetName(), *InPawn->GetName());
+		}
+	}
+	else
+	{
+		NOVA_LOG(Warning, "AIController: BehaviorTreeAsset is NOT assigned in %s! (Pawn: %s)", *GetName(), InPawn ? *InPawn->GetName() : TEXT("NULL"));
+	}
 }
 
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 {
-	switch (CommandData.CommandType)
+	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
-	case ECommandType::Move:
-		HandleMoveCommand(CommandData.TargetLocation);
-		break;
+		// 1. 블랙보드 데이터 업데이트
+		BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)CommandData.CommandType);
+		
+		switch (CommandData.CommandType)
+		{
+		case ECommandType::Move:
+		case ECommandType::Patrol:
+			BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+			BlackboardComponent->ClearValue(TargetActorKey);
+			NOVA_LOG(Log, "AIController: %s command synced to BB (%s)", 
+				CommandData.CommandType == ECommandType::Move ? TEXT("Move") : TEXT("Patrol"),
+				*CommandData.TargetLocation.ToString());
+			break;
 
-	case ECommandType::Attack:
-		HandleAttackCommand(CommandData.TargetActor);
-		break;
+		case ECommandType::Attack:
+			if (CommandData.TargetActor)
+			{
+				BlackboardComponent->SetValueAsObject(TargetActorKey, CommandData.TargetActor);
+				BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetActor->GetActorLocation());
+				NOVA_LOG(Log, "AIController: Attack command (Actor) synced to BB (Target: %s)", *CommandData.TargetActor->GetName());
+			}
+			else
+			{
+				BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+				BlackboardComponent->ClearValue(TargetActorKey);
+				NOVA_LOG(Log, "AIController: Attack command (Location) synced to BB (%s)", *CommandData.TargetLocation.ToString());
+			}
+			break;
 
-	case ECommandType::Stop:
-	case ECommandType::Hold:
-		HandleStopCommand();
-		break;
+		case ECommandType::Stop:
+		case ECommandType::Hold:
+		case ECommandType::Halt:
+			BlackboardComponent->ClearValue(TargetLocationKey);
+			BlackboardComponent->ClearValue(TargetActorKey);
+			StopMovement();
+			NOVA_LOG(Log, "AIController: %s command synced to BB.", 
+				CommandData.CommandType == ECommandType::Stop ? TEXT("Stop") : 
+				(CommandData.CommandType == ECommandType::Hold ? TEXT("Hold") : TEXT("Halt")));
+			break;
 
-	default:
-		break;
+		case ECommandType::Spread:
+			BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+			BlackboardComponent->ClearValue(TargetActorKey);
+			NOVA_LOG(Log, "AIController: Spread command synced to BB.");
+			break;
+
+		default:
+			break;
+		}
+
+		// 2. 비헤이비어 트리 강제 재시작 (즉각적인 반응성 확보)
+		if (BehaviorTreeComponent)
+		{
+			BehaviorTreeComponent->RestartLogic();
+		}
 	}
-}
-
-void ANovaAIController::HandleMoveCommand(const FVector& TargetLocation)
-{
-	ANovaUnit* NovaUnit = Cast<ANovaUnit>(GetPawn());
-	check(NovaUnit); // NovaAIController는 ANovaUnit 전용이어야 합니다.
-
-	NovaUnit->MoveToLocation(TargetLocation);
-	NOVA_LOG(Log, "AIController: Move command issued via NovaUnit to %s", *TargetLocation.ToString());
-}
-
-void ANovaAIController::HandleAttackCommand(AActor* TargetActor)
-{
-	if (!TargetActor) return;
-
-	ANovaUnit* NovaUnit = Cast<ANovaUnit>(GetPawn());
-	check(NovaUnit);
-
-	// 공격 대상에게 다가가기 위해 FAIMoveRequest 설정 (AcceptanceRadius는 임시 사거리)
-	FAIMoveRequest MoveRequest;
-	MoveRequest.SetGoalActor(TargetActor);
-	MoveRequest.SetAcceptanceRadius(100.0f);
-	MoveRequest.SetAllowPartialPath(true);
-	MoveRequest.SetProjectGoalLocation(true);
-	MoveRequest.SetRequireNavigableEndLocation(false);
-
-	MoveTo(MoveRequest);
-	
-	NOVA_LOG(Log, "AIController: Attacking target %s", *TargetActor->GetName());
-}
-
-void ANovaAIController::HandleStopCommand()
-{
-	StopMovement();
-	NOVA_LOG(Log, "AIController: Movement Stopped.");
 }

@@ -17,8 +17,9 @@
 ## 이슈 관리 (Issue Management)
 - **분류 체계:** 이슈는 제목의 접두어 대신 GitHub **Labels**를 사용하여 분류한다.
   - **Domain Labels:** `GAS`, `AI`, `Assembly`, `UI`, `Combat` 등 (작업 영역에 맞춰 중복 지정 권장)
-- **템플릿 사용:** 모든 이슈는 GitHub에서 제공하는 탬플릿을 사용하여 생성해야 한다.
 - **제목:** 간결하고 명확하게 작성하며, 레이블이 있으므로 별도의 접두어(`[Fix]`, `[Feat]` 등)는 강제하지 않는다.
+- **템플릿 사용:** 모든 이슈의 내용은 다음 양식을 따라야 한다.
+@../.github/ISSUE_TEMPLATE/task_template.md
 
 ## 커밋 규약
 - Conventional Commits 형식 사용
