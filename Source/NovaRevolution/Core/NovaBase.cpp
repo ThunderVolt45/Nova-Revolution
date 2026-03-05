@@ -5,6 +5,7 @@
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
 #include "GAS/NovaAttributeSet.h"
+#include "Core/Production/NovaUnitFactory.h"
 
 ANovaBase::ANovaBase()
 {
@@ -58,6 +59,16 @@ void ANovaBase::OnDeselected()
 {
 	bIsSelected = false;
 	UE_LOG(LogTemp, Log, TEXT("Base Deselected: %s"), *GetName());
+}
+
+bool ANovaBase::ProduceUnit(int32 SlotIndex)
+{
+	if (UNovaUnitFactory* Factory = GetWorld()->GetSubsystem<UNovaUnitFactory>())
+	{
+		return Factory->RequestSpawnUnitFromDeck(SlotIndex, this, RallyPoint);
+	}
+
+	return false;
 }
 
 void ANovaBase::DestroyBase()

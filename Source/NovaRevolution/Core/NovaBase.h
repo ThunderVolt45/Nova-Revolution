@@ -42,6 +42,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nova|Base")
 	FVector GetRallyPoint() const { return RallyPoint; }
 
+	/** 특정 덱 슬롯의 유닛 생산 요청 */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
+	bool ProduceUnit(int32 SlotIndex);
+
 	// 기지 파괴 처리
 	virtual void DestroyBase();
 

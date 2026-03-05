@@ -62,6 +62,9 @@ public:
 	/** 팀 식별자 설정을 위한 세터 */
 	void SetTeamID(int32 InTeamID) { TeamID = InTeamID; }
 
+	/** 생성 시 초기 이동 목표(랠리 포인트) 설정 */
+	void SetInitialRallyLocation(const FVector& InLocation) { InitialRallyLocation = InLocation; }
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -116,6 +119,10 @@ protected:
 	// 사망 여부
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
 	bool bIsDead = false;
+
+	// 생성 시 초기 목표 지점 (랠리 포인트)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
+	FVector InitialRallyLocation = FVector::ZeroVector;
 
 private:
 	// 이전 프레임의 Yaw (회전 속도 계산용)

@@ -121,6 +121,18 @@ void ANovaUnit::BeginPlay()
 
 	// 초기 Yaw 설정
 	LastYaw = GetActorRotation().Yaw;
+
+	// --- 랠리 포인트 이동 로직 추가 ---
+	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
+	if (!InitialRallyLocation.IsNearlyZero())
+	{
+		FCommandData MoveCmd;
+		MoveCmd.CommandType = ECommandType::Move;
+		MoveCmd.TargetLocation = InitialRallyLocation;
+		
+		IssueCommand(MoveCmd);
+		NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
+	}
 }
 
 void ANovaUnit::ConstructUnitParts()
