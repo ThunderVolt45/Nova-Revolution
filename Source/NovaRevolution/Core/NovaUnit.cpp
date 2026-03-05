@@ -237,7 +237,16 @@ void ANovaUnit::InitializeAttributesFromParts()
 	TArray<AActor*> PartActors;
 	PartActors.Add(LegsPartComponent->GetChildActor());
 	PartActors.Add(BodyPartComponent->GetChildActor());
-	for (auto WeaponComp : WeaponPartComponents) PartActors.Add(WeaponComp->GetChildActor());
+	
+	// 무기 부품은 여러 개가 붙을 수 있지만 모두 같은 종류를 붙일 예정이므로 스펙은 첫 번째 것 하나만 반영함
+	for (auto WeaponComp : WeaponPartComponents)
+	{
+		if (AActor* WeaponActor = WeaponComp->GetChildActor())
+		{
+			PartActors.Add(WeaponActor);
+			break; // 첫 번째 무기만 추가하고 중단
+		}
+	}
 
 	// 각 부품에서 스탯 수집
 	for (AActor* Actor : PartActors)
