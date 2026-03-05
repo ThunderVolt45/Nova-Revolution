@@ -42,9 +42,6 @@ public:
 	// --- INovaCommandInterface ---
 	virtual void IssueCommand(const FCommandData& CommandData) override;
 
-	/** 유닛을 특정 위치로 이동시키는 함수 */
-	virtual bool MoveToLocation(const FVector& TargetLocation, float AcceptanceRadius = 5.0f);
-
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
 

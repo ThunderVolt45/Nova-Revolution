@@ -40,85 +40,39 @@ void ANovaAIController::OnPossess(APawn* InPawn)
 
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 {
-	// 블랙보드 데이터 갱신
+	// 블랙보드 데이터 갱신 (BT에서 이를 보고 상태 전환)
 	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
 		BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)CommandData.CommandType);
+		
+		// 명령 타입에 따른 추가 데이터 설정
+		switch (CommandData.CommandType)
+		{
+		case ECommandType::Move:
+			BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+			BlackboardComponent->ClearValue(TargetActorKey);
+			NOVA_LOG(Log, "AIController: Move command synced to BB (%s)", *CommandData.TargetLocation.ToString());
+			break;
+
+		case ECommandType::Attack:
+			if (CommandData.TargetActor)
+			{
+				BlackboardComponent->SetValueAsObject(TargetActorKey, CommandData.TargetActor);
+				BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetActor->GetActorLocation());
+				NOVA_LOG(Log, "AIController: Attack command synced to BB (Target: %s)", *CommandData.TargetActor->GetName());
+			}
+			break;
+
+		case ECommandType::Stop:
+		case ECommandType::Hold:
+			BlackboardComponent->ClearValue(TargetLocationKey);
+			BlackboardComponent->ClearValue(TargetActorKey);
+			StopMovement(); // 물리적 정지는 즉시 수행
+			NOVA_LOG(Log, "AIController: Stop command synced to BB.");
+			break;
+
+		default:
+			break;
+		}
 	}
-
-	switch (CommandData.CommandType)
-	{
-	case ECommandType::Move:
-		HandleMoveCommand(CommandData.TargetLocation);
-		break;
-
-	case ECommandType::Attack:
-		HandleAttackCommand(CommandData.TargetActor);
-		break;
-
-	case ECommandType::Stop:
-	case ECommandType::Hold:
-		HandleStopCommand();
-		break;
-
-	default:
-		break;
-	}
-}
-
-void ANovaAIController::HandleMoveCommand(const FVector& TargetLocation)
-{
-	// 블랙보드 데이터 갱신
-	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
-	{
-		BlackboardComponent->SetValueAsVector(TargetLocationKey, TargetLocation);
-		BlackboardComponent->ClearValue(TargetActorKey);
-	}
-
-	ANovaUnit* NovaUnit = Cast<ANovaUnit>(GetPawn());
-	check(NovaUnit); 
-
-	// 기존 직접 호출 로직 유지 (BT 태스크가 완성되면 이 로직은 BT 내부로 이동하게 됨)
-	NovaUnit->MoveToLocation(TargetLocation);
-	NOVA_LOG(Log, "AIController: Move command (BT-Synced) to %s", *TargetLocation.ToString());
-}
-
-void ANovaAIController::HandleAttackCommand(AActor* TargetActor)
-{
-	if (!TargetActor) return;
-
-	// 블랙보드 데이터 갱신
-	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
-	{
-		BlackboardComponent->SetValueAsObject(TargetActorKey, TargetActor);
-		BlackboardComponent->SetValueAsVector(TargetLocationKey, TargetActor->GetActorLocation());
-	}
-
-	ANovaUnit* NovaUnit = Cast<ANovaUnit>(GetPawn());
-	check(NovaUnit);
-
-	// 기존 직접 호출 로직 유지
-	FAIMoveRequest MoveRequest;
-	MoveRequest.SetGoalActor(TargetActor);
-	MoveRequest.SetAcceptanceRadius(100.0f);
-	MoveRequest.SetAllowPartialPath(true);
-	MoveRequest.SetProjectGoalLocation(true);
-	MoveRequest.SetRequireNavigableEndLocation(false);
-
-	MoveTo(MoveRequest);
-	
-	NOVA_LOG(Log, "AIController: Attack command (BT-Synced) on target %s", *TargetActor->GetName());
-}
-
-void ANovaAIController::HandleStopCommand()
-{
-	// 블랙보드 초기화
-	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
-	{
-		BlackboardComponent->ClearValue(TargetLocationKey);
-		BlackboardComponent->ClearValue(TargetActorKey);
-	}
-
-	StopMovement();
-	NOVA_LOG(Log, "AIController: Stop command (BT-Synced).");
 }

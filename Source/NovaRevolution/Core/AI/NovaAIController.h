@@ -40,11 +40,6 @@ protected:
 	TObjectPtr<UBehaviorTree> BehaviorTreeAsset;
 
 private:
-	/** 명령 처리 유틸리티 함수들 */
-	void HandleMoveCommand(const FVector& TargetLocation);
-	void HandleAttackCommand(AActor* TargetActor);
-	void HandleStopCommand();
-
 	/** 블랙보드 키 이름 정의 */
 	static const FName TargetLocationKey;
 	static const FName TargetActorKey;
