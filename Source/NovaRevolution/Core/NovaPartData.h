@@ -40,6 +40,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float Watt = 0.0f;
 
+	// 무게 (조립 시 유효성 검사용: 다리 무게 >= 몸통+무기+악세 무게)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
+	float Weight = 0.0f;
+
 	// 체력
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float Health = 0.0f;
