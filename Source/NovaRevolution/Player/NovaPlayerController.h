@@ -28,11 +28,22 @@ protected:
 	// 커스텀 입력 컴포넌트를 사용하기 위해 오버라이드 합니다.
 	virtual void SetupInputComponent() override;
 
+	// 매 프레임 마우스 엣지 체크를 위해 오버라이드
+	virtual void PlayerTick(float DeltaTime) override;
+	
 	// 현재 드래그 상태인지 여부
 	bool bIsDraggingBox = false;
 	
 	// 현재 Shift(다중 선택) 모드인지 여부
 	bool bIsShiftDown = false;
+	
+	// 엣지 스크롤링 활성화 여부
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
+	bool bEnableEdgeScrolling = true;
+	
+	// 화면 끝에서 몇 픽셀 이내일 때 화면을 이동시킬지 설정
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
+	float EdgeScrollMargin = 15.f;
 	
 	// 에디터에서 할당할 IMC
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
@@ -63,9 +74,12 @@ protected:
 	// 마우스 Held
 	void Input_AbilityInputTagHeld(FGameplayTag InputTag);
 
-	// 실제 카메라 이동 처리 함수
+	// 실제 카메라 이동 처리 함수 -> 마우스 스크롤링 추가되어 공용 함수 ApplyCameraMovement이용
 	void MoveCamera(const FInputActionValue& Value);
 
+	// 공통 카메라 이동처리 함수 (키보드와 마우스 엣지에서 공용으로 사용)
+	void ApplyCameraMovement(float ForwardInput, float RightInput);
+	
 	// 드래그 선택을 수행하는 실제 판정 함수
 	void PerformBoxSelection();
 	

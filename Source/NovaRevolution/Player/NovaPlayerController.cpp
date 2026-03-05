@@ -22,13 +22,26 @@ ANovaPlayerController::ANovaPlayerController()
 void ANovaPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	// 입력 모드 설정 (Game : 게임 월드 입력(클릭, 드래그) 지원 | UI : UI 마우스 오버 등 지원)
+	FInputModeGameAndUI InputMode;
+
+	// 마우스 가두기 옵션 설정 (LcokAlways 또는 LockInFullScreen)
+	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::LockAlways);
+
+	// 커서 표시 설정
+	InputMode.SetHideCursorDuringCapture(false);;
+
+	// 컨트롤러에 적용
+	SetInputMode(InputMode);
+
 	// 1. 로컬 플레이어(내 화면)인지 확인 (UI 생성 및 입력 설정의 필수 조건)
 	if (IsLocalPlayerController())
 	{
 		// 기존 코드 내부로 이동
 		// Local Player Subsystem 가져오기
-		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<
+			UEnhancedInputLocalPlayerSubsystem>(
 			GetLocalPlayer()))
 		{
 			// IMC가 에디터에서 할당되었는지 확인 후 추가
@@ -38,7 +51,7 @@ void ANovaPlayerController::BeginPlay()
 				Subsystem->AddMappingContext(IMC, 0);
 			}
 		}
-		
+
 		// --- 새로운 로직: 메인 HUD 생성 및 표시 ---
 		// 에디터(BP_NovaPlayerController)에서 MainHUDClass가 할당되었는지 확인
 		if (MainHUDClass)
@@ -50,7 +63,6 @@ void ANovaPlayerController::BeginPlay()
 			}
 		}
 	}
-	
 }
 
 void ANovaPlayerController::SetupInputComponent()
@@ -70,6 +82,53 @@ void ANovaPlayerController::SetupInputComponent()
 	{
 		NovaInputComponent->BindAction(MoveCameraAction, ETriggerEvent::Triggered, this,
 		                               &ANovaPlayerController::MoveCamera);
+	}
+}
+
+void ANovaPlayerController::PlayerTick(float DeltaTime)
+{
+	Super::PlayerTick(DeltaTime);
+
+	// 마우스 스크롤링 기능
+	if (bEnableEdgeScrolling)
+	{
+		float MouseX, MouseY;
+		// 마우스 좌표 얻어오기(APlayerController 함수)
+		if (GetMousePosition(MouseX, MouseY))
+		{
+			int32 ViewportSizeX, ViewportSizeY;
+			// Viewport 사이즈 얻어오기(APlayerController 함수)
+			GetViewportSize(ViewportSizeX, ViewportSizeY);
+
+			float ForwardInput = 0.f;
+			float RightInput = 0.f;
+
+			// 상단/하단 경계 체크 (Y축은 위쪽이 0)
+			if (MouseY <= EdgeScrollMargin)
+			{
+				ForwardInput = 1.f;
+			}
+			else if (MouseY >= ViewportSizeY - EdgeScrollMargin)
+			{
+				ForwardInput = -1.f;
+			}
+
+			// 좌측/우측 경계 체크
+			if (MouseX <= EdgeScrollMargin)
+			{
+				RightInput = -1.f;
+			}
+			else if (MouseX >= ViewportSizeX - EdgeScrollMargin)
+			{
+				RightInput = 1.f;
+			}
+			
+			// 마우스가 경계이 있다면 카메라 이동 적용
+			if (ForwardInput != 0.f || RightInput != 0.f)
+			{
+				ApplyCameraMovement(ForwardInput, RightInput);
+			}
+		}
 	}
 }
 
@@ -128,7 +187,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 		{
 			NovaHUD->UpdateDragRect(FVector2D::ZeroVector, FVector2D::ZeroVector, false);
 		}
-		
+
 		if (bIsDraggingBox)
 		{
 			// 드래그 선택 수행
@@ -201,24 +260,29 @@ void ANovaPlayerController::MoveCamera(const FInputActionValue& Value)
 {
 	// 입력 값 가져오기
 	FVector2D InputVector = Value.Get<FVector2D>();
+	
+	// 공통 함수로 입력을 넘김. (Y는 Forward, X는 Right)
+	ApplyCameraMovement(InputVector.Y, InputVector.X);
+}
 
-	// 조종 중인 Pawn 가져오기
+void ANovaPlayerController::ApplyCameraMovement(float ForwardInput, float RightInput)
+{
 	APawn* ControlledPawn = GetPawn();
-
-	if (ControlledPawn && (InputVector.SizeSquared() > 0.f))
+	
+	if (ControlledPawn)
 	{
 		// 카메라의 현재 회전 방향을 기준으로 앞/옆 방향 계산
 		const FRotator Rotation = GetControlRotation();
 		const FRotator YawRotation(0.f, Rotation.Yaw, 0.f);
-
+		
 		// 앞/뒤 이동 벡터 계산
 		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
 		// 좌/우 이동 벡터 계산
 		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
 
 		// Pawn에게 이동 명령 전달 (속도는 Pawn의 MovementComponent에서 조절)
-		ControlledPawn->AddMovementInput(ForwardDirection, InputVector.Y);
-		ControlledPawn->AddMovementInput(RightDirection, InputVector.X);
+		ControlledPawn->AddMovementInput(ForwardDirection, ForwardInput);
+		ControlledPawn->AddMovementInput(RightDirection, RightInput);
 	}
 }
 
