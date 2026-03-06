@@ -41,7 +41,7 @@ public:
 
 	/** 팀 ID를 설정합니다. (GameMode에서 호출) */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Team")
-	void SetTeamID(int32 NewTeamID) { TeamID = NewTeamID; }
+	void SetTeamID(int32 NewTeamID);
 
 	// --- INovaProductionInterface ---
 	UFUNCTION(BlueprintCallable, Category = "Nova|Production")
