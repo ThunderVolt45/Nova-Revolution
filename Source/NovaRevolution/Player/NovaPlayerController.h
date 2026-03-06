@@ -14,6 +14,18 @@ class UInputMappingContext;
 class UInputAction;
 
 /**
+ * 부대 지정의 대상들을 담아둘 구조체
+ */
+USTRUCT(BlueprintType)
+struct FNovaControlGroup
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadOnly)
+	TArray<TObjectPtr<AActor>> Targets;
+};
+
+/**
  * ANovaPlayerController
  * 플레이어의 입력을 받아 유닛을 선택하고 명령을 내리는 전술 지휘관 클래스
  */
@@ -74,6 +86,10 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category="Nova|Selection")
 	TArray<TObjectPtr<AActor>> SelectedUnits;
 
+	// 부대 지정을 위한 구조체 배열 (TArray<TArray<>> 형태를 사용할 수 없어 구조체로 선언)
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Selection")
+	TArray<FNovaControlGroup> ControlGroups;
+	
 	// 현재 대기 중인 명령 타입 (None이 아니면 다음 좌클릭 시 해당 명령 수행)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Command")
 	ECommandType PendingCommandType = ECommandType::None;

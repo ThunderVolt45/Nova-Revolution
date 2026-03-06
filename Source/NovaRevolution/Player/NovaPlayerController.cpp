@@ -68,6 +68,9 @@ void ANovaPlayerController::BeginPlay()
 			}
 		}
 	}
+
+	// 10개의 빈 부대 슬롯 미리 생성
+	ControlGroups.SetNum(10);
 }
 
 void ANovaPlayerController::SetupInputComponent()
@@ -151,38 +154,91 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift)) bIsShiftDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Ctrl)) bIsCtrlDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Alt)) bIsAltDown = true;
-	
-	// Shift가 눌려 있다면 생산 모드로 동작
-	if (bIsShiftDown)
-	{
-		if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
-		{
-			if (ANovaBase* PlayerBase = PS->GetPlayerBase())
-			{
-				// 태그별 슬롯 인덱스 매핑
-				int32 SlotIndex = -1;
-				if (InputTag == NovaGameplayTags::Input_Slot_1) SlotIndex = 0;
-				else if (InputTag == NovaGameplayTags::Input_Slot_2) SlotIndex = 1;
-				else if (InputTag == NovaGameplayTags::Input_Slot_3) SlotIndex = 2;
-				else if (InputTag == NovaGameplayTags::Input_Slot_4) SlotIndex = 3;
-				else if (InputTag == NovaGameplayTags::Input_Slot_5) SlotIndex = 4;
-				else if (InputTag == NovaGameplayTags::Input_Slot_6) SlotIndex = 5;
-				else if (InputTag == NovaGameplayTags::Input_Slot_7) SlotIndex = 6;
-				else if (InputTag == NovaGameplayTags::Input_Slot_8) SlotIndex = 7;
-				else if (InputTag == NovaGameplayTags::Input_Slot_9) SlotIndex = 8;
-				else if (InputTag == NovaGameplayTags::Input_Slot_0) SlotIndex = 9;
 
-				if (SlotIndex != -1)
+
+	// 슬롯(Slot 1~0) 공통 처리
+	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Input.Slot"))))
+	{
+		int32 SlotIndex = -1;
+		// 태그별 슬롯 인덱스 매핑
+		if (InputTag == NovaGameplayTags::Input_Slot_1) SlotIndex = 0;
+		else if (InputTag == NovaGameplayTags::Input_Slot_2) SlotIndex = 1;
+		else if (InputTag == NovaGameplayTags::Input_Slot_3) SlotIndex = 2;
+		else if (InputTag == NovaGameplayTags::Input_Slot_4) SlotIndex = 3;
+		else if (InputTag == NovaGameplayTags::Input_Slot_5) SlotIndex = 4;
+		else if (InputTag == NovaGameplayTags::Input_Slot_6) SlotIndex = 5;
+		else if (InputTag == NovaGameplayTags::Input_Slot_7) SlotIndex = 6;
+		else if (InputTag == NovaGameplayTags::Input_Slot_8) SlotIndex = 7;
+		else if (InputTag == NovaGameplayTags::Input_Slot_9) SlotIndex = 8;
+		else if (InputTag == NovaGameplayTags::Input_Slot_0) SlotIndex = 9;
+
+		if (SlotIndex != -1)
+		{
+			// 부대 지정 (Ctrl + Slot) 
+			if (bIsCtrlDown)
+			{
+				// 해당 슬롯의 Targets 배열을 현재 선택된 유닛들로 덮어쓰기
+				if (SelectedUnits.Num() > 0)
 				{
-					PlayerBase->ProduceUnit(SlotIndex);
-					NOVA_SCREEN(Warning, "Request Production : Slot %d", SlotIndex + 1);
-					return;
+					ControlGroups[SlotIndex].Targets = SelectedUnits;
+					NOVA_SCREEN(Warning, "Control Group %d Assigned (%d units)", SlotIndex + 1, SelectedUnits.Num());
 				}
+				else
+				{
+					// 선택된 유닛이 없다면 부대 해제
+					ControlGroups[SlotIndex].Targets.Empty();
+					NOVA_SCREEN(Warning, "Control Group %d Cleared", SlotIndex + 1);
+				}
+				return;
 			}
-			else { NOVA_SCREEN(Error, "Base is null!"); }
+
+			// 즉시 유닛 생산 (Shift + Slot)
+			if (bIsShiftDown)
+			{
+				if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+				{
+					if (ANovaBase* PlayerBase = PS->GetPlayerBase())
+					{
+						PlayerBase->ProduceUnit(SlotIndex);
+						NOVA_SCREEN(Warning, "Request Production : Slot %d", SlotIndex + 1);
+						return;
+					}
+					else { NOVA_SCREEN(Error, "Base is null!"); }
+				}
+				return;
+			}
+
+			// 부대 호출
+			if (ControlGroups[SlotIndex].Targets.Num() > 0)
+			{
+				// 기존 선택 해제
+				ClearSelection();
+				
+				// 유효한 Actor를 찾아 Slot에 추가 (사라진 유닛은 넣으면 안됨!)
+				for (TObjectPtr<AActor> Actor : ControlGroups[SlotIndex].Targets)
+				{
+					// 유효성 확인
+					if (IsValid(Actor))
+					{
+						// INovaSelectableInterface를 가진 Actor만 선택
+						if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Actor))
+						{
+							Selectable->OnSelected();
+							SelectedUnits.Add(Actor);
+						}
+					}
+				}
+				NOVA_SCREEN(Warning, "Control Group %d Selected", SlotIndex + 1);
+			}
+			return;
 		}
 	}
 	
+	// 즉시 스킬 시전 (Alt + Slot)
+	if (bIsAltDown)
+	{
+	}
+
 	// 마우스 좌클릭 (선택)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
@@ -237,16 +293,16 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				// 기존 선택 해제
 				ClearSelection();
 				float CurrentTime = GetWorld()->GetTimeSeconds();
-				
+
 				// 기지 선택 및 배열 추가
 				if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(PlayerBase))
 				{
 					Selectable->OnSelected();
 					SelectedUnits.Add(PlayerBase);
-					
+
 					NOVA_SCREEN(Warning, "Command: Base Selected");
 				}
-				
+
 				if (CurrentTime - LastBaseSelectTime < 0.3f)
 				{
 					if (APawn* ControlledPawn = GetPawn())
@@ -265,7 +321,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		}
 		return;
 	}
-	
+
 	// 카메라 Reset
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Camera_Reset))
 	{
@@ -274,7 +330,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			NovaPawn->ResetCamera();
 		}
 	}
-	
+
 	// 누르는 즉시 실행되는 명령 : Stop(S), Hold(H), Halt(L)
 	ECommandType ImmediateCmd = ECommandType::None;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Stop)) ImmediateCmd = ECommandType::Stop;
