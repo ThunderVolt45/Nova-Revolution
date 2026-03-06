@@ -37,8 +37,14 @@ protected:
 	// 현재 드래그 상태인지 여부
 	bool bIsDraggingBox = false;
 
-	// 현재 Shift(다중 선택) 모드인지 여부
+	// Shift 모드 여부 (선택 추가/제거, 즉시 생산 명령)
 	bool bIsShiftDown = false;
+	
+	// Ctrl 모드 여부 (부대 지정)
+	bool bIsCtrlDown = false;
+	
+	// Alt 모드 여부 (스킬 즉시 사용 명령)
+	bool bIsAltDown = false;
 
 	// 엣지 스크롤링 활성화 여부
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")

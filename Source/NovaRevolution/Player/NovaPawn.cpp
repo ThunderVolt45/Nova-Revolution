@@ -24,7 +24,7 @@ ANovaPawn::ANovaPawn()
 	// 스프링암 설정
 	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
 	SpringArmComponent->SetupAttachment(RootComponent);
-	SpringArmComponent->TargetArmLength = DefaultZoomLength; // 초기 거리
+	SpringArmComponent->TargetArmLength = TargetZoomLength; // 초기 거리
 	SpringArmComponent->SetRelativeRotation(FRotator(-75.f, 0.f, 0.f)); // 기본 각도
 	SpringArmComponent->bDoCollisionTest = false; // 지형 충돌로 카메라가 튀는 걸 방지
 
@@ -61,11 +61,11 @@ void ANovaPawn::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// 현재 ArmLength를 TargetArmLength로 부드럽게 보간
-	if (!FMath::IsNearlyEqual(SpringArmComponent->TargetArmLength, DefaultZoomLength))
+	if (!FMath::IsNearlyEqual(SpringArmComponent->TargetArmLength, TargetZoomLength))
 	{
 		SpringArmComponent->TargetArmLength = FMath::FInterpTo(
 			SpringArmComponent->TargetArmLength,
-			DefaultZoomLength,
+			TargetZoomLength,
 			DeltaTime,
 			ZoomInterpSpeed
 		);
@@ -75,5 +75,11 @@ void ANovaPawn::Tick(float DeltaTime)
 void ANovaPawn::UpdateZoom(float Direction)
 {
 	// 입력 방향에 따라 목표 거리 계산 (한번 굴릴 때 마다 200 unit씩 증감 예시)
-	DefaultZoomLength = FMath::Clamp(DefaultZoomLength + (Direction * -200.f), MinZoomLength, MaxZoomLength);
+	TargetZoomLength = FMath::Clamp(TargetZoomLength + (Direction * -200.f), MinZoomLength, MaxZoomLength);
+}
+
+void ANovaPawn::ResetCamera()
+{
+	// 초기 줌 값으로 설정
+	TargetZoomLength = DefaultZoomLength;
 }

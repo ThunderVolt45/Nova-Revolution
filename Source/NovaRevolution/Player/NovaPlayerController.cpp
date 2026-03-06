@@ -147,12 +147,11 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	FHitResult CursorHit;
 	GetCursorHitResult(CursorHit); // 마우스 아래의 정보를 CursorHit에 담습니다.
 
-	// [추가] Shift 키를 누르는 순간 다중 선택 모드 활성화!
-	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift))
-	{
-		bIsShiftDown = true;
-	}
-
+	// 조합키 활성화
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift)) bIsShiftDown = true;
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Ctrl)) bIsCtrlDown = true;
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Alt)) bIsAltDown = true;
+	
 	// Shift가 눌려 있다면 생산 모드로 동작
 	if (bIsShiftDown)
 	{
@@ -267,6 +266,15 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		return;
 	}
 	
+	// 카메라 Reset
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Camera_Reset))
+	{
+		if (ANovaPawn* NovaPawn = Cast<ANovaPawn>(GetPawn()))
+		{
+			NovaPawn->ResetCamera();
+		}
+	}
+	
 	// 누르는 즉시 실행되는 명령 : Stop(S), Hold(H), Halt(L)
 	ECommandType ImmediateCmd = ECommandType::None;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Stop)) ImmediateCmd = ECommandType::Stop;
@@ -351,11 +359,10 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 		}
 	}
 
-	// Shift 키를 떼는 순간 다중 선택 모드 해제!
-	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift))
-	{
-		bIsShiftDown = false;
-	}
+	// 조합키 비활성화
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift)) bIsShiftDown = false;
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Ctrl)) bIsCtrlDown = false;
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Alt)) bIsAltDown = false;
 
 	// 마우스를 뗄 때 선택
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
