@@ -27,11 +27,12 @@
     } \
 }
 
-// 조건 체크 및 실패 시 에러 로그
+// 조건 체크 및 실패 시 에러 로그 및 화면 출력
 #define NOVA_CHECK(Condition, Format, ...) \
 { \
     if (!(Condition)) \
     { \
-        NOVA_LOG(Error, "CHECK FAILED: %s | " Format, TEXT(#Condition), ##__VA_ARGS__); \
+        NOVA_SCREEN(Error, "CHECK FAILED: %s | " Format, TEXT(#Condition), ##__VA_ARGS__); \
+        ensureMsgf(Condition, TEXT("CHECK FAILED: %s | " Format), TEXT(#Condition), ##__VA_ARGS__); \
     } \
 }

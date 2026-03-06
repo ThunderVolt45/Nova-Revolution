@@ -50,20 +50,17 @@ public:
 	
 public:
 	/** 팩토리로부터 조립 설계도를 전달받아 멤버 변수 초기화 */
-	void SetAssemblyData(const FNovaUnitAssemblyData& Data)
-	{
-		LegsPartClass = Data.LegsClass;
-		LegsPartID = Data.LegsPartID;
-		BodyPartClass = Data.BodyClass;
-		BodyPartID = Data.BodyPartID;
-		WeaponSlotConfigs = Data.WeaponSlots;
-	}
+	void SetAssemblyData(const FNovaUnitAssemblyData& Data);
 	
 	/** 팀 식별자 설정을 위한 세터 */
 	void SetTeamID(int32 InTeamID) { TeamID = InTeamID; }
 
 	/** 생성 시 초기 이동 목표(랠리 포인트) 설정 */
 	void SetInitialRallyLocation(const FVector& InLocation) { InitialRallyLocation = InLocation; }
+
+	/** 유닛의 이름을 반환합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
+	FString GetUnitName() const { return UnitName; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -73,13 +70,7 @@ protected:
 	TObjectPtr<class UDataTable> PartDataTable;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
-	FName LegsPartID;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TSubclassOf<class ANovaPart> LegsPartClass;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
-	FName BodyPartID;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TSubclassOf<class ANovaPart> BodyPartClass;
@@ -88,9 +79,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	FName BodyTargetSocketName = TEXT("Socket_Body");
 
-	// 무기 설정 리스트
+	// 무기 클래스 (단일 종류)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
-	TArray<FNovaWeaponPartSlot> WeaponSlotConfigs;
+	TSubclassOf<class ANovaPart> WeaponPartClass;
+
+	// 무기가 부착될 몸통(Body)의 소켓 이름들
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	TArray<FName> WeaponSocketNames;
 
 	// --- 실제 생성된 컴포넌트들 (런타임 관리용) ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit|Parts|Runtime")
@@ -118,6 +113,9 @@ protected:
 	TObjectPtr<UNovaAttributeSet> AttributeSet;
 
 	// --- 유닛 기본 정보 ---
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
+	FString UnitName;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
 	int32 TeamID = NovaTeam::None;
 

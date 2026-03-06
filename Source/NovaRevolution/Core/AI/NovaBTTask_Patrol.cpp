@@ -89,7 +89,7 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			}
 			else
 			{
-				AIC->MoveToActor(Target, Range * 0.95f);
+				AIC->MoveToActor(Target, Range * 0.9f);
 			}
 			
 			// 교전 중이므로 여기서 리턴하여 아래의 순찰 로직 실행 방지
