@@ -15,7 +15,9 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Input_Patrol, "Input.Patrol");
 
 	// Shift 명령
-	UE_DEFINE_GAMEPLAY_TAG(Input_Modifier_Select, "Input.Modifier.Select");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Modifier_Shift, "Input.Modifier.Shift");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Modifier_Ctrl, "Input.Modifier.Ctrl");
+	UE_DEFINE_GAMEPLAY_TAG(Input_Modifier_Alt, "Input.Modifier.Alt");
 	
 	// 고유 명령
 	UE_DEFINE_GAMEPLAY_TAG(Input_Spread, "Input.Spread");

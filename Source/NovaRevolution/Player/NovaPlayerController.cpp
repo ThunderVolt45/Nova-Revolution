@@ -148,7 +148,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	GetCursorHitResult(CursorHit); // 마우스 아래의 정보를 CursorHit에 담습니다.
 
 	// [추가] Shift 키를 누르는 순간 다중 선택 모드 활성화!
-	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Select))
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift))
 	{
 		bIsShiftDown = true;
 	}
@@ -183,8 +183,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			else { NOVA_SCREEN(Error, "Base is null!"); }
 		}
 	}
-
-
+	
 	// 마우스 좌클릭 (선택)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
@@ -229,6 +228,45 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		return;
 	}
 
+	// 기지 선택(B)
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_SelectBase))
+	{
+		if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+		{
+			if (ANovaBase* PlayerBase = PS->GetPlayerBase())
+			{
+				// 기존 선택 해제
+				ClearSelection();
+				float CurrentTime = GetWorld()->GetTimeSeconds();
+				
+				// 기지 선택 및 배열 추가
+				if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(PlayerBase))
+				{
+					Selectable->OnSelected();
+					SelectedUnits.Add(PlayerBase);
+					
+					NOVA_SCREEN(Warning, "Command: Base Selected");
+				}
+				
+				if (CurrentTime - LastBaseSelectTime < 0.3f)
+				{
+					if (APawn* ControlledPawn = GetPawn())
+					{
+						FVector BaseLocation = PlayerBase->GetActorLocation();
+						BaseLocation.Z = ControlledPawn->GetActorLocation().Z;
+						ControlledPawn->SetActorLocation(BaseLocation);
+					}
+				}
+				LastBaseSelectTime = CurrentTime;
+			}
+			else
+			{
+				NOVA_SCREEN(Error, "Base is Null!");
+			}
+		}
+		return;
+	}
+	
 	// 누르는 즉시 실행되는 명령 : Stop(S), Hold(H), Halt(L)
 	ECommandType ImmediateCmd = ECommandType::None;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Stop)) ImmediateCmd = ECommandType::Stop;
@@ -314,7 +352,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 	}
 
 	// Shift 키를 떼는 순간 다중 선택 모드 해제!
-	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Select))
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift))
 	{
 		bIsShiftDown = false;
 	}

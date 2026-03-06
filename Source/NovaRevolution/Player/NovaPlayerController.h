@@ -113,6 +113,8 @@ protected:
 	class UUserWidget* MainHUDInstance;
 
 private:
+	float LastBaseSelectTime = 0.f;
+	
 	// 마우스 커서 아래에 무엇이 있는지 감지하는 헬퍼 함수
 	void GetCursorHitResult(FHitResult& OutHitResult);
 
