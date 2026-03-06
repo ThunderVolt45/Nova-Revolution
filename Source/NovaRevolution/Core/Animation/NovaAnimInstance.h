@@ -26,4 +26,12 @@ public:
 	// 사망 여부
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Animation")
 	bool bIsDead = false;
+	
+	// 원본 메쉬 대비 조정된 스케일 비율
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Animation")
+	float MeshScaleValue = 0.0f;
+	
+	// 해당 애니메이션의 원본 이동 속도
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Animation")
+	float AnimMaxSpeed = 0.0f;
 };

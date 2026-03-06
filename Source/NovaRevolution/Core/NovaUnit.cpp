@@ -11,6 +11,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Core/AI/NovaAIController.h"
 #include "NavigationSystem.h"
+#include "Core/NovaLog.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -82,6 +83,9 @@ void ANovaUnit::Tick(float DeltaTime)
 			
 			LegsActor->SetRotationRate(RotationRate);
 			LastYaw = CurrentYaw;
+			
+			// --- 실시간 속도 확인용 ---
+			// NOVA_SCREEN(Log,"Unit: %s | Current Speed: %.2f", *GetName(), CurrentSpeed);
 		}
 	}
 }
