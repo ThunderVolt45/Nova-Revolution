@@ -23,10 +23,18 @@ class NOVAREVOLUTION_API UNovaUnitFactory : public UWorldSubsystem
       */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Factory")
 	bool RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner, const FVector& RallyPoint);
+
+	/** 조립 데이터를 기반으로 유닛의 총 와트 비용을 계산합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Factory")
+	float CalculateTotalWattCost(const FNovaUnitAssemblyData& AssemblyData) const;
 	
 	private:
 	/** 실제 유닛 생성 및 조립 데이터 주입 */
 	class ANovaUnit* ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData, const FTransform& SpawnTransform,  int32 TeamID, const FVector& RallyPoint);
 	/** 자원(Watt) 확인 및 차감 로직 */
 	bool CheckAndConsumeResources(class ANovaPlayerState* PS, float Cost);
+
+	/** 부품 스펙을 담고 있는 데이터 테이블 */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Factory")
+	TObjectPtr<UDataTable> PartSpecDataTable;
 };
