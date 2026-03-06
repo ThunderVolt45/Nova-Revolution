@@ -23,4 +23,8 @@ protected:
 	/** 타겟 정보를 저장할 블랙보드 키 */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	FBlackboardKeySelector TargetActorKey;
+
+	/** 현재 명령 상태를 확인할 블랙보드 키 */
+	UPROPERTY(EditAnywhere, Category = "Nova|AI")
+	FBlackboardKeySelector CommandTypeKey;
 };
