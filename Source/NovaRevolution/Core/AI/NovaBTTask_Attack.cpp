@@ -87,14 +87,18 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		else
 		{
 			// 사거리 밖이라면 추적 이동
+			// 이미 이 타겟으로 이동 중인지 확인하여 중복 명령 방지 가능 (MoveToActor가 내부적으로 처리하긴 함)
 			AIC->MoveToActor(Target, Range * 0.95f); 
 		}
 	}
 	// 2. 타겟 액터가 없지만 목표 지점이 있는 경우 (공격 이동 중)
 	else if (!GoalLocation.IsZero())
 	{
-		// 목표 지점으로 이동 요청
-		AIC->MoveToLocation(GoalLocation, 10.0f);
+		// 목표 지점으로 이동 중인지 확인
+		if (AIC->GetMoveStatus() != EPathFollowingStatus::Moving)
+		{
+			AIC->MoveToLocation(GoalLocation, 10.0f);
+		}
 
 		// 목표 지점에 거의 도달했는지 확인
 		if (AIC->GetPathFollowingComponent()->DidMoveReachGoal())
