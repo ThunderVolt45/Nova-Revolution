@@ -208,6 +208,17 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				return;
 			}
 
+			// 즉시 스킬 시전 (Alt + Slot)
+			if (bIsAltDown)
+			{
+				// TODO: 스킬 관련 Interface 추가 시 작업할 공간
+				
+				// 현재 구현된 스킬 인터페이스가 없음. 로그만 출력
+				NOVA_SCREEN(Warning, "Request Commander Skill: Slot %d (Not Implemented Yet)", SlotIndex + 1);
+				
+				return;
+			}
+			
 			// 부대 호출
 			if (ControlGroups[SlotIndex].Targets.Num() > 0)
 			{
@@ -232,11 +243,6 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			}
 			return;
 		}
-	}
-	
-	// 즉시 스킬 시전 (Alt + Slot)
-	if (bIsAltDown)
-	{
 	}
 
 	// 마우스 좌클릭 (선택)
