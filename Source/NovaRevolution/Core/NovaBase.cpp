@@ -47,14 +47,30 @@ void ANovaBase::BeginPlay()
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
 			.AddUObject(this, &ANovaBase::OnHealthChanged);
 	}
+}
 
-	// PlayerState에 자신을 플레이어의 기지로 등록
-	if (APlayerController* PC = GetNetOwningPlayer() ? GetNetOwningPlayer()->GetPlayerController(GetWorld()) : nullptr)
+void ANovaBase::SetTeamID(int32 NewTeamID)
+{
+	TeamID = NewTeamID;
+
+	// 해당 팀의 PlayerState를 찾아 자신을 등록
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	// 월드 내의 모든 PlayerState를 검색하여 TeamID가 일치하는 것을 찾음
+	TArray<AActor*> FoundPlayerStates;
+	UGameplayStatics::GetAllActorsOfClass(World, ANovaPlayerState::StaticClass(), FoundPlayerStates);
+
+	for (AActor* Actor : FoundPlayerStates)
 	{
-		if (ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>())
+		if (ANovaPlayerState* PS = Cast<ANovaPlayerState>(Actor))
 		{
-			PS->SetPlayerBase(this);
-			NOVA_LOG(Log, "Base '%s' registered to PlayerState of '%s'", *GetName(), *PS->GetPlayerName());
+			if (PS->GetTeamID() == TeamID)
+			{
+				PS->SetPlayerBase(this);
+				NOVA_LOG(Log, "Base '%s' registered to PlayerState of team %d", *GetName(), TeamID);
+				return;
+			}
 		}
 	}
 }
