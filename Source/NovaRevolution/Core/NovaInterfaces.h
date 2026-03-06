@@ -143,3 +143,31 @@ public:
 	// 명령 데이터 패키지를 전달받아 처리
 	virtual void IssueCommand(const FCommandData& CommandData) = 0;
 };
+
+// --- 생산 시스템 인터페이스 ---
+UINTERFACE(MinimalAPI, BlueprintType, NotBlueprintable)
+class UNovaProductionInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * 유닛을 생산할 수 있는 건물(기지 등)이 구현해야 하는 인터페이스
+ */
+class NOVAREVOLUTION_API INovaProductionInterface
+{
+	GENERATED_BODY()
+
+public:
+	/** 특정 덱 슬롯의 유닛 생산을 요청합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Production")
+	virtual bool ProduceUnit(int32 SlotIndex) = 0;
+
+	/** 현재 해당 슬롯의 유닛 생산이 가능한지 확인합니다. (자원, 인구수 등) */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Production")
+	virtual bool CanProduceUnit(int32 SlotIndex) const = 0;
+
+	/** 현재 생산 주체가 사용 중인 덱 정보를 반환합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Production")
+	virtual struct FNovaDeckInfo GetProductionDeckInfo() const = 0;
+};

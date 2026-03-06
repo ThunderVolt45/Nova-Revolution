@@ -8,53 +8,59 @@
 #include "Core/NovaInterfaces.h"
 #include "NovaPlayerState.generated.h"
 
+/** 기지 변경 알림을 위한 델리게이트 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FNovaOnBaseChangedSignature, class ANovaBase*, NewBase);
+
 /**
  * Nova Revolution의 플레이어 상태 관리 클래스
  * GAS의 AbilitySystemComponent를 소유합니다.
  */
 UCLASS()
-class NOVAREVOLUTION_API ANovaPlayerState : public APlayerState, public IAbilitySystemInterface, public INovaResourceInterface
+class NOVAREVOLUTION_API ANovaPlayerState : public APlayerState, public IAbilitySystemInterface, public INovaResourceInterface, public INovaTeamInterface
 {
 	GENERATED_BODY()
 
 public:
 	ANovaPlayerState();
 
-protected:
-	virtual void BeginPlay() override;
-
-public:
 	// IAbilitySystemInterface 구현
 	virtual class UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+
+	// INovaTeamInterface 구현
+	virtual int32 GetTeamID() const override { return TeamID; }
+
+	/** 팀 ID를 설정합니다. (GameMode에서 호출) */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Team")
+	void SetTeamID(int32 NewTeamID) { TeamID = NewTeamID; }
 
 	// INovaResourceInterface 구현 (속성 접근자)
 	UFUNCTION()
 	virtual float GetCurrentWatt() const override;
-
+	
 	UFUNCTION()
 	virtual float GetMaxWatt() const override;
-
+	
 	UFUNCTION()
 	virtual float GetCurrentSP() const override;
-
+	
 	UFUNCTION()
 	virtual float GetMaxSP() const override;
-
+	
 	UFUNCTION()
 	virtual float GetCurrentPopulation() const override;
-
+	
 	UFUNCTION()
 	virtual float GetMaxPopulation() const override;
-
+	
 	UFUNCTION()
 	virtual float GetTotalUnitWatt() const override;
-
+	
 	UFUNCTION()
 	virtual float GetMaxUnitWatt() const override;
-
+	
 	UFUNCTION()
 	virtual float GetWattLevel() const override;
-
+	
 	UFUNCTION()
 	virtual float GetSPLevel() const override;
 
@@ -65,26 +71,48 @@ public:
 	virtual FNovaOnResourceChangedSignature& GetOnWattLevelChangedDelegate() override { return OnWattLevelChanged; }
 	virtual FNovaOnResourceChangedSignature& GetOnSPLevelChangedDelegate() override { return OnSPLevelChanged; }
 
-	/** 블루프린트에서 직접 접근 가능한 델리게이트 */
+	/** 플레이어의 메인 기지(Base)를 등록합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
+	void SetPlayerBase(class ANovaBase* InBase);
+
+	/** 플레이어의 메인 기지(Base)를 반환합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Base")
+	class ANovaBase* GetPlayerBase() const { return PlayerBase.Get(); }
+
+	/** 블루프린트에서 직접 접근 가능한 자원 델리게이트 */
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
 	FNovaOnResourceChangedSignature OnWattChanged;
-
+	
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
 	FNovaOnResourceChangedSignature OnSPChanged;
-
+	
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
 	FNovaOnResourceChangedSignature OnPopulationChanged;
-
+	
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
 	FNovaOnResourceChangedSignature OnWattLevelChanged;
-
+	
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
 	FNovaOnResourceChangedSignature OnSPLevelChanged;
+
+	/** 기지 변경/파괴 시 호출되는 델리게이트 */
+	UPROPERTY(BlueprintAssignable, Category = "Nova|Base")
+	FNovaOnBaseChangedSignature OnBaseChanged;
 
 	// AttributeSet 접근자
 	class UNovaResourceAttributeSet* GetResourceAttributeSet() const { return ResourceAttributeSet; }
 
 protected:
+	virtual void BeginPlay() override;
+
+	// 플레이어의 메인 기지 (약참조)
+	UPROPERTY()
+	TWeakObjectPtr<class ANovaBase> PlayerBase;
+
+	// 현재 플레이어의 팀 ID
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Team")
+	int32 TeamID = 0; // NovaTeam::None
+
 	// GAS 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "GAS")
 	class UAbilitySystemComponent* AbilitySystemComponent;

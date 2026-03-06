@@ -3,6 +3,7 @@
 #include "NovaGameMode.h"
 #include "NovaRevolution.h"
 #include "Core/NovaBase.h"
+#include "Core/NovaPlayerState.h"
 #include "Core/NovaSaveGame.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
@@ -64,6 +65,14 @@ void ANovaGameMode::InitializePlayerBase()
 	TArray<AActor*> PlayerStarts;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APlayerStart::StaticClass(), PlayerStarts);
 
+	// 로컬 플레이어의 PlayerState를 가져와서 팀 설정 (RTS 싱글플레이어 기준)
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	ANovaPlayerState* PS = PC ? PC->GetPlayerState<ANovaPlayerState>() : nullptr;
+	if (PS)
+	{
+		PS->SetTeamID(1); // 플레이어는 무조건 Team 1
+	}
+
 	for (int32 i = 0; i < PlayerStarts.Num(); ++i)
 	{
 		// 첫 번째는 Team1(1), 두 번째는 Team2(2)...
@@ -76,6 +85,9 @@ void ANovaGameMode::InitializePlayerBase()
 		
 		if (NewBase)
 		{
+			// 기지에 팀 ID 설정
+			NewBase->SetTeamID(AssignedTeamID);
+
 			// 팀 관리 맵에 저장
 			TeamBases.Add(AssignedTeamID, NewBase);
 			
