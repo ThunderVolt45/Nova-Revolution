@@ -37,6 +37,9 @@ protected:
 	// 세이브 데이터로부터 덱 정보 로드
 	virtual void LoadPlayerDecks();
 
+	/** 데이터가 없는 경우 기본 프리셋 덱을 생성합니다. */
+	virtual void InitializeDefaultDecks();
+
 	// 게임 종료 처리
 	void EndMatch(int32 WinningTeamID);
 
@@ -45,10 +48,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TSubclassOf<ANovaBase> BaseClass;
 
-private:
+	/** 데이터가 없는 경우 사용할 기본 프리셋 덱 에셋 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
+	TObjectPtr<class UNovaDeckPreset> DefaultDeckPreset;
+
 	// 현재 게임 내에 살아있는 각 팀의 기지 관리
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TMap<int32, ANovaBase*> TeamBases;
 
 	// 각 팀별 덱 정보 관리
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TMap<int32, FNovaDeckInfo> TeamDecks;
 };

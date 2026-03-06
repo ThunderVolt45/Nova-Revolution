@@ -5,6 +5,7 @@
 #include "Core/NovaBase.h"
 #include "Core/NovaPlayerState.h"
 #include "Core/NovaSaveGame.h"
+#include "Core/NovaDeckPreset.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -12,6 +13,7 @@ ANovaGameMode::ANovaGameMode()
 {
 	// 기본값 초기화
 	BaseClass = nullptr;
+	DefaultDeckPreset = nullptr;
 }
 
 void ANovaGameMode::BeginPlay()
@@ -27,19 +29,37 @@ void ANovaGameMode::BeginPlay()
 
 void ANovaGameMode::LoadPlayerDecks()
 {
-	// 플레이어(Team1)의 덱 로드 시도
+	// 1. 기본 덱 초기화 (폴백용)
+	InitializeDefaultDecks();
+
+	// 2. 플레이어(Team1)의 덱 로드 시도
 	if (UGameplayStatics::DoesSaveGameExist(TEXT("NovaPlayerSaveSlot"), 0))
 	{
 		if (UNovaSaveGame* LoadGameInstance = Cast<UNovaSaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("NovaPlayerSaveSlot"), 0)))
 		{
-			TeamDecks.Add(1, LoadGameInstance->SavedDeck);
-			NOVA_LOG(Log, "Loaded Player Deck with %d units.", LoadGameInstance->SavedDeck.Units.Num());
+			if (LoadGameInstance->SavedDeck.Units.Num() > 0)
+			{
+				TeamDecks.Add(1, LoadGameInstance->SavedDeck);
+				NOVA_LOG(Log, "Loaded Player Deck with %d units.", LoadGameInstance->SavedDeck.Units.Num());
+				return;
+			}
 		}
 	}
-	else
+
+	NOVA_LOG(Warning, "No valid SaveGame found. Using default preset deck.");
+}
+
+void ANovaGameMode::InitializeDefaultDecks()
+{
+	// 데이터 에셋이 반드시 설정되어 있어야 함을 명시적으로 체크 (프로젝트 규약 준수)
+	NOVA_CHECK(DefaultDeckPreset != nullptr, "DefaultDeckPreset is NOT assigned in GameMode! Please assign DA_Deck_Preset in BP_NovaGameMode.");
+
+	// 에디터에서 할당된 프리셋이 있는 경우에만 덱 초기화
+	if (DefaultDeckPreset)
 	{
-		NOVA_LOG(Warning, "No SaveGame found. Using empty deck.");
-		TeamDecks.Add(1, FNovaDeckInfo());
+		TeamDecks.Add(1, DefaultDeckPreset->DeckInfo); // Player
+		TeamDecks.Add(2, DefaultDeckPreset->DeckInfo); // AI
+		NOVA_LOG(Log, "Default decks initialized using DataAsset: %s", *DefaultDeckPreset->PresetName);
 	}
 }
 

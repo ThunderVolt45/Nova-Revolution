@@ -20,6 +20,7 @@ public:
 
 	/** 부품 정보 설정을 위한 함수 (주로 ANovaUnit에서 호출) */
 	void SetPartID(const FName& InID) { PartID = InID; }
+	FName GetPartID() const { return PartID; }
 	void SetPartDataTable(class UDataTable* InTable) 
 	{ 
 		PartDataTable = InTable; 
