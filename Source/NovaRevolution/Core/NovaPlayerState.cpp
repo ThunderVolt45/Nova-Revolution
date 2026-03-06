@@ -1,7 +1,5 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Core/NovaPlayerState.h"
+#include "Core/NovaBase.h"
 #include "AbilitySystemComponent.h"
 #include "GAS/NovaResourceAttributeSet.h"
 #include "NovaRevolution.h"
@@ -86,6 +84,15 @@ void ANovaPlayerState::BeginPlay()
 class UAbilitySystemComponent* ANovaPlayerState::GetAbilitySystemComponent() const
 {
 	return AbilitySystemComponent;
+}
+
+void ANovaPlayerState::SetPlayerBase(ANovaBase* InBase)
+{
+	PlayerBase = InBase;
+	if (OnBaseChanged.IsBound())
+	{
+		OnBaseChanged.Broadcast(InBase);
+	}
 }
 
 float ANovaPlayerState::GetCurrentWatt() const
