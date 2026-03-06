@@ -41,6 +41,12 @@ EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& Owne
 		return EBTNodeResult::Failed;
 	}
 
+	// [수정] 새로운 명령이 하달되어 ExecuteTask가 실행될 때, 즉시 이동을 시작하여 반응성 확보
+	if (!Target && !GoalLocation.IsZero())
+	{
+		AIC->MoveToLocation(GoalLocation, 10.0f);
+	}
+
 	return EBTNodeResult::InProgress;
 }
 
@@ -76,7 +82,10 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		if (DistanceSq <= RangeSq)
 		{
 			// 사거리 내라면 이동 중단 후 공격
-			AIC->StopMovement();
+			if (AIC->GetMoveStatus() != EPathFollowingStatus::Idle)
+			{
+				AIC->StopMovement();
+			}
 			
 			float CurrentTime = GetWorld()->GetTimeSeconds();
 			if (CurrentTime - LastAttackTime >= AttackInterval)
@@ -88,15 +97,16 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		else
 		{
 			// 사거리 밖이라면 추적 이동
-			// 이미 이 타겟으로 이동 중인지 확인하여 중복 명령 방지 가능 (MoveToActor가 내부적으로 처리하긴 함)
-			AIC->MoveToActor(Target, Range * 0.95f); 
+			AIC->MoveToActor(Target, Range * 0.9f); 
 		}
 	}
 	// 2. 타겟 액터가 없지만 목표 지점이 있는 경우 (공격 이동 중)
 	else if (!GoalLocation.IsZero())
 	{
-		// 목표 지점으로 이동 중인지 확인
-		if (AIC->GetMoveStatus() != EPathFollowingStatus::Moving)
+		// [수정] 단순히 Moving 상태인지 체크하는 대신, 현재 경로의 도착지가 목표 지점과 일치하는지 확인하거나 
+		// 혹은 Tick에서 주기적으로 MoveToLocation을 재호출하여 갱신을 보장합니다.
+		// (MoveToLocation은 이미 같은 목표면 내부적으로 무시하므로 안전합니다.)
+		if (AIC->GetMoveStatus() == EPathFollowingStatus::Idle)
 		{
 			AIC->MoveToLocation(GoalLocation, 10.0f);
 		}

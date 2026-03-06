@@ -75,6 +75,8 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
    FTransform SpawnTransform = Spawner->GetActorTransform();
    FVector SpawnLocation = SpawnTransform.GetLocation() + Spawner->GetActorForwardVector() * 350.f;
    SpawnTransform.SetLocation(SpawnLocation);
+   // 유닛의 크기가 기지(Spawner)의 스케일을 따라가지 않도록 (1, 1, 1)로 초기화
+   SpawnTransform.SetScale3D(FVector::OneVector);
 
    // 8. 실제 유닛 즉시 스폰 및 데이터 주입
    ANovaUnit* NewUnit = ExecuteUnitProduction(TargetData, SpawnTransform, TargetTeamID, RallyPoint);
