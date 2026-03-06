@@ -14,6 +14,7 @@ UNovaBTTask_Attack::UNovaBTTask_Attack()
 {
 	NodeName = TEXT("Nova Attack Task");
 	bNotifyTick = true;
+	bCreateNodeInstance = true;
 
 	// 블랙보드 키 필터링
 	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, TargetActorKey), AActor::StaticClass());
