@@ -138,11 +138,40 @@ void ANovaUnit::BeginPlay()
 	}
 }
 
+void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
+{
+	UnitName = Data.UnitName;
+	LegsPartClass = Data.LegsClass;
+	BodyPartClass = Data.BodyClass;
+	WeaponPartClass = Data.WeaponClass;
+
+	NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)", 
+		*UnitName, 
+		LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
+		BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
+		WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+}
+
 void ANovaUnit::ConstructUnitParts()
 {
 	// 다리와 몸통 부품 할당
-	if (LegsPartClass) LegsPartComponent->SetChildActorClass(LegsPartClass);
-	if (BodyPartClass) BodyPartComponent->SetChildActorClass(BodyPartClass);
+	if (LegsPartClass)
+    {
+        LegsPartComponent->SetChildActorClass(LegsPartClass);
+		if (LegsPartComponent->GetChildActor() == nullptr)
+		{
+			LegsPartComponent->CreateChildActor();
+		}
+    }
+    
+	if (BodyPartClass)
+    {
+        BodyPartComponent->SetChildActorClass(BodyPartClass);
+		if (BodyPartComponent->GetChildActor() == nullptr)
+		{
+			BodyPartComponent->CreateChildActor();
+		}
+    }
 
 	// 기존에 동적으로 생성된 무기 컴포넌트들 제거 (중복 생성 방지)
 	for (UChildActorComponent* Comp : WeaponPartComponents)
@@ -152,24 +181,40 @@ void ANovaUnit::ConstructUnitParts()
 	WeaponPartComponents.Empty();
 
 	// 무기(Weapons) 할당 및 컴포넌트 생성
-	for (int32 i = 0; i < WeaponSlotConfigs.Num(); ++i)
+	if (WeaponPartClass && BodyPartComponent)
 	{
-		const FNovaWeaponPartSlot& Config = WeaponSlotConfigs[i];
-		if (Config.WeaponPartClass)
+		if (ANovaPart* BodyActor = Cast<ANovaPart>(BodyPartComponent->GetChildActor()))
 		{
-			// 무기 컴포넌트 동적 생성 및 등록
-			FName CompName = FName(*FString::Printf(TEXT("WeaponPartComponent_%d"), i));
-
-			UChildActorComponent* WeaponComp = NewObject<UChildActorComponent>(this, CompName);
-			if (WeaponComp)
+			if (UPrimitiveComponent* BodyMesh = BodyActor->GetMainMesh())
 			{
-				WeaponComp->CreationMethod = EComponentCreationMethod::UserConstructionScript;
-				WeaponComp->RegisterComponent();
-				WeaponComp->SetChildActorClass(Config.WeaponPartClass);
-				WeaponComp->AttachToComponent(BodyPartComponent, FAttachmentTransformRules::SnapToTargetIncludingScale);
+				for (int32 i = 0; i < WeaponSocketNames.Num(); ++i)
+				{
+					const FName& SocketName = WeaponSocketNames[i];
+					if (BodyMesh->DoesSocketExist(SocketName))
+					{
+						FName CompName = FName(*FString::Printf(TEXT("WeaponPartComponent_%d"), i));
+						UChildActorComponent* WeaponComp = NewObject<UChildActorComponent>(this, CompName);
+						if (WeaponComp)
+						{
+							WeaponComp->CreationMethod = EComponentCreationMethod::Instance;
+							WeaponComp->RegisterComponent();
+							WeaponComp->SetChildActorClass(WeaponPartClass);
+							WeaponComp->CreateChildActor(); // 명시적으로 자식 액터 생성 호출
+							WeaponComp->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 
-				WeaponPartComponents.Add(WeaponComp);
+							WeaponPartComponents.Add(WeaponComp);
+						}
+					}
+					else
+					{
+						NOVA_LOG(Warning, "Weapon Socket '%s' does not exist on Body Mesh of %s", *SocketName.ToString(), *GetName());
+					}
+				}
 			}
+		}
+		else
+		{
+			NOVA_LOG(Warning, "ConstructUnitParts: BodyActor is NULL even after CreateChildActor!");
 		}
 	}
 }
@@ -179,10 +224,6 @@ void ANovaUnit::InitializePartAttachments()
 	// 1. 다리(Legs) 내에서 몸통(Body)이 붙을 소켓을 찾음
 	if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
 	{
-		// 데이터 주입
-		LegsActor->SetPartID(LegsPartID);
-		LegsActor->SetPartDataTable(PartDataTable);
-
 		if (UPrimitiveComponent* LegsMesh = LegsActor->GetMainMesh())
 		{
 			// 몸통을 지정된 소켓에 부착
@@ -190,35 +231,7 @@ void ANovaUnit::InitializePartAttachments()
 		}
 	}
 
-	// 2. 몸통(Body) 내에서 무기(Weapons)들이 붙을 소켓들을 찾음
-	if (ANovaPart* BodyActor = Cast<ANovaPart>(BodyPartComponent->GetChildActor()))
-	{
-		// 데이터 주입
-		BodyActor->SetPartID(BodyPartID);
-		BodyActor->SetPartDataTable(PartDataTable);
-
-		if (UPrimitiveComponent* BodyMesh = BodyActor->GetMainMesh())
-		{
-			for (int32 i = 0; i < WeaponPartComponents.Num(); ++i)
-			{
-				if (i < WeaponSlotConfigs.Num())
-				{
-					// 무기 데이터 주입
-					if (ANovaPart* WeaponActor = Cast<ANovaPart>(WeaponPartComponents[i]->GetChildActor()))
-					{
-						WeaponActor->SetPartID(WeaponSlotConfigs[i].PartID);
-						WeaponActor->SetPartDataTable(PartDataTable);
-					}
-
-					// 각 무기를 슬롯 설정에 지정된 전용 소켓에 부착
-					WeaponPartComponents[i]->AttachToComponent(
-						BodyMesh, 
-						FAttachmentTransformRules::SnapToTargetIncludingScale, 
-						WeaponSlotConfigs[i].TargetSocketName);
-				}
-			}
-		}
-	}
+	// 2. 무기 부품들은 ConstructUnitParts에서 이미 몸통의 소켓에 부착되었으므로 추가 로직 불필요
 }
 
 void ANovaUnit::InitializeAttributesFromParts()

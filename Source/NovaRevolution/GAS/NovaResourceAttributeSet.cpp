@@ -9,6 +9,7 @@ UNovaResourceAttributeSet::UNovaResourceAttributeSet()
 	InitCurrentSP(40.f);
 	InitMaxSP(100.f);
 	InitMaxPopulation(20.f);
+	InitMaxUnitWatt(6000.f);
 }
 
 void UNovaResourceAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
