@@ -5,6 +5,7 @@
 #include "Core/NovaBase.h"
 #include "Core/NovaPlayerState.h"
 #include "Core/NovaSaveGame.h"
+#include "Core/NovaDeckPreset.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -12,6 +13,7 @@ ANovaGameMode::ANovaGameMode()
 {
 	// 기본값 초기화
 	BaseClass = nullptr;
+	DefaultDeckPreset = nullptr;
 }
 
 void ANovaGameMode::BeginPlay()
@@ -27,20 +29,55 @@ void ANovaGameMode::BeginPlay()
 
 void ANovaGameMode::LoadPlayerDecks()
 {
-	// 플레이어(Team1)의 덱 로드 시도
+	// 1. 기본 덱 초기화 (폴백용)
+	InitializeDefaultDecks();
+
+	// 2. 플레이어(Team1)의 덱 로드 시도
 	if (UGameplayStatics::DoesSaveGameExist(TEXT("NovaPlayerSaveSlot"), 0))
 	{
 		if (UNovaSaveGame* LoadGameInstance = Cast<UNovaSaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("NovaPlayerSaveSlot"), 0)))
 		{
-			TeamDecks.Add(1, LoadGameInstance->SavedDeck);
-			NOVA_LOG(Log, "Loaded Player Deck with %d units.", LoadGameInstance->SavedDeck.Units.Num());
+			if (LoadGameInstance->SavedDeck.Units.Num() > 0)
+			{
+				TeamDecks.Add(1, LoadGameInstance->SavedDeck);
+				NOVA_LOG(Log, "Loaded Player Deck with %d units.", LoadGameInstance->SavedDeck.Units.Num());
+				return;
+			}
 		}
 	}
-	else
+
+	NOVA_LOG(Warning, "No valid SaveGame found. Using default preset deck.");
+}
+
+void ANovaGameMode::InitializeDefaultDecks()
+{
+	// 1. 에디터에서 할당된 프리셋이 있는지 먼저 확인
+	if (DefaultDeckPreset)
 	{
-		NOVA_LOG(Warning, "No SaveGame found. Using empty deck.");
-		TeamDecks.Add(1, FNovaDeckInfo());
+		TeamDecks.Add(1, DefaultDeckPreset->DeckInfo); // Player
+		TeamDecks.Add(2, DefaultDeckPreset->DeckInfo); // AI
+		NOVA_LOG(Log, "Default decks initialized using DataAsset: %s", *DefaultDeckPreset->PresetName);
+		return;
 	}
+
+	// 2. 프리셋이 없는 경우에만 하드코딩된 최소 데이터 생성 (안전장치)
+	FNovaDeckInfo FallbackDeck;
+	FNovaUnitAssemblyData BasicUnit;
+	BasicUnit.UnitName = TEXT("Basic Guard (Fallback)");
+	BasicUnit.LegsPartID = TEXT("Legs_Default"); 
+	BasicUnit.BodyPartID = TEXT("Body_Default");
+
+	FNovaWeaponPartSlot MainWeapon;
+	MainWeapon.PartID = TEXT("Weapon_Default");
+	MainWeapon.TargetSocketName = TEXT("WeaponSocket");
+	BasicUnit.WeaponSlots.Add(MainWeapon);
+
+	FallbackDeck.Units.Add(BasicUnit);
+
+	TeamDecks.Add(1, FallbackDeck);
+	TeamDecks.Add(2, FallbackDeck);
+	
+	NOVA_LOG(Warning, "DefaultDeckPreset is missing in GameMode! Using minimal fallback deck.");
 }
 
 FNovaDeckInfo ANovaGameMode::GetPlayerDeck(int32 PlayerTeamID) const
