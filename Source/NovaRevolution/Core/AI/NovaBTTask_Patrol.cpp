@@ -21,13 +21,11 @@ EBTNodeResult::Type UNovaBTTask_Patrol::ExecuteTask(UBehaviorTreeComponent& Owne
 {
 	AAIController* AIC = OwnerComp.GetAIOwner();
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
-	if (!AIC || !BB) return EBTNodeResult::Failed;
+	if (!AIC || !BB || !AIC->GetPawn()) return EBTNodeResult::Failed;
 
-	// 순찰 시작 지점(Origin)이 설정되어 있지 않다면 현재 위치로 설정
-	if (!BB->IsVectorValueSet(PatrolOriginKey.SelectedKeyName))
-	{
-		BB->SetValueAsVector(PatrolOriginKey.SelectedKeyName, AIC->GetPawn()->GetActorLocation());
-	}
+	// 순찰 시작 지점(Origin)을 현재 위치로 초기화 (순찰 명령이 시작될 때마다 갱신)
+	FVector CurrentLocation = AIC->GetPawn()->GetActorLocation();
+	BB->SetValueAsVector(PatrolOriginKey.SelectedKeyName, CurrentLocation);
 
 	bMovingToOrigin = false; // 처음에는 입력받은 TargetLocation으로 이동
 	
