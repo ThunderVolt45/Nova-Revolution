@@ -46,10 +46,11 @@ protected:
 	float CameraDeceleration = 8000.f;
 
 	// --- 줌 관련 변수 ---
+
 	// 기본 줌 거리
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
 	float DefaultZoomLength = 1500.f;
-
+	
 	// 줌 최소/최대 제한
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
 	float MinZoomLength = 500.f;
@@ -57,10 +58,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
 	float MaxZoomLength = 2000.f;
 
+	// 타겟 줌 거리
+	UPROPERTY(EditAnywhere, Category="Nova|Camera")
+	float TargetZoomLength = DefaultZoomLength;
+	
 	// 줌 속도 (보간 속도)
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
 	float ZoomInterpSpeed = 10.f;
 
 public:
 	void UpdateZoom(float Direction);
+	
+	void ResetCamera();
 };

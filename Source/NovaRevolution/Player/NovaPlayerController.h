@@ -14,6 +14,18 @@ class UInputMappingContext;
 class UInputAction;
 
 /**
+ * 부대 지정의 대상들을 담아둘 구조체
+ */
+USTRUCT(BlueprintType)
+struct FNovaControlGroup
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadOnly)
+	TArray<TObjectPtr<AActor>> Targets;
+};
+
+/**
  * ANovaPlayerController
  * 플레이어의 입력을 받아 유닛을 선택하고 명령을 내리는 전술 지휘관 클래스
  */
@@ -37,8 +49,14 @@ protected:
 	// 현재 드래그 상태인지 여부
 	bool bIsDraggingBox = false;
 
-	// 현재 Shift(다중 선택) 모드인지 여부
+	// Shift 모드 여부 (선택 추가/제거, 즉시 생산 명령)
 	bool bIsShiftDown = false;
+	
+	// Ctrl 모드 여부 (부대 지정)
+	bool bIsCtrlDown = false;
+	
+	// Alt 모드 여부 (스킬 즉시 사용 명령)
+	bool bIsAltDown = false;
 
 	// 엣지 스크롤링 활성화 여부
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
@@ -68,6 +86,10 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category="Nova|Selection")
 	TArray<TObjectPtr<AActor>> SelectedUnits;
 
+	// 부대 지정을 위한 구조체 배열 (TArray<TArray<>> 형태를 사용할 수 없어 구조체로 선언)
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Selection")
+	TArray<FNovaControlGroup> ControlGroups;
+	
 	// 현재 대기 중인 명령 타입 (None이 아니면 다음 좌클릭 시 해당 명령 수행)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Command")
 	ECommandType PendingCommandType = ECommandType::None;
@@ -113,6 +135,8 @@ protected:
 	class UUserWidget* MainHUDInstance;
 
 private:
+	float LastBaseSelectTime = 0.f;
+	
 	// 마우스 커서 아래에 무엇이 있는지 감지하는 헬퍼 함수
 	void GetCursorHitResult(FHitResult& OutHitResult);
 
