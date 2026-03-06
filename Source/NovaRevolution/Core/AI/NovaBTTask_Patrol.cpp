@@ -1,35 +1,42 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #include "Core/AI/NovaBTTask_Patrol.h"
 #include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "NavigationSystem.h"
 #include "NovaRevolution.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "Core/NovaUnit.h"
+#include "GAS/NovaAttributeSet.h"
+#include "AbilitySystemComponent.h"
 
 UNovaBTTask_Patrol::UNovaBTTask_Patrol()
 {
 	NodeName = TEXT("Nova Patrol Task");
 	bNotifyTick = true;
+	bCreateNodeInstance = true;
 
-	// 블랙보드 키 필터링 (Vector 타입만 선택 가능하게 함)
+	// 블랙보드 키 필터링
 	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, TargetLocationKey));
 	PatrolOriginKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, PatrolOriginKey));
+	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, TargetActorKey), AActor::StaticClass());
 }
 
 EBTNodeResult::Type UNovaBTTask_Patrol::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	AAIController* AIC = OwnerComp.GetAIOwner();
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
-	if (!AIC || !BB) return EBTNodeResult::Failed;
+	if (!AIC || !BB || !AIC->GetPawn()) return EBTNodeResult::Failed;
 
-	// 순찰 시작 지점(Origin)이 설정되어 있지 않다면 현재 위치로 설정
-	if (!BB->IsVectorValueSet(PatrolOriginKey.SelectedKeyName))
+	// 타겟 키 바인딩 확인 (에디터 설정 누락 방지)
+	if (TargetActorKey.IsNone())
 	{
-		BB->SetValueAsVector(PatrolOriginKey.SelectedKeyName, AIC->GetPawn()->GetActorLocation());
+		NOVA_SCREEN(Warning, "Patrol Task: TargetActorKey is NOT set in Behavior Tree Editor!");
 	}
 
-	bMovingToOrigin = false; // 처음에는 입력받은 TargetLocation으로 이동
+	FVector CurrentLocation = AIC->GetPawn()->GetActorLocation();
+	BB->SetValueAsVector(PatrolOriginKey.SelectedKeyName, CurrentLocation);
+
+	bMovingToOrigin = false; 
+	CombatOrigin = FVector::ZeroVector;
 	
 	FVector Goal = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 	AIC->MoveToLocation(Goal, AcceptanceRadius);
@@ -43,30 +50,99 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 	AAIController* AIC = OwnerComp.GetAIOwner();
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
-	if (!AIC || !BB || !AIC->GetPathFollowingComponent())
+	ANovaUnit* MyUnit = Cast<ANovaUnit>(AIC->GetPawn());
+	
+	if (!AIC || !BB || !MyUnit)
 	{
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		return;
 	}
 
+	// 1. 적 발견 시 교전 및 추격 로직
+	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
+	if (Target && !Target->IsPendingKillPending())
+	{
+		// 교전 시작 지점 기록
+		if (CombatOrigin.IsZero())
+		{
+			CombatOrigin = MyUnit->GetActorLocation();
+			NOVA_LOG(Log, "Patrol: Enemy spotted! CombatOrigin set to %s", *CombatOrigin.ToString());
+		}
+
+		float DistFromCombatOriginSq = FVector::DistSquared(MyUnit->GetActorLocation(), CombatOrigin);
+		float LeashSq = FMath::Square(ChaseDistanceLimit);
+
+		if (DistFromCombatOriginSq <= LeashSq)
+		{
+			float Range = GetAttackRange(MyUnit);
+			float DistToTargetSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
+
+			if (DistToTargetSq <= FMath::Square(Range))
+			{
+				AIC->StopMovement();
+				float CurrentTime = GetWorld()->GetTimeSeconds();
+				if (CurrentTime - LastAttackTime >= AttackInterval)
+				{
+					PerformAttack(MyUnit, Target);
+					LastAttackTime = CurrentTime;
+				}
+			}
+			else
+			{
+				AIC->MoveToActor(Target, Range * 0.95f);
+			}
+			
+			// 교전 중이므로 여기서 리턴하여 아래의 순찰 로직 실행 방지
+			return; 
+		}
+		else
+		{
+			// 추격 한계선 벗어남
+			BB->ClearValue(TargetActorKey.SelectedKeyName);
+			CombatOrigin = FVector::ZeroVector;
+			NOVA_SCREEN(Log, "Patrol: Target/Unit out of leash range (%f). Resuming patrol.", ChaseDistanceLimit);
+			
+			// 순찰 지점으로 다시 이동 명령 명시적 수행
+			FVector Goal = bMovingToOrigin ? BB->GetValueAsVector(PatrolOriginKey.SelectedKeyName) : BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
+			AIC->MoveToLocation(Goal, AcceptanceRadius);
+		}
+	}
+	else
+	{
+		CombatOrigin = FVector::ZeroVector;
+	}
+
+	// 2. 순찰 이동 로직 (Target이 없을 때만 실행됨)
 	if (AIC->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Idle)
 	{
 		if (AIC->GetPathFollowingComponent()->DidMoveReachGoal())
 		{
-			// 목표 지점 도착 시 목표 반전
 			bMovingToOrigin = !bMovingToOrigin;
-			
-			FVector NextGoal = bMovingToOrigin ? 
-				BB->GetValueAsVector(PatrolOriginKey.SelectedKeyName) : 
-				BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
-			
+			FVector NextGoal = bMovingToOrigin ? BB->GetValueAsVector(PatrolOriginKey.SelectedKeyName) : BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 			AIC->MoveToLocation(NextGoal, AcceptanceRadius);
-			
 			NOVA_LOG(Log, "Patrol: Reached goal, switching to %s", bMovingToOrigin ? TEXT("Origin") : TEXT("Target"));
 		}
 		else
 		{
-			FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
+			// 이동이 멈췄는데 목표에 도달하지 않은 경우 (교전 직후 또는 경로 막힘) 재시작
+			FVector NextGoal = bMovingToOrigin ? BB->GetValueAsVector(PatrolOriginKey.SelectedKeyName) : BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
+			AIC->MoveToLocation(NextGoal, AcceptanceRadius);
 		}
 	}
+}
+
+float UNovaBTTask_Patrol::GetAttackRange(ANovaUnit* Unit) const
+{
+	if (Unit && Unit->GetAbilitySystemComponent())
+	{
+		const UNovaAttributeSet* AS = Cast<UNovaAttributeSet>(Unit->GetAbilitySystemComponent()->GetAttributeSet(UNovaAttributeSet::StaticClass()));
+		if (AS) return AS->GetRange();
+	}
+	return 500.0f;
+}
+
+void UNovaBTTask_Patrol::PerformAttack(ANovaUnit* Unit, AActor* Target)
+{
+	if (!Unit || !Target) return;
+	NOVA_LOG(Log, "Patrol-Attack: %s attacking %s", *Unit->GetName(), *Target->GetName());
 }
