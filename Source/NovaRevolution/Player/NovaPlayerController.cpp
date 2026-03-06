@@ -379,6 +379,16 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 
 void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 {
+	// 드래그 박스 제거 우선 실행
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
+	{
+		// 마우스를 떼는 순간 HUD의 드래그 박스 그리기를 중단
+		if (ANovaHUD* NovaHUD = Cast<ANovaHUD>(GetHUD()))
+		{
+			NovaHUD->UpdateDragRect(FVector2D::ZeroVector, FVector2D::ZeroVector, false);
+		}
+	}
+	
 	// 명령 수행
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
@@ -411,6 +421,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 
 			// 명령 수행 후 초기화
 			CancelPendingCommand();
+			bIsDraggingBox = false;	// 드래그 상태 초기화
 			return;
 		}
 	}
@@ -423,12 +434,6 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 	// 마우스를 뗄 때 선택
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
-		// 마우스를 떼는 순간 HUD의 드래그 박스 그리기를 중단
-		if (ANovaHUD* NovaHUD = Cast<ANovaHUD>(GetHUD()))
-		{
-			NovaHUD->UpdateDragRect(FVector2D::ZeroVector, FVector2D::ZeroVector, false);
-		}
-
 		if (bIsDraggingBox)
 		{
 			// 드래그 선택 수행
@@ -479,6 +484,9 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 
 void ANovaPlayerController::Input_AbilityInputTagHeld(FGameplayTag InputTag)
 {
+	// [버그 수정] 대기 중인 명령이 있는 상태에서는 드래그 박스를 그리지 않음
+	if (PendingCommandType != ECommandType::None) return;
+	
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
 		FVector2D CurrentPosition;
