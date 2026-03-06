@@ -1,6 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Core/Production/NovaUnitFactory.h"
 
 #include "Core/NovaGameMode.h"
@@ -8,7 +5,9 @@
 #include "Core/NovaPlayerState.h"
 #include "Core/NovaUnit.h"
 #include "Core/NovaResourceComponent.h"
+#include "Core/NovaPartData.h"
 #include "Kismet/GameplayStatics.h"
+#include "NovaRevolution.h"
 
 bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner, const FVector& RallyPoint)
 {
@@ -46,12 +45,12 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 
    const FNovaUnitAssemblyData& TargetData = CurrentDeck.Units[SlotIndex];
 	
-	// 5. 자원 검사 및 소비 로직 (생략 가능하나 구조적 포함)
-   // 임시 비용 100.f (향후 TargetData 등에서 실제 비용 합산값 참조 가능)
-   float ProductionCost = 100.f;
+	// 5. 자원 검사 및 소비 로직
+   // 데이터 테이블을 참조하여 실제 유닛 생산 비용을 계산합니다.
+   float ProductionCost = CalculateTotalWattCost(TargetData);
    if (!CheckAndConsumeResources(PS, ProductionCost))
    {
-         UE_LOG(LogTemp, Warning, TEXT("Factory: Insufficient Resources for Team %d"), TargetTeamID);
+         UE_LOG(LogTemp, Warning, TEXT("Factory: Insufficient Resources (Cost: %.f) for Team %d"), ProductionCost, TargetTeamID);
          return false;
    }
 	
@@ -65,11 +64,49 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 
    if (NewUnit)
    {
-        UE_LOG(LogTemp, Log, TEXT("Factory: Unit '%s' successfully spawned for Team %d."), *TargetData.UnitName, TargetTeamID);
+        UE_LOG(LogTemp, Log, TEXT("Factory: Unit '%s' (Cost: %.f) successfully spawned for Team %d."), *TargetData.UnitName, ProductionCost, TargetTeamID);
          return true;
    }
 
     return false;
+}
+
+float UNovaUnitFactory::CalculateTotalWattCost(const FNovaUnitAssemblyData& AssemblyData) const
+{
+	float TotalWatt = 0.0f;
+
+	// 데이터 테이블이 유효한지 확인
+	UDataTable* Table = PartSpecDataTable.Get();
+	if (!Table)
+	{
+		// 런타임에 데이터 테이블이 로드되지 않았다면 기본 경로에서 시도
+		Table = LoadObject<UDataTable>(nullptr, TEXT("/Game/_BP/Data/DT_PartSpecData.DT_PartSpecData"));
+		if (!Table)
+		{
+			NOVA_LOG(Error, "UNovaUnitFactory: PartSpecDataTable is NOT found!");
+			return 100.0f; // 최후의 보루로 기본 비용 반환
+		}
+	}
+
+	auto AddWattFromPartID = [&](const FName& PartID) {
+		if (PartID.IsNone()) return;
+		if (const FNovaPartSpecRow* Row = Table->FindRow<FNovaPartSpecRow>(PartID, TEXT("")))
+		{
+			TotalWatt += Row->Watt;
+		}
+	};
+
+	// 다리, 몸통 비용 합산
+	AddWattFromPartID(AssemblyData.LegsPartID);
+	AddWattFromPartID(AssemblyData.BodyPartID);
+
+	// 무기 슬롯 비용 합산
+	for (const FNovaWeaponPartSlot& Slot : AssemblyData.WeaponSlots)
+	{
+		AddWattFromPartID(Slot.PartID);
+	}
+
+	return TotalWatt;
 }
 
 class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData, const FTransform& SpawnTransform, int32 TeamID, const FVector& RallyPoint)

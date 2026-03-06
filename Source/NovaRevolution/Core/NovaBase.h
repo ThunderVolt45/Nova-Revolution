@@ -17,7 +17,7 @@ struct FOnAttributeChangeData;
  * 플레이어의 거점 기지 클래스
  */
 UCLASS()
-class NOVAREVOLUTION_API ANovaBase : public AActor, public IAbilitySystemInterface, public INovaSelectableInterface, public INovaTeamInterface, public INovaCommandInterface
+class NOVAREVOLUTION_API ANovaBase : public AActor, public IAbilitySystemInterface, public INovaSelectableInterface, public INovaTeamInterface, public INovaCommandInterface, public INovaProductionInterface
 {
 	GENERATED_BODY()
 	
@@ -39,16 +39,26 @@ public:
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
 
+	/** 팀 ID를 설정합니다. (GameMode에서 호출) */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Team")
+	void SetTeamID(int32 NewTeamID) { TeamID = NewTeamID; }
+
+	// --- INovaProductionInterface ---
+	UFUNCTION(BlueprintCallable, Category = "Nova|Production")
+	virtual bool ProduceUnit(int32 SlotIndex) override;
+
+	UFUNCTION(BlueprintCallable, Category = "Nova|Production")
+	virtual bool CanProduceUnit(int32 SlotIndex) const override;
+
+	UFUNCTION(BlueprintCallable, Category = "Nova|Production")
+	virtual struct FNovaDeckInfo GetProductionDeckInfo() const override;
+
 	// 랠리 포인트 설정 및 가져오기
 	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
 	void SetRallyPoint(const FVector& NewLocation) { RallyPoint = NewLocation; }
 
 	UFUNCTION(BlueprintPure, Category = "Nova|Base")
 	FVector GetRallyPoint() const { return RallyPoint; }
-
-	/** 특정 덱 슬롯의 유닛 생산 요청 */
-	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
-	bool ProduceUnit(int32 SlotIndex);
 
 	// 기지 파괴 처리
 	virtual void DestroyBase();
