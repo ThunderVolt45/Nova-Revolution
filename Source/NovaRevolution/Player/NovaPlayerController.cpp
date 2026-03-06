@@ -7,8 +7,10 @@
 #include "NovaPawn.h"
 #include "NovaRevolution.h"
 #include "Blueprint/UserWidget.h"
+#include "Core/NovaBase.h"
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaLog.h"
+#include "Core/NovaPlayerState.h"
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
@@ -151,6 +153,38 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		bIsShiftDown = true;
 	}
 
+	// Shift가 눌려 있다면 생산 모드로 동작
+	if (bIsShiftDown)
+	{
+		if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+		{
+			if (ANovaBase* PlayerBase = PS->GetPlayerBase())
+			{
+				// 태그별 슬롯 인덱스 매핑
+				int32 SlotIndex = -1;
+				if (InputTag == NovaGameplayTags::Input_Slot_1) SlotIndex = 0;
+				else if (InputTag == NovaGameplayTags::Input_Slot_2) SlotIndex = 1;
+				else if (InputTag == NovaGameplayTags::Input_Slot_3) SlotIndex = 2;
+				else if (InputTag == NovaGameplayTags::Input_Slot_4) SlotIndex = 3;
+				else if (InputTag == NovaGameplayTags::Input_Slot_5) SlotIndex = 4;
+				else if (InputTag == NovaGameplayTags::Input_Slot_6) SlotIndex = 5;
+				else if (InputTag == NovaGameplayTags::Input_Slot_7) SlotIndex = 6;
+				else if (InputTag == NovaGameplayTags::Input_Slot_8) SlotIndex = 7;
+				else if (InputTag == NovaGameplayTags::Input_Slot_9) SlotIndex = 8;
+				else if (InputTag == NovaGameplayTags::Input_Slot_0) SlotIndex = 9;
+
+				if (SlotIndex != -1)
+				{
+					PlayerBase->ProduceUnit(SlotIndex);
+					NOVA_SCREEN(Warning, "Request Production : Slot %d", SlotIndex + 1);
+					return;
+				}
+			}
+			else { NOVA_SCREEN(Error, "Base is null!"); }
+		}
+	}
+
+
 	// 마우스 좌클릭 (선택)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
@@ -174,7 +208,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			FCommandData CmdData;
 			CmdData.CommandType = ECommandType::Move;
 			CmdData.TargetLocation = CursorHit.Location;
-			
+
 			AActor* HitActor = CursorHit.GetActor();
 			if (HitActor)
 			{
@@ -237,7 +271,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	{
 		PendingCommandType = ECommandType::Spread;
 		// TODO: 나중에 UI 작업 (커서 모양 변경 등)
-		NOVA_SCREEN(Warning, "Command: Spread(S). Click to Execute.");
+		NOVA_SCREEN(Warning, "Command: Spread(C). Click to Execute.");
 	}
 }
 

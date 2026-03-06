@@ -27,7 +27,7 @@ ANovaPawn::ANovaPawn()
 	SpringArmComponent->TargetArmLength = DefaultZoomLength; // 초기 거리
 	SpringArmComponent->SetRelativeRotation(FRotator(-75.f, 0.f, 0.f)); // 기본 각도
 	SpringArmComponent->bDoCollisionTest = false; // 지형 충돌로 카메라가 튀는 걸 방지
-	
+
 	// SpringArm이 컨트롤러의 회전을 상속받지 않도록 명시
 	SpringArmComponent->bUsePawnControlRotation = false;
 	SpringArmComponent->bInheritPitch = false;
@@ -35,8 +35,10 @@ ANovaPawn::ANovaPawn()
 	SpringArmComponent->bInheritRoll = false;
 
 	// 카메라 이동 지연(부드러운 이동을 위해)
-	SpringArmComponent->bEnableCameraLag = true;
-	SpringArmComponent->CameraLagSpeed = 5.f;
+	// SpringArmComponent->bEnableCameraLag = true;
+	// SpringArmComponent->CameraLagSpeed = 5.f;
+	// 체감상 불편하여 제외
+	SpringArmComponent->bEnableCameraLag = false;
 
 	// 카메라 설정
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
@@ -47,6 +49,11 @@ ANovaPawn::ANovaPawn()
 	MovementComponent = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("MovementComponent"));
 	MovementComponent->bConstrainToPlane = true;
 	MovementComponent->SetPlaneConstraintNormal(FVector(0.f, 0.f, 1.f));
+
+	// 변수 값을 컴포넌트에 적용
+	MovementComponent->MaxSpeed = CameraMoveSpeed;
+	MovementComponent->Acceleration = CameraAcceleration;
+	MovementComponent->Deceleration = CameraDeceleration;
 }
 
 void ANovaPawn::Tick(float DeltaTime)
