@@ -156,21 +156,21 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 }
 
 //
-AActor* ANovaUnit::GetTargetFromBlackboard() const
-{
-	// 1. 유닛의 AI 컨트롤러를 가져옵니다.
-	if (ANovaAIController* AICon = Cast<ANovaAIController>(GetController()))
-	{
-		// 2. 컨트롤러가 가진 블랙보드 컴포넌트를 가져옵니다.
-		if (UBlackboardComponent* BB = AICon->GetBlackboardComponent())
-		{
-			// 3. "TargetActor" 키에 저장된 값을 AActor 타입으로 반환합니다.
-			// (이미 ANovaAIController에 정의된 TargetActorKey 이름을 사용하는 것이 정확합니다.)
-			return Cast<AActor>(BB->GetValueAsObject(TEXT("TargetActor")));
-		}
-	}
-	return nullptr;
-}
+// AActor* ANovaUnit::GetTargetFromBlackboard() const
+// {
+// 	// 1. 유닛의 AI 컨트롤러를 가져옵니다.
+// 	if (ANovaAIController* AICon = Cast<ANovaAIController>(GetController()))
+// 	{
+// 		// 2. 컨트롤러가 가진 블랙보드 컴포넌트를 가져옵니다.
+// 		if (UBlackboardComponent* BB = AICon->GetBlackboardComponent())
+// 		{
+// 			// 3. "TargetActor" 키에 저장된 값을 AActor 타입으로 반환합니다.
+// 			// (이미 ANovaAIController에 정의된 TargetActorKey 이름을 사용하는 것이 정확합니다.)
+// 			return Cast<AActor>(BB->GetValueAsObject(TEXT("TargetActor")));
+// 		}
+// 	}
+// 	return nullptr;
+// }
 
 void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 {
@@ -181,37 +181,32 @@ void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 		return;
 	}
 
-	// 2. 블랙보드에서 타겟 정보를 가져옵니다.
-	AActor* Target = GetTargetFromBlackboard();
-
-	// 3. 현재 몸통의 '세계 회전값(World Rotation)'과 '목표 회전값'을 준비합니다.
+	// 현재 몸통의 세계 회전값
 	FRotator CurrentRotation = BodyPartComponent->GetComponentRotation();
 	FRotator TargetRotation;
-
-	if (Target)
+	
+	// 1. [최적화] 블랙보드 조회 대신 캐싱된 CurrentTarget만 확인합니다.
+	// IsValid를 통해 타겟이 죽거나 사라졌는지도 동시에 체크합니다.
+	if (IsValid(CurrentTarget))
 	{
-		NOVA_LOG(Log, "There is Other Team, Body Rotation Activate!");
-		// 타겟이 있다면: (타겟 위치 - 내 위치) 방향을 바라보는 회전값을 계산합니다.
-		FVector Direction = Target->GetActorLocation() - GetActorLocation();
+		// 타겟 방향 계산
+		FVector Direction = CurrentTarget->GetActorLocation() - GetActorLocation();
 		TargetRotation = Direction.Rotation();
-		// [보정 로직 추가]
-		// 모델의 Y축이 정면이라면, 계산된 타겟 방향(X축 기준)에서 90도를 빼거나 더해줘야 합니다.
-		// 보통 Y축이 정면인 경우 -90도를 해주면 언리얼의 X축 정면과 일치하게 됩니다.
-		TargetRotation.Yaw -= 90.0f;
+		
 	}
 	else
 	{
-		// 타겟이 없다면: 유닛(다리 포함)이 현재 바라보는 정면 방향을 목표로 합니다.
-		//TargetRotation = GetActorRotation(); //잠시 취소 - 정면 방향이 이상한듯
-		NOVA_LOG(Log, "There is no Other Team, No Body Rotation");
-		return;
+		// 2. [기능 개선] 타겟이 없으면 유닛의 현재 정면(다리/뿌리 방향)으로 회전합니다.
+		TargetRotation = GetActorRotation();
 	}
 
-	// 4. 몸통은 좌우(Yaw)로만 회전해야 하므로, Pitch와 Roll은 0으로 고정합니다.
+	// 모델 보정 (Y축 정면 기준 -90도)
+	TargetRotation.Yaw -= 90.0f;
+	// 좌우(Yaw) 회전만 허용
 	TargetRotation.Pitch = 0.0f;
 	TargetRotation.Roll = 0.0f;
 
-	// 5. RInterpTo를 사용하여 현재 회전에서 목표 회전으로 부드럽게 보간합니다.
+	// 3. 부드러운 회전 보간 (RInterpTo)
 	FRotator NewRotation = FMath::RInterpTo(
 		CurrentRotation,
 		TargetRotation,
@@ -219,8 +214,65 @@ void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 		BodyRotationInterpSpeed
 	);
 
-	// 6. 계산된 부드러운 회전값을 몸통 컴포넌트에 적용합니다.
+	// 계산된 회전값 적용
 	BodyPartComponent->SetWorldRotation(NewRotation);
+}
+
+EBlackboardNotificationResult ANovaUnit::OnTargetActorChanged(const UBlackboardComponent& Blackboard,
+	FBlackboard::FKey KeyID)
+{
+	// 1. 블랙보드에서 새로운 타겟을 꺼내 멤버 변수에 저장합니다.
+	// (이 함수는 타겟이 바뀔 때만 딱 한 번 실행되므로 매우 효율적입니다.)
+	CurrentTarget = Cast<AActor>(Blackboard.GetValueAsObject(TEXT("TargetActor")));
+
+	// 2. 계속해서 감시를 유지하겠다는 결과를 반환합니다.
+	return EBlackboardNotificationResult::ContinueObserving;
+}
+
+void ANovaUnit::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	
+	if (ANovaAIController* AIC = Cast<ANovaAIController>(NewController))
+	{
+		UBlackboardComponent* BB = AIC->GetBlackboardComponent();
+		if (BB && BB->GetBlackboardAsset())
+		{
+			CachedBlackboard = BB;
+			// 1. 키 ID를 구해서 멤버 변수에 저장합니다.
+			TargetActorKeyID = BB->GetBlackboardAsset()->GetKeyID(TEXT("TargetActor"));
+
+			if (TargetActorKeyID != FBlackboard::InvalidKey)
+			{
+				// 2. 저장한 ID를 사용하여 옵저버 등록
+				TargetActorObserverHandle = BB->RegisterObserver(
+					TargetActorKeyID,
+					this,
+					FOnBlackboardChangeNotification::CreateUObject(this, &ANovaUnit::OnTargetActorChanged)
+				);
+			}
+
+			CurrentTarget = Cast<AActor>(BB->GetValueAsObject(TEXT("TargetActor")));
+		}
+	}
+	
+}
+
+void ANovaUnit::UnPossessed()
+{
+	// 중요: 저장해둔 TargetActorKeyID를 사용하여 해제합니다.
+	if (CachedBlackboard && TargetActorObserverHandle.IsValid() && TargetActorKeyID != FBlackboard::InvalidKey)
+	{
+		// 사용자님께서 확인하신 2개의 인자(KeyID, Handle)를 정확히 전달합니다.
+		CachedBlackboard->UnregisterObserver(TargetActorKeyID, TargetActorObserverHandle);
+		TargetActorObserverHandle.Reset();
+	}
+
+	CachedBlackboard = nullptr;
+	CurrentTarget = nullptr;
+	TargetActorKeyID = FBlackboard::InvalidKey;
+
+	Super::UnPossessed();
 }
 
 void ANovaUnit::ConstructUnitParts()

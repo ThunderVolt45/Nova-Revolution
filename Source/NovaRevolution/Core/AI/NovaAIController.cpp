@@ -24,7 +24,7 @@ ANovaAIController::ANovaAIController()
 
 void ANovaAIController::OnPossess(APawn* InPawn)
 {
-	Super::OnPossess(InPawn);
+	
 
 	// 비헤이비어 트리 실행
 	if (BehaviorTreeAsset)
@@ -43,6 +43,8 @@ void ANovaAIController::OnPossess(APawn* InPawn)
 	{
 		NOVA_LOG(Warning, "AIController: BehaviorTreeAsset is NOT assigned in %s! (Pawn: %s)", *GetName(), InPawn ? *InPawn->GetName() : TEXT("NULL"));
 	}
+	
+	Super::OnPossess(InPawn);
 }
 
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
