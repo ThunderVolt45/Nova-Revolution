@@ -10,6 +10,7 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Core/AI/NovaAIController.h"
+#include "BehaviorTree/BlackboardComponent.h"
 #include "NavigationSystem.h"
 #include "Core/NovaLog.h"
 
@@ -88,6 +89,8 @@ void ANovaUnit::Tick(float DeltaTime)
 			// NOVA_SCREEN(Log,"Unit: %s | Current Speed: %.2f", *GetName(), CurrentSpeed);
 		}
 	}
+	// 3. [추가] 몸통(Body) 회전 로직을 매 프레임 실행합니다.
+	UpdateBodyRotation(DeltaTime);
 }
 
 void ANovaUnit::OnConstruction(const FTransform& Transform)
@@ -150,6 +153,74 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 		LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
 		BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
 		WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+}
+
+//
+AActor* ANovaUnit::GetTargetFromBlackboard() const
+{
+	// 1. 유닛의 AI 컨트롤러를 가져옵니다.
+	if (ANovaAIController* AICon = Cast<ANovaAIController>(GetController()))
+	{
+		// 2. 컨트롤러가 가진 블랙보드 컴포넌트를 가져옵니다.
+		if (UBlackboardComponent* BB = AICon->GetBlackboardComponent())
+		{
+			// 3. "TargetActor" 키에 저장된 값을 AActor 타입으로 반환합니다.
+			// (이미 ANovaAIController에 정의된 TargetActorKey 이름을 사용하는 것이 정확합니다.)
+			return Cast<AActor>(BB->GetValueAsObject(TEXT("TargetActor")));
+		}
+	}
+	return nullptr;
+}
+
+void ANovaUnit::UpdateBodyRotation(float DeltaTime)
+{
+	// 1. 몸통 컴포넌트가 없으면 중단합니다.
+	if (!BodyPartComponent)
+	{
+		NOVA_LOG(Log, "UpdateBodyRotation: BodyPartComponent is nullptr, UpdateBodyRotation Is Canceled");
+		return;
+	}
+
+	// 2. 블랙보드에서 타겟 정보를 가져옵니다.
+	AActor* Target = GetTargetFromBlackboard();
+
+	// 3. 현재 몸통의 '세계 회전값(World Rotation)'과 '목표 회전값'을 준비합니다.
+	FRotator CurrentRotation = BodyPartComponent->GetComponentRotation();
+	FRotator TargetRotation;
+
+	if (Target)
+	{
+		NOVA_LOG(Log, "There is Other Team, Body Rotation Activate!");
+		// 타겟이 있다면: (타겟 위치 - 내 위치) 방향을 바라보는 회전값을 계산합니다.
+		FVector Direction = Target->GetActorLocation() - GetActorLocation();
+		TargetRotation = Direction.Rotation();
+		// [보정 로직 추가]
+		// 모델의 Y축이 정면이라면, 계산된 타겟 방향(X축 기준)에서 90도를 빼거나 더해줘야 합니다.
+		// 보통 Y축이 정면인 경우 -90도를 해주면 언리얼의 X축 정면과 일치하게 됩니다.
+		TargetRotation.Yaw -= 90.0f;
+	}
+	else
+	{
+		// 타겟이 없다면: 유닛(다리 포함)이 현재 바라보는 정면 방향을 목표로 합니다.
+		//TargetRotation = GetActorRotation(); //잠시 취소 - 정면 방향이 이상한듯
+		NOVA_LOG(Log, "There is no Other Team, No Body Rotation");
+		return;
+	}
+
+	// 4. 몸통은 좌우(Yaw)로만 회전해야 하므로, Pitch와 Roll은 0으로 고정합니다.
+	TargetRotation.Pitch = 0.0f;
+	TargetRotation.Roll = 0.0f;
+
+	// 5. RInterpTo를 사용하여 현재 회전에서 목표 회전으로 부드럽게 보간합니다.
+	FRotator NewRotation = FMath::RInterpTo(
+		CurrentRotation,
+		TargetRotation,
+		DeltaTime,
+		BodyRotationInterpSpeed
+	);
+
+	// 6. 계산된 부드러운 회전값을 몸통 컴포넌트에 적용합니다.
+	BodyPartComponent->SetWorldRotation(NewRotation);
 }
 
 void ANovaUnit::ConstructUnitParts()

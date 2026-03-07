@@ -96,7 +96,22 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit|Parts|Runtime")
 	TArray<TObjectPtr<UChildActorComponent>> WeaponPartComponents;
+	
+	
+	//유닛 몸통 회전 관련 변수 및 함수
+protected:
+	/** 1. 몸통이 타겟을 향해 회전하는 속도 (값이 클수록 빠르게 회전) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	float BodyRotationInterpSpeed = 10.0f;
 
+	/** 2. AI 컨트롤러의 블랙보드에서 현재 타겟 액터를 읽어오는 함수 */
+	AActor* GetTargetFromBlackboard() const;
+
+	/** 3. 매 프레임 몸통의 회전값을 계산하고 적용하는 함수 */
+	void UpdateBodyRotation(float DeltaTime);
+
+	//ToDo: Note: 최적화를 위한 로직 고려 필요, 타겟이 없을 시 몸통의 회전이 다시 정면으로 돌아오는 로직 필요
+	
 	// --- 부품 조립 로직 ---
 	// 클래스 설정에 따라 실제 ChildActor를 생성하고 부착
 	void ConstructUnitParts();
