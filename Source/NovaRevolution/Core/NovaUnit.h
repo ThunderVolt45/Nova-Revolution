@@ -8,6 +8,7 @@
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaTypes.h"
 #include "Core/NovaAssemblyTypes.h"
+#include "BehaviorTree/BlackboardComponent.h"
 #include "NovaUnit.generated.h"
 
 class UAbilitySystemComponent;
@@ -96,7 +97,48 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit|Parts|Runtime")
 	TArray<TObjectPtr<UChildActorComponent>> WeaponPartComponents;
+	
+	
+	//유닛 몸통 회전 관련 변수 및 함수
+#pragma region AI Body Rotation Logic
+protected:
+	/** 몸통이 타겟을 향해 회전하는 속도 (값이 클수록 빠르게 회전) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	float BodyRotationInterpSpeed = 10.0f;
+	
+private:
+	// 캐싱용 변수
+	UPROPERTY()
+	TObjectPtr<UBlackboardComponent> CachedBlackboard;
 
+	//타겟이 입력될 시 저장
+	UPROPERTY()
+	TObjectPtr<AActor> CurrentTarget;
+	
+	// 추가: 나중에 해제할 때 사용하기 위해 키 ID를 보관합니다.
+	FBlackboard::FKey TargetActorKeyID = FBlackboard::InvalidKey; // FBlackboard::InvalidKey의 기본값 (uint8)
+
+	// 옵저버 핸들 (나중에 등록 해제용)
+	FDelegateHandle TargetActorObserverHandle;
+
+protected:
+	// AI 컨트롤러의 블랙보드에서 현재 타겟 액터를 읽어오는 함수 -> 옵저버 설정으로 로직변경 
+	// AActor* GetTargetFromBlackboard() const;
+
+	// 매 프레임 몸통의 회전값을 계산하고 적용하는 함수 
+	void UpdateBodyRotation(float DeltaTime);
+	
+	// 블랙보드 값이 변경될 때 호출될 콜백 함수
+	EBlackboardNotificationResult OnTargetActorChanged(const UBlackboardComponent& Blackboard, FBlackboard::FKey KeyID);
+
+	// 빙의 시 옵저버 등록을 위한 오버라이드
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void UnPossessed() override;
+
+	//ToDo: Note: 최적화를 위한 로직 고려 필요, 타겟이 없을 시 몸통의 회전이 다시 정면으로 돌아오는 로직 필요
+	
+#pragma endregion
+	
 	// --- 부품 조립 로직 ---
 	// 클래스 설정에 따라 실제 ChildActor를 생성하고 부착
 	void ConstructUnitParts();
