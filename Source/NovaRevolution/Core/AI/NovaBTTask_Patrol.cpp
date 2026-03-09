@@ -56,8 +56,9 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(AIC->GetPawn());
 	
-	if (!AIC || !BB || !MyUnit)
+	if (!AIC || !BB || !MyUnit || MyUnit->IsDead())
 	{
+		if (AIC) AIC->StopMovement();
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		return;
 	}
@@ -66,6 +67,17 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 	if (Target && !Target->IsPendingKillPending())
 	{
+		// 타겟이 유닛인 경우 사망 여부 확인
+		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
+		{
+			if (TargetUnit->IsDead())
+			{
+				BB->ClearValue(TargetActorKey.SelectedKeyName);
+				CombatOrigin = FVector::ZeroVector;
+				return;
+			}
+		}
+
 		// 교전 시작 지점 기록
 		if (CombatOrigin.IsZero())
 		{
@@ -85,7 +97,19 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			{
 				AIC->StopMovement();
 				float CurrentTime = GetWorld()->GetTimeSeconds();
-				if (CurrentTime - LastAttackTime >= AttackInterval)
+
+				// FireRate 연동 (수치가 작을수록 빠름, 100 = 1.0s, 50 = 0.5s)
+				float CurrentAttackInterval = AttackInterval;
+				if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+				{
+					float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
+					if (FireRateValue > 0.0f)
+					{
+						CurrentAttackInterval = FireRateValue / 100.0f;
+					}
+				}
+
+				if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
 				{
 					PerformAttack(MyUnit, Target);
 					LastAttackTime = CurrentTime;

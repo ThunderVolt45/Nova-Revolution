@@ -46,13 +46,29 @@ void UNovaBTTask_Hold::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMe
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(AIC->GetPawn());
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 
-	if (!MyUnit) return;
+	// 0. 유닛이 죽었으면 AI 중단
+	if (!MyUnit || MyUnit->IsDead())
+	{
+		AIC->StopMovement();
+		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
+		return;
+	}
 
 	// Hold 상태에서는 절대 이동하지 않음 (강제 정지 상태 유지)
 	AIC->StopMovement();
 
 	if (Target && !Target->IsPendingKillPending())
 	{
+		// 타겟이 유닛인 경우 사망 여부 확인
+		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
+		{
+			if (TargetUnit->IsDead())
+			{
+				BB->ClearValue(TargetActorKey.SelectedKeyName);
+				return;
+			}
+		}
+
 		float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
 		float Range = GetAttackRange(MyUnit);
 		float RangeSq = FMath::Square(Range);
@@ -61,7 +77,19 @@ void UNovaBTTask_Hold::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMe
 		if (DistanceSq <= RangeSq)
 		{
 			float CurrentTime = GetWorld()->GetTimeSeconds();
-			if (CurrentTime - LastAttackTime >= AttackInterval)
+
+			// FireRate 연동 (수치가 작을수록 빠름, 100 = 1.0s, 50 = 0.5s)
+			float CurrentAttackInterval = AttackInterval;
+			if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+			{
+				float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
+				if (FireRateValue > 0.0f)
+				{
+					CurrentAttackInterval = FireRateValue / 100.0f;
+				}
+			}
+
+			if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
 			{
 				PerformAttack(MyUnit, Target);
 				LastAttackTime = CurrentTime;
