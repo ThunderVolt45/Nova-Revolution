@@ -67,6 +67,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nova|Unit")
 	bool IsDead() const { return bIsDead; }
 
+	/** 무기 부품 컴포넌트들을 반환합니다. */
+	const TArray<TObjectPtr<UChildActorComponent>>& GetWeaponPartComponents() const { return WeaponPartComponents; }
+
 protected:
 	virtual void BeginPlay() override;
 

@@ -5,6 +5,8 @@
 #include "Core/Animation/NovaWeaponAnimInstance.h"
 #include "Core/Animation/NovaAnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "AbilitySystemComponent.h"
+#include "AbilitySystemInterface.h"
 #include "NovaRevolution.h"
 
 ANovaPart::ANovaPart()
@@ -117,6 +119,41 @@ void ANovaPart::PlayAttackAnimation()
 		if (AnimInst && !AnimInst->Montage_IsPlaying(AttackMontage))
 		{
 			AnimInst->Montage_Play(AttackMontage);
+		}
+	}
+}
+
+void ANovaPart::PlayFireEffects()
+{
+	// 1. 애니메이션 재생
+	PlayAttackAnimation();
+
+	// 2. GameplayCue 실행 (발사 효과)
+	if (FireCueTag.IsValid())
+	{
+		// ChildActor인 경우 GetOwner()가 즉시 유효하지 않을 수 있으므로 ParentComponent를 통해 Owner를 확인합니다.
+		AActor* OwnerActor = GetOwner();
+		if (!OwnerActor && GetParentComponent())
+		{
+			OwnerActor = GetParentComponent()->GetOwner();
+		}
+
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(OwnerActor))
+		{
+			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
+			{
+				FGameplayCueParameters Params;
+				Params.Location = GetActorLocation();
+				Params.Normal = GetActorForwardVector();
+				Params.Instigator = OwnerActor;
+				Params.EffectCauser = this;
+				
+				ASC->ExecuteGameplayCue(FireCueTag, Params);
+			}
+		}
+		else
+		{
+			NOVA_LOG(Warning, "PlayFireEffects: Could not find AbilitySystemInterface on Owner of %s", *GetName());
 		}
 	}
 }

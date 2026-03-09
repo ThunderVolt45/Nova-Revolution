@@ -2,6 +2,8 @@
 
 #include "GAS/Abilities/NovaGA_Attack.h"
 #include "AbilitySystemComponent.h"
+#include "Core/NovaUnit.h"
+#include "Core/NovaPart.h"
 #include "NovaRevolution.h"
 #include "GAS/NovaGameplayTags.h"
 
@@ -55,26 +57,55 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 {
 	if (!Target) return;
 
-	// 1. 공격자(Source)와 대상(Target)의 ASC를 가져옵니다.
+	ANovaUnit* Unit = Cast<ANovaUnit>(GetAvatarActorFromActorInfo());
+	if (!Unit) return;
+
+	// 1. 모든 무기 부품의 발사 효과(애니메이션 + 발사 Cue) 실행
+	FGameplayTag ImpactTag;
+	const TArray<TObjectPtr<UChildActorComponent>>& WeaponComps = Unit->GetWeaponPartComponents();
+	
+	for (auto WeaponComp : WeaponComps)
+	{
+		if (ANovaPart* WeaponPart = Cast<ANovaPart>(WeaponComp->GetChildActor()))
+		{
+			WeaponPart->PlayFireEffects();
+			
+			// 적중 효과 태그 저장 (첫 번째 무기 기준 혹은 모든 무기 공통 사용)
+			if (!ImpactTag.IsValid())
+			{
+				ImpactTag = WeaponPart->GetImpactCueTag();
+			}
+		}
+	}
+
+	// 2. 공격자(Source)와 대상(Target)의 ASC를 가져옵니다.
 	UAbilitySystemComponent* SourceASC = GetAbilitySystemComponentFromActorInfo();
 	UAbilitySystemComponent* TargetASC = Target->FindComponentByClass<UAbilitySystemComponent>();
 
 	if (SourceASC && TargetASC && DamageEffectClass)
 	{
-		// 2. GameplayEffectSpec 생성 (레벨은 1로 고정)
+		// GameplayEffectSpec 생성 (레벨은 1로 고정)
 		FGameplayEffectContextHandle ContextHandle = SourceASC->MakeEffectContext();
-		ContextHandle.AddSourceObject(GetAvatarActorFromActorInfo());
+		ContextHandle.AddSourceObject(Unit);
 
 		FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(DamageEffectClass, 1.0f, ContextHandle);
 		if (SpecHandle.IsValid())
 		{
-			// 3. 대상에게 이펙트 적용 (히트스캔 방식: 즉시 적용)
+			// 대상에게 이펙트 적용 (히트스캔 방식: 즉시 적용)
 			SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
 			
 			NOVA_LOG(Log, "GA_Attack: Damage GE applied to %s via Hitscan", *Target->GetName());
 		}
 	}
 
-	// TODO: GameplayCue 호출 (사격 이펙트/사운드)
-	// ExecuteGameplayCueWithParams(NovaGameplayTags::GameplayCue_Unit_Fire, FGameplayCueParameters());
+	// 3. 적중 효과 (Impact GameplayCue) 실행 (히트스캔인 경우 타겟 위치에서 발동)
+	if (ImpactTag.IsValid())
+	{
+		FGameplayCueParameters Params;
+		Params.Location = Target->GetActorLocation();
+		Params.Instigator = Unit;
+		Params.EffectCauser = Unit;
+		
+		ExecuteGameplayCueWithParams(ImpactTag, Params);
+	}
 }
