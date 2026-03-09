@@ -2,6 +2,7 @@
 
 #include "Core/NovaPart.h"
 #include "Core/NovaPartData.h"
+#include "Core/Animation/NovaWeaponAnimInstance.h"
 #include "Core/Animation/NovaAnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "NovaRevolution.h"
@@ -21,6 +22,22 @@ ANovaPart::ANovaPart()
 	StaticMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
 	StaticMesh->SetupAttachment(RootComponent);
 	StaticMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void ANovaPart::UpdateAiming(float DeltaTime)
+{
+	// 1. 목표 각도로 부드럽게 보간 (FInterpTo)
+	CurrentPitch = FMath::FInterpTo(CurrentPitch, TargetPitch, DeltaTime, AimInterpSpeed);
+
+	// 2. SkeletalMesh가 있고 애니메이션 인스턴스가 생성한 UNovaWeaponAnimInstance라면 값 전달
+	if (SkeletalMesh)
+	{
+		if (UNovaWeaponAnimInstance* WeaponAnim = Cast<UNovaWeaponAnimInstance>(SkeletalMesh->GetAnimInstance()))
+		{
+			// C++ 변수에 보간된 값을 대입 -> ABP가 이 값을 보고 뼈를 움직임, pitch 입력값이 0일 때 하늘을 바라보기 때문에 값 보정 수행
+			WeaponAnim->AimPitch = 90.f - CurrentPitch ;
+		}
+	}
 }
 
 void ANovaPart::BeginPlay()
