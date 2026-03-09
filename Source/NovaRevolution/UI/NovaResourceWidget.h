@@ -53,6 +53,9 @@ protected:
 
 	UFUNCTION()
 	void UpdatePopulationUI(float Current, float Max);
+	
+	UFUNCTION()
+	void UpdateUnitWattUI(float Current, float Max);
 
 	// 공통 텍스트 포맷팅 함수 (예: "50 / 100")
 	void SetResourceText(class UTextBlock* TargetText, float Current, float Max);

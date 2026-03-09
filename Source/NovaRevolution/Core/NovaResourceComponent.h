@@ -40,6 +40,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
 	void UpdatePopulation(float DeltaPopulation, float DeltaWatt);
 
+	/** 자원 회복 GE를 중단합니다. (기지 파괴 시 등) */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Resource")
+	void StopResourceRegen();
+
 	/** 자원 회복용 GameplayEffect 클래스 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Resource")
 	TSubclassOf<class UGameplayEffect> RegenGameplayEffectClass;

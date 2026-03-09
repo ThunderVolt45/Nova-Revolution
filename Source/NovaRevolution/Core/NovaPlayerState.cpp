@@ -61,6 +61,14 @@ void ANovaPlayerState::BeginPlay()
 			}
 		);
 
+		// TotalUnitWatt 변경 감지
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(ResourceAttributeSet->GetTotalUnitWattAttribute()).AddLambda(
+			[this](const FOnAttributeChangeData& Data)
+			{
+				OnTotalUnitWattChanged.Broadcast(Data.NewValue, GetMaxUnitWatt());
+			}
+		);
+
 		// Watt Level 변경 감지
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(ResourceAttributeSet->GetWattLevelAttribute()).AddLambda(
 			[this](const FOnAttributeChangeData& Data)

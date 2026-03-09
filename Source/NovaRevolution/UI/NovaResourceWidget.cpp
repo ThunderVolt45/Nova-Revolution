@@ -19,16 +19,13 @@ void UNovaResourceWidget::NativeConstruct()
             PS->OnWattChanged.AddDynamic(this, &UNovaResourceWidget::UpdateWattUI);
             PS->OnSPChanged.AddDynamic(this, &UNovaResourceWidget::UpdateSPUI);
             PS->OnPopulationChanged.AddDynamic(this, &UNovaResourceWidget::UpdatePopulationUI);
+            PS->OnTotalUnitWattChanged.AddDynamic(this, &UNovaResourceWidget::UpdateUnitWattUI);
 
             // 2. 초기값 동기화 (게임 시작 시 현재 자원 상태 반영)
             UpdateWattUI(PS->GetCurrentWatt(), PS->GetMaxWatt());
             UpdateSPUI(PS->GetCurrentSP(), PS->GetMaxSP());
             UpdatePopulationUI(PS->GetCurrentPopulation(), PS->GetMaxPopulation());
-
-            // UnitWatt는 별도 델리게이트가 없다면 초기화 시 직접 설정
-            SetResourceText(Text_UnitWatt, PS->GetTotalUnitWatt(), PS->GetMaxUnitWatt());
-            if (ProgressBar_UnitWatt && PS->GetMaxUnitWatt() > 0)
-                ProgressBar_UnitWatt->SetPercent(PS->GetTotalUnitWatt() / PS->GetMaxUnitWatt());
+            UpdateUnitWattUI(PS->GetTotalUnitWatt(), PS->GetMaxUnitWatt());
         }
     }
 }
@@ -49,14 +46,12 @@ void UNovaResourceWidget::UpdatePopulationUI(float Current, float Max)
 {
     if (ProgressBar_Population && Max > 0) ProgressBar_Population->SetPercent(Current / Max);
     SetResourceText(Text_Population, Current, Max);
+}
 
-    // 인구수가 변할 때 유닛 와트 총합도 같이 갱신 (보통 같이 변하므로)
-    if (ANovaPlayerState* PS = GetOwningPlayerState<ANovaPlayerState>())
-    {
-        SetResourceText(Text_UnitWatt, PS->GetTotalUnitWatt(), PS->GetMaxUnitWatt());
-        if (ProgressBar_UnitWatt && PS->GetMaxUnitWatt() > 0)
-            ProgressBar_UnitWatt->SetPercent(PS->GetTotalUnitWatt() / PS->GetMaxUnitWatt());
-    }
+void UNovaResourceWidget::UpdateUnitWattUI(float Current, float Max)
+{
+    if (ProgressBar_UnitWatt && Max > 0) ProgressBar_UnitWatt->SetPercent(Current / Max);
+    SetResourceText(Text_UnitWatt, Current, Max);
 }
 
 void UNovaResourceWidget::SetResourceText(UTextBlock* TargetText, float Current, float Max)
