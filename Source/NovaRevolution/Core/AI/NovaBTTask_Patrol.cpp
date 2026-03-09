@@ -6,7 +6,9 @@
 #include "Navigation/PathFollowingComponent.h"
 #include "Core/NovaUnit.h"
 #include "GAS/NovaAttributeSet.h"
+#include "GAS/NovaGameplayTags.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 
 UNovaBTTask_Patrol::UNovaBTTask_Patrol()
 {
@@ -18,6 +20,8 @@ UNovaBTTask_Patrol::UNovaBTTask_Patrol()
 	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, TargetLocationKey));
 	PatrolOriginKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, PatrolOriginKey));
 	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, TargetActorKey), AActor::StaticClass());
+
+	AbilityTag = NovaGameplayTags::Ability_Attack;
 }
 
 EBTNodeResult::Type UNovaBTTask_Patrol::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
@@ -143,6 +147,15 @@ float UNovaBTTask_Patrol::GetAttackRange(ANovaUnit* Unit) const
 
 void UNovaBTTask_Patrol::PerformAttack(ANovaUnit* Unit, AActor* Target)
 {
-	if (!Unit || !Target) return;
-	NOVA_LOG(Log, "Patrol-Attack: %s attacking %s", *Unit->GetName(), *Target->GetName());
+	if (Unit && Target && AbilityTag.IsValid())
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = Unit;
+		Payload.Target = Target;
+		Payload.EventTag = AbilityTag;
+
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Unit, AbilityTag, Payload);
+
+		NOVA_LOG(Log, "Patrol-Attack: %s attacking %s via GAS Event (%s)", *Unit->GetName(), *Target->GetName(), *AbilityTag.ToString());
+	}
 }

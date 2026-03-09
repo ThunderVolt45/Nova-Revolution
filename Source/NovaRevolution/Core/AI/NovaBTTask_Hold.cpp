@@ -5,7 +5,9 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/NovaUnit.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "GAS/NovaAttributeSet.h"
+#include "GAS/NovaGameplayTags.h"
 #include "NovaRevolution.h"
 
 UNovaBTTask_Hold::UNovaBTTask_Hold()
@@ -15,6 +17,8 @@ UNovaBTTask_Hold::UNovaBTTask_Hold()
 
 	// 블랙보드 키 필터링
 	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Hold, TargetActorKey), AActor::StaticClass());
+
+	AbilityTag = NovaGameplayTags::Ability_Attack;
 }
 
 EBTNodeResult::Type UNovaBTTask_Hold::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
@@ -77,6 +81,15 @@ float UNovaBTTask_Hold::GetAttackRange(ANovaUnit* Unit) const
 
 void UNovaBTTask_Hold::PerformAttack(ANovaUnit* Unit, AActor* Target)
 {
-	// TODO: GAS를 통한 공격 어빌리티 실행
-	NOVA_LOG(Log, "Unit %s is attacking %s (from HOLD state)!", *Unit->GetName(), *Target->GetName());
+	if (Unit && Target && AbilityTag.IsValid())
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = Unit;
+		Payload.Target = Target;
+		Payload.EventTag = AbilityTag;
+
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Unit, AbilityTag, Payload);
+
+		NOVA_LOG(Log, "Unit %s is attacking %s (from HOLD state) via GAS Event (%s)!", *Unit->GetName(), *Target->GetName(), *AbilityTag.ToString());
+	}
 }

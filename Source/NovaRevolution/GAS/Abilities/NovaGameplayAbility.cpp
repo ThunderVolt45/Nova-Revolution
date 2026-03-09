@@ -21,10 +21,20 @@ void UNovaGameplayAbility::ExecuteGameplayCueWithParams(const FGameplayTag& CueT
 
 AActor* UNovaGameplayAbility::GetTargetActorFromEventData(const FGameplayEventData& TriggerEventData) const
 {
-	// GAS 표준 방식: TargetDataHandle에서 첫 번째 액터를 추출
+	// 1. Target 필드에 직접 액터가 있는 경우 (BTTask 등에서 직접 할당 시)
+	if (TriggerEventData.Target)
+	{
+		return const_cast<AActor*>(TriggerEventData.Target.Get());
+	}
+
+	// 2. TargetDataHandle에 데이터가 있는 경우 (표준 GAS 타겟 데이터)
 	if (TriggerEventData.TargetData.Num() > 0)
 	{
-		return GetTargetActorFromEventData(TriggerEventData);
+		TArray<AActor*> Actors = UAbilitySystemBlueprintLibrary::GetActorsFromTargetData(TriggerEventData.TargetData, 0);
+		if (Actors.Num() > 0 && Actors[0])
+		{
+			return Actors[0];
+		}
 	}
 
 	return nullptr;

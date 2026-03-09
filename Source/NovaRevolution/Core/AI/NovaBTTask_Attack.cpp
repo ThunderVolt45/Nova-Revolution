@@ -6,7 +6,9 @@
 #include "Core/NovaUnit.h"
 #include "Core/NovaTypes.h"
 #include "AbilitySystemComponent.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "GAS/NovaAttributeSet.h"
+#include "GAS/NovaGameplayTags.h"
 #include "NovaRevolution.h"
 #include "Navigation/PathFollowingComponent.h"
 
@@ -20,6 +22,8 @@ UNovaBTTask_Attack::UNovaBTTask_Attack()
 	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, TargetActorKey), AActor::StaticClass());
 	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, TargetLocationKey));
 	CommandTypeKey.AddEnumFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, CommandTypeKey), StaticEnum<ECommandType>());
+
+	AbilityTag = NovaGameplayTags::Ability_Attack;
 }
 
 EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
@@ -145,12 +149,15 @@ float UNovaBTTask_Attack::GetAttackRange(ANovaUnit* Unit) const
 
 void UNovaBTTask_Attack::PerformAttack(ANovaUnit* Unit, AActor* Target)
 {
-	// TODO: GAS를 통한 공격 어빌리티 실행 로직 구현
-	// 지금은 로그만 출력
-	NOVA_LOG(Log, "Unit %s is attacking %s!", *Unit->GetName(), *Target->GetName());
-	
-	// GAS 연동 시 예시:
-	// FGameplayTagContainer TagContainer;
-	// TagContainer.AddTag(NovaGameplayTags::Ability_Attack);
-	// Unit->GetAbilitySystemComponent()->TryActivateAbilitiesByTag(TagContainer);
+	if (Unit && Target && AbilityTag.IsValid())
+	{
+		FGameplayEventData Payload;
+		Payload.Instigator = Unit;
+		Payload.Target = Target;
+		Payload.EventTag = AbilityTag;
+
+		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Unit, AbilityTag, Payload);
+		
+		NOVA_LOG(Log, "Unit %s is attacking %s via GAS Event (%s)!", *Unit->GetName(), *Target->GetName(), *AbilityTag.ToString());
+	}
 }

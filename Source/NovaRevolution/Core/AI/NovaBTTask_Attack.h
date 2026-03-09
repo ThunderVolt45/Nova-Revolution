@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "BehaviorTree/BTTaskNode.h"
+#include "GameplayTagContainer.h"
 #include "NovaBTTask_Attack.generated.h"
 
 /**
@@ -38,6 +39,10 @@ protected:
 	/** 공격 시도 간격 (초) */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	float AttackInterval = 1.0f;
+
+	/** 공격 시 발동할 어빌리티 태그 */
+	UPROPERTY(EditAnywhere, Category = "Nova|AI")
+	FGameplayTag AbilityTag;
 
 private:
 	/** 마지막 공격 시간 */
