@@ -24,8 +24,6 @@ ANovaAIController::ANovaAIController()
 
 void ANovaAIController::OnPossess(APawn* InPawn)
 {
-	
-
 	// 비헤이비어 트리 실행
 	if (BehaviorTreeAsset)
 	{
@@ -51,13 +49,29 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 {
 	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
-		// 1. 블랙보드 데이터 업데이트
+		APawn* MyPawn = GetPawn();
+		if (!MyPawn) return;
+
+		// 1. [Fix] 자기 자신을 대상으로 하는 공격 명령 차단
+		if (CommandData.CommandType == ECommandType::Attack && CommandData.TargetActor == MyPawn)
+		{
+			NOVA_LOG(Warning, "AIController: Self-attack command ignored.");
+			return;
+		}
+
+		// 2. 블랙보드 데이터 업데이트
 		BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)CommandData.CommandType);
 		
 		switch (CommandData.CommandType)
 		{
 		case ECommandType::Move:
 		case ECommandType::Patrol:
+			// 이미 해당 위치(최소 사거리) 근처에 있다면 불필요한 이동 명령 방지
+			if (FVector::DistSquared(MyPawn->GetActorLocation(), CommandData.TargetLocation) < FMath::Square(MinMoveDistance))
+			{
+				BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)ECommandType::None);
+				return;
+			}
 			BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
 			BlackboardComponent->ClearValue(TargetActorKey);
 			NOVA_LOG(Log, "AIController: %s command synced to BB (%s)", 

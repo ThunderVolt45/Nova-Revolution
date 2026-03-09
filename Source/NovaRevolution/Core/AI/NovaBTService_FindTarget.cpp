@@ -86,7 +86,9 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 		for (const FOverlapResult& Result : OverlapResults)
 		{
 			AActor* PotentialTarget = Result.GetActor();
-			if (!PotentialTarget) continue;
+			
+			// [Fix] 자기 자신은 제외
+			if (!PotentialTarget || PotentialTarget == MyUnit) continue;
 
 			// 팀 인터페이스 확인
 			if (INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PotentialTarget))
