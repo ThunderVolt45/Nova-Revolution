@@ -121,6 +121,7 @@ public:
 	virtual FNovaOnResourceChangedSignature& GetOnWattChangedDelegate() = 0;
 	virtual FNovaOnResourceChangedSignature& GetOnSPChangedDelegate() = 0;
 	virtual FNovaOnResourceChangedSignature& GetOnPopulationChangedDelegate() = 0;
+	virtual FNovaOnResourceChangedSignature& GetOnTotalUnitWattChangedDelegate() = 0;
 	virtual FNovaOnResourceChangedSignature& GetOnWattLevelChangedDelegate() = 0;
 	virtual FNovaOnResourceChangedSignature& GetOnSPLevelChangedDelegate() = 0;
 };

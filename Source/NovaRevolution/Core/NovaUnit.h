@@ -62,6 +62,13 @@ public:
 	/** 유닛의 이름을 반환합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
 	FString GetUnitName() const { return UnitName; }
+	
+	// 유닛의 생존 여부를 반환합니다.
+	UFUNCTION(BlueprintCallable, Category = "Nova|Unit")
+	bool IsDead() const { return bIsDead; }
+
+	/** 무기 부품 컴포넌트들을 반환합니다. */
+	const TArray<TObjectPtr<UChildActorComponent>>& GetWeaponPartComponents() const { return WeaponPartComponents; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -144,6 +151,9 @@ protected:
 
 	// 부품들의 스탯을 합산하여 유닛의 기본 스탯(AttributeSet) 초기화
 	void InitializeAttributesFromParts();
+
+	// 부품들의 어빌리티를 수집하여 유닛에게 부여 (중복 방지)
+	void InitializeAbilitiesFromParts();
 
 	// --- GAS 구성 ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GAS")

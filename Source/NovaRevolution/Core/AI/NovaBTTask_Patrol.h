@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "BehaviorTree/BTTaskNode.h"
+#include "GameplayTagContainer.h"
 #include "NovaBTTask_Patrol.generated.h"
 
 /**
@@ -46,6 +47,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	float AttackInterval = 1.0f;
 
+	/** 공격 시 발동할 어빌리티 태그 */
+	UPROPERTY(EditAnywhere, Category = "Nova|AI")
+	FGameplayTag AbilityTag;
+
 private:
 	/** 현재 목표가 Origin인지 TargetLocation인지 여부 */
 	bool bMovingToOrigin = false;
@@ -58,7 +63,4 @@ private:
 
 	/** 공격 사거리 가져오기 */
 	float GetAttackRange(class ANovaUnit* Unit) const;
-
-	/** 공격 실행 */
-	void PerformAttack(class ANovaUnit* Unit, AActor* Target);
 };

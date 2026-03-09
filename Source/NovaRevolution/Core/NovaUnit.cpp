@@ -3,16 +3,17 @@
 #include "Core/NovaUnit.h"
 #include "Core/NovaPart.h"
 #include "Core/NovaPartData.h"
+#include "Core/NovaResourceComponent.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
 #include "NovaRevolution.h"
-#include "GAS/NovaAttributeSet.h"
+#include "NovaPlayerState.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "Core/AI/NovaAIController.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Core/AI/NovaAIController.h"
-#include "BehaviorTree/BlackboardComponent.h"
-#include "NavigationSystem.h"
-#include "Core/NovaLog.h"
+#include "GAS/NovaAttributeSet.h"
+#include "GAS/Abilities/NovaGameplayAbility.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -116,6 +117,7 @@ void ANovaUnit::BeginPlay()
 
 	// 3. 모든 부품이 부착된 후 스탯 합산 및 초기화
 	InitializeAttributesFromParts();
+	InitializeAbilitiesFromParts();
 
 	if (AbilitySystemComponent)
 	{
@@ -524,6 +526,43 @@ void ANovaUnit::Die()
 	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
 
+	// 자원 반납 (인구수 -1, 자신의 와트 비용만큼 차감)
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		float UnitWatt = ASC->GetNumericAttribute(UNovaAttributeSet::GetWattAttribute());
+		
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+			{
+				if (APlayerController* PC = Iterator->Get())
+				{
+					if (ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>())
+					{
+						// INovaTeamInterface를 통해 팀 ID를 확인합니다.
+						INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
+						if (TeamInterface && TeamInterface->GetTeamID() == TeamID)
+						{
+							if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+							{
+								ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
+								NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// AI 동작 정지 요청
+	if (ANovaAIController* AIC = Cast<ANovaAIController>(GetController()))
+	{
+		AIC->OnPawnDeath();
+	}
+
 	// 충돌 비활성화 및 소멸 처리 (필요에 따라 래그돌 또는 파편화 연출 추가 가능)
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
@@ -550,4 +589,52 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 {
 	// 체력이 0 이하가 되면 Die() 호출
 	if (Data.NewValue <= 0.0f) Die();
+}
+
+void ANovaUnit::InitializeAbilitiesFromParts()
+{
+	if (!AbilitySystemComponent) return;
+
+	// 중복 제거를 위한 Set 사용
+	TSet<TSubclassOf<class UNovaGameplayAbility>> UniqueAbilities;
+
+	// 수집할 모든 부품 액터 리스트업
+	TArray<AActor*> PartActors;
+	if (LegsPartComponent) PartActors.Add(LegsPartComponent->GetChildActor());
+	if (BodyPartComponent) PartActors.Add(BodyPartComponent->GetChildActor());
+	
+	// 무기는 여러 소켓에 붙어있을 수 있지만 모두 같은 무기만 붙으므로 무기 중 하나의 어빌리티만 등록한다.
+	for (auto WeaponComp : WeaponPartComponents)
+	{
+		if (WeaponComp)
+		{
+			PartActors.Add(WeaponComp->GetChildActor());
+			break;
+		}
+	}
+
+	// 각 부품에서 어빌리티 클래스 추출
+	for (AActor* Actor : PartActors)
+	{
+		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		{
+			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
+			for (auto AbilityClass : Spec.AbilityClasses)
+			{
+				if (AbilityClass)
+				{
+					UniqueAbilities.Add(AbilityClass);
+				}
+			}
+		}
+	}
+
+	// 수집된 고유 어빌리티들을 ASC에 부여
+	for (auto AbilityClass : UniqueAbilities)
+	{
+		if (AbilityClass)
+		{
+			AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, -1, this));
+		}
+	}
 }

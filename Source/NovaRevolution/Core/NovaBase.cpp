@@ -179,6 +179,30 @@ void ANovaBase::DestroyBase()
 	// 기지 파괴 시 시각적/게임 로직 처리
 	UE_LOG(LogTemp, Error, TEXT("Base Destroyed: %s (TeamID: %d)"), *GetName(), TeamID);
 
+	// 자원 재생 중단 (해당 팀의 PlayerState를 찾아 ResourceComponent 접근)
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+		{
+			if (APlayerController* PC = Iterator->Get())
+			{
+				if (ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>())
+				{
+					// INovaTeamInterface를 통해 팀 ID를 확인합니다.
+					INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
+					if (TeamInterface && TeamInterface->GetTeamID() == TeamID)
+					{
+						if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+						{
+							ResourceComp->StopResourceRegen();
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// PlayerState에서 기지 참조 해제
 	if (APlayerController* PC = GetNetOwningPlayer() ? GetNetOwningPlayer()->GetPlayerController(GetWorld()) : nullptr)
 	{

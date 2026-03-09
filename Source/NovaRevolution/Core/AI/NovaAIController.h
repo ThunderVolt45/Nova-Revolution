@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AIController.h"
 #include "Core/NovaInterfaces.h"
+#include "GameplayTagContainer.h"
 #include "NovaAIController.generated.h"
 
 class UBehaviorTreeComponent;
@@ -24,6 +25,13 @@ public:
 
 	// --- INovaCommandInterface 구현 ---
 	virtual void IssueCommand(const FCommandData& CommandData) override;
+
+	/** 태그를 통해 빙의된 유닛의 어빌리티를 발동합니다. (중복 로직 통합) */
+	UFUNCTION(BlueprintCallable, Category = "Nova|AI")
+	void ActivateAbilityByTag(const FGameplayTag& AbilityTag, AActor* Target);
+
+	/** 빙의된 유닛이 사망했을 때 호출되어 AI 동작을 정지합니다. */
+	void OnPawnDeath();
 
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
