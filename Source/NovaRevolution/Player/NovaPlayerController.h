@@ -12,6 +12,7 @@ struct FInputActionValue;
 class UNovaInputConfig;
 class UInputMappingContext;
 class UInputAction;
+class UUserWidget;
 
 /**
  * 부대 지정의 대상들을 담아둘 구조체
@@ -23,6 +24,10 @@ struct FNovaControlGroup
 
 	UPROPERTY(BlueprintReadOnly)
 	TArray<TObjectPtr<AActor>> Targets;
+
+	// 자동 부대 지정 편입을 조절하기 위한 bool 변수 (유저가 수동으로 부대 지정 시 false)
+	UPROPERTY(BlueprintReadOnly)
+	bool bIsAutoAssignActive = true;
 };
 
 /**
@@ -138,21 +143,25 @@ private:
 
 	// 헬퍼 함수 : 선택 비우기
 	void ClearSelection();
-	
+
 	// 연타 판정을 위한 상태 변수
 	int32 LastFocusID = -1;
 	float LastFocusTime = 0.f;
-	
+
 	// 연타 인정 시간(초)
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	float DoubleClickThreshold = 0.3f;
 
+public:
+	// 생성된 유닛 자동 부대 편입 (public?)
+	void OnUnitProduced(AActor* Unit, int32 SlotIndex);
+
 protected:
 	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
-	TSubclassOf<class UUserWidget> MainHUDClass;
+	TSubclassOf<UUserWidget> MainHUDClass;
 
 	/** 생성된 HUD 인스턴스 저장용 */
 	UPROPERTY()
-	class UUserWidget* MainHUDInstance;
+	UUserWidget* MainHUDInstance;
 };

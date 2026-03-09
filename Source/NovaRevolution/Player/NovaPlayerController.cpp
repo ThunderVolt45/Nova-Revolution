@@ -181,6 +181,8 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				if (SelectedUnits.Num() > 0)
 				{
 					ControlGroups[SlotIndex].Targets = SelectedUnits;
+					// 유저가 직접 부대 지정 했다면 자동 편입 기능 false
+					ControlGroups[SlotIndex].bIsAutoAssignActive = false;
 					NOVA_SCREEN(Warning, "Control Group %d Assigned (%d units)", SlotIndex + 1, SelectedUnits.Num());
 				}
 				else
@@ -674,4 +676,19 @@ void ANovaPlayerController::ClearSelection()
 		}
 	}
 	SelectedUnits.Empty();
+}
+
+// 생성된 유닛 자동 부대 편입
+void ANovaPlayerController::OnUnitProduced(AActor* Unit, int32 SlotIndex)
+{
+	// 해당 유닛이 없거나 지정할 부대가 존재하지 않을 시 return
+	if (!IsValid(Unit) || !ControlGroups.IsValidIndex(SlotIndex)) return;
+	
+	// 자동 편입 기능 사용 여부 확인
+	if (ControlGroups[SlotIndex].bIsAutoAssignActive)
+	{
+		// 부대 지정 배열에 유닛 추가
+		ControlGroups[SlotIndex].Targets.AddUnique(Unit);
+		NOVA_SCREEN(Log, "Unit Auto-Assigned to Group %d", SlotIndex + 1);
+	}
 }
