@@ -77,17 +77,29 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	}
 
 	// 1. 우선순위: 타겟 액터가 있는 경우 (추격 및 공격)
-	if (Target && !Target->IsPendingKillPending())
+	// 타겟 액터가 존재하면 목표 지점(GoalLocation) 로직은 완전히 무시합니다.
+	if (Target)
 	{
-		// 타겟이 유닛인 경우 사망 여부 확인
+		// 타겟이 유닛인 경우 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
 		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
 		{
 			if (TargetUnit->IsDead())
 			{
 				BB->ClearValue(TargetActorKey.SelectedKeyName);
+				BB->ClearValue(TargetLocationKey.SelectedKeyName);
 				AIC->StopMovement();
+				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 				return;
 			}
+		}
+
+		if (Target->IsPendingKillPending())
+		{
+			BB->ClearValue(TargetActorKey.SelectedKeyName);
+			BB->ClearValue(TargetLocationKey.SelectedKeyName);
+			AIC->StopMovement();
+			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+			return;
 		}
 
 		float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
@@ -126,13 +138,15 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			// 사거리 밖이라면 추적 이동
 			AIC->MoveToActor(Target, Range * 0.9f); 
 		}
+
+		return; // 타겟 액터 로직을 수행했으므로 하단의 지점 이동 로직은 실행하지 않음
 	}
+
 	// 2. 타겟 액터가 없지만 목표 지점이 있는 경우 (공격 이동 중)
-	else if (!GoalLocation.IsZero())
+	if (!GoalLocation.IsZero())
 	{
 		// [수정] 단순히 Moving 상태인지 체크하는 대신, 현재 경로의 도착지가 목표 지점과 일치하는지 확인하거나 
 		// 혹은 Tick에서 주기적으로 MoveToLocation을 재호출하여 갱신을 보장합니다.
-		// (MoveToLocation은 이미 같은 목표면 내부적으로 무시하므로 안전합니다.)
 		if (AIC->GetMoveStatus() == EPathFollowingStatus::Idle)
 		{
 			AIC->MoveToLocation(GoalLocation, 10.0f);
