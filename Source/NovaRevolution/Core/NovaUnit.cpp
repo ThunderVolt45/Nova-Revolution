@@ -10,6 +10,7 @@
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Core/AI/NovaAIController.h"
+#include "BehaviorTree/BlackboardComponent.h"
 #include "NavigationSystem.h"
 #include "Core/NovaLog.h"
 
@@ -88,6 +89,8 @@ void ANovaUnit::Tick(float DeltaTime)
 			// NOVA_SCREEN(Log,"Unit: %s | Current Speed: %.2f", *GetName(), CurrentSpeed);
 		}
 	}
+	// 3. [추가] 몸통(Body) 회전 로직을 매 프레임 실행합니다.
+	UpdateBodyRotation(DeltaTime);
 }
 
 void ANovaUnit::OnConstruction(const FTransform& Transform)
@@ -150,6 +153,126 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 		LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
 		BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
 		WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+}
+
+//
+// AActor* ANovaUnit::GetTargetFromBlackboard() const
+// {
+// 	// 1. 유닛의 AI 컨트롤러를 가져옵니다.
+// 	if (ANovaAIController* AICon = Cast<ANovaAIController>(GetController()))
+// 	{
+// 		// 2. 컨트롤러가 가진 블랙보드 컴포넌트를 가져옵니다.
+// 		if (UBlackboardComponent* BB = AICon->GetBlackboardComponent())
+// 		{
+// 			// 3. "TargetActor" 키에 저장된 값을 AActor 타입으로 반환합니다.
+// 			// (이미 ANovaAIController에 정의된 TargetActorKey 이름을 사용하는 것이 정확합니다.)
+// 			return Cast<AActor>(BB->GetValueAsObject(TEXT("TargetActor")));
+// 		}
+// 	}
+// 	return nullptr;
+// }
+
+void ANovaUnit::UpdateBodyRotation(float DeltaTime)
+{
+	// 1. 몸통 컴포넌트가 없으면 중단합니다.
+	if (!BodyPartComponent)
+	{
+		NOVA_LOG(Log, "UpdateBodyRotation: BodyPartComponent is nullptr, UpdateBodyRotation Is Canceled");
+		return;
+	}
+
+	// 현재 몸통의 세계 회전값
+	FRotator CurrentRotation = BodyPartComponent->GetComponentRotation();
+	FRotator TargetRotation;
+	
+	// 1. [최적화] 블랙보드 조회 대신 캐싱된 CurrentTarget만 확인합니다.
+	// IsValid를 통해 타겟이 죽거나 사라졌는지도 동시에 체크합니다.
+	if (IsValid(CurrentTarget))
+	{
+		// 타겟 방향 계산
+		FVector Direction = CurrentTarget->GetActorLocation() - GetActorLocation();
+		TargetRotation = Direction.Rotation();
+		
+	}
+	else
+	{
+		// 2. [기능 개선] 타겟이 없으면 유닛의 현재 정면(다리/뿌리 방향)으로 회전합니다.
+		TargetRotation = GetActorRotation();
+	}
+
+	// 모델 보정 (Y축 정면 기준 -90도)
+	TargetRotation.Yaw -= 90.0f;
+	// 좌우(Yaw) 회전만 허용
+	TargetRotation.Pitch = 0.0f;
+	TargetRotation.Roll = 0.0f;
+
+	// 3. 부드러운 회전 보간 (RInterpTo)
+	FRotator NewRotation = FMath::RInterpTo(
+		CurrentRotation,
+		TargetRotation,
+		DeltaTime,
+		BodyRotationInterpSpeed
+	);
+
+	// 계산된 회전값 적용
+	BodyPartComponent->SetWorldRotation(NewRotation);
+}
+
+EBlackboardNotificationResult ANovaUnit::OnTargetActorChanged(const UBlackboardComponent& Blackboard,
+	FBlackboard::FKey KeyID)
+{
+	// 1. 블랙보드에서 새로운 타겟을 꺼내 멤버 변수에 저장합니다.
+	// (이 함수는 타겟이 바뀔 때만 딱 한 번 실행되므로 매우 효율적입니다.)
+	CurrentTarget = Cast<AActor>(Blackboard.GetValueAsObject(TEXT("TargetActor")));
+
+	// 2. 계속해서 감시를 유지하겠다는 결과를 반환합니다.
+	return EBlackboardNotificationResult::ContinueObserving;
+}
+
+void ANovaUnit::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	
+	if (ANovaAIController* AIC = Cast<ANovaAIController>(NewController))
+	{
+		UBlackboardComponent* BB = AIC->GetBlackboardComponent();
+		if (BB && BB->GetBlackboardAsset())
+		{
+			CachedBlackboard = BB;
+			// 1. 키 ID를 구해서 멤버 변수에 저장합니다.
+			TargetActorKeyID = BB->GetBlackboardAsset()->GetKeyID(TEXT("TargetActor"));
+
+			if (TargetActorKeyID != FBlackboard::InvalidKey)
+			{
+				// 2. 저장한 ID를 사용하여 옵저버 등록
+				TargetActorObserverHandle = BB->RegisterObserver(
+					TargetActorKeyID,
+					this,
+					FOnBlackboardChangeNotification::CreateUObject(this, &ANovaUnit::OnTargetActorChanged)
+				);
+			}
+
+			CurrentTarget = Cast<AActor>(BB->GetValueAsObject(TEXT("TargetActor")));
+		}
+	}
+	
+}
+
+void ANovaUnit::UnPossessed()
+{
+	// 중요: 저장해둔 TargetActorKeyID를 사용하여 해제합니다.
+	if (CachedBlackboard && TargetActorObserverHandle.IsValid() && TargetActorKeyID != FBlackboard::InvalidKey)
+	{
+		// 사용자님께서 확인하신 2개의 인자(KeyID, Handle)를 정확히 전달합니다.
+		CachedBlackboard->UnregisterObserver(TargetActorKeyID, TargetActorObserverHandle);
+		TargetActorObserverHandle.Reset();
+	}
+
+	CachedBlackboard = nullptr;
+	CurrentTarget = nullptr;
+	TargetActorKeyID = FBlackboard::InvalidKey;
+
+	Super::UnPossessed();
 }
 
 void ANovaUnit::ConstructUnitParts()
