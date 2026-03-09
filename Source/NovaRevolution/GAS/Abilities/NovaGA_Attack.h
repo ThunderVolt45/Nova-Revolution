@@ -33,6 +33,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Combat")
 	TObjectPtr<UAnimMontage> AttackMontage;
 
+	/** 대상에게 적용할 데미지 GameplayEffect 클래스 */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Combat")
+	TSubclassOf<class UGameplayEffect> DamageEffectClass;
+
 	/** 발사체 클래스 (발사체형 무기일 경우) */
 	// UPROPERTY(EditDefaultsOnly, Category = "Nova|Combat")
 	// TSubclassOf<class ANovaProjectile> ProjectileClass;

@@ -53,12 +53,26 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 {
 	if (!Target) return;
 
+	// 1. 공격자(Source)와 대상(Target)의 ASC를 가져옵니다.
+	UAbilitySystemComponent* SourceASC = GetAbilitySystemComponentFromActorInfo();
+	UAbilitySystemComponent* TargetASC = Target->FindComponentByClass<UAbilitySystemComponent>();
+
+	if (SourceASC && TargetASC && DamageEffectClass)
+	{
+		// 2. GameplayEffectSpec 생성 (레벨은 1로 고정)
+		FGameplayEffectContextHandle ContextHandle = SourceASC->MakeEffectContext();
+		ContextHandle.AddSourceObject(GetAvatarActorFromActorInfo());
+
+		FGameplayEffectSpecHandle SpecHandle = SourceASC->MakeOutgoingSpec(DamageEffectClass, 1.0f, ContextHandle);
+		if (SpecHandle.IsValid())
+		{
+			// 3. 대상에게 이펙트 적용 (히트스캔 방식: 즉시 적용)
+			SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
+			
+			NOVA_LOG(Log, "GA_Attack: Damage GE applied to %s via Hitscan", *Target->GetName());
+		}
+	}
+
 	// TODO: GameplayCue 호출 (사격 이펙트/사운드)
 	// ExecuteGameplayCueWithParams(NovaGameplayTags::GameplayCue_Unit_Fire, FGameplayCueParameters());
-
-	// TODO: 유닛 타입에 따른 분기 (히트스캔 vs 발사체)
-	// if (ProjectileClass) { // 발사체 생성 로직 }
-	// else { // 히트스캔 로직 }
-
-	NOVA_LOG(Log, "GA_Attack: Attack Executed on %s!", *Target->GetName());
 }
