@@ -600,6 +600,16 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 {
 	for (AActor* Unit : SelectedUnits)
 	{
+		// 추가 : 자기 자신을 공격하는 명령이라면 명령을 전달하지 않음
+		if (CommandData.CommandType == ECommandType::Attack)
+		{
+			if (CommandData.TargetActor == Unit)
+			{
+				NOVA_SCREEN(Warning, "Self-attack command ignored for unit: %s", *Unit->GetName());
+				continue;
+			}
+		}
+		
 		if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
 		{
 			CmdInterface->IssueCommand(CommandData);
@@ -652,7 +662,7 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 			FVector NewCameraLocation = AverageLocation;
 			NewCameraLocation.Z = ControlledPawn->GetActorLocation().Z; // Z값은 현재 카메라 높이를 유지
 			ControlledPawn->SetActorLocation(NewCameraLocation);
-			NOVA_SCREEN(Warning, "Camera Move to Selected Targets");
+			// NOVA_SCREEN(Warning, "Camera Move to Selected Targets");
 		}
 	}
 
