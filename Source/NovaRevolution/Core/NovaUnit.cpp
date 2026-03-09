@@ -3,16 +3,16 @@
 #include "Core/NovaUnit.h"
 #include "Core/NovaPart.h"
 #include "Core/NovaPartData.h"
+#include "Core/NovaResourceComponent.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
 #include "NovaRevolution.h"
-#include "GAS/NovaAttributeSet.h"
+#include "NovaPlayerState.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "Core/AI/NovaAIController.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "Core/AI/NovaAIController.h"
-#include "BehaviorTree/BlackboardComponent.h"
-#include "Core/NovaLog.h"
-#include "DSP/AudioDebuggingUtilities.h"
+#include "GAS/NovaAttributeSet.h"
 #include "GAS/Abilities/NovaGameplayAbility.h"
 
 ANovaUnit::ANovaUnit()
@@ -525,6 +525,37 @@ void ANovaUnit::Die()
 	// 유닛 사망 처리 로직
 	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
+
+	// 자원 반납 (인구수 -1, 자신의 와트 비용만큼 차감)
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		float UnitWatt = ASC->GetNumericAttribute(UNovaAttributeSet::GetWattAttribute());
+		
+		UWorld* World = GetWorld();
+		if (World)
+		{
+			for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+			{
+				if (APlayerController* PC = Iterator->Get())
+				{
+					if (ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>())
+					{
+						// INovaTeamInterface를 통해 팀 ID를 확인합니다.
+						INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
+						if (TeamInterface && TeamInterface->GetTeamID() == TeamID)
+						{
+							if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+							{
+								ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
+								NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// AI 동작 정지 요청
 	if (ANovaAIController* AIC = Cast<ANovaAIController>(GetController()))

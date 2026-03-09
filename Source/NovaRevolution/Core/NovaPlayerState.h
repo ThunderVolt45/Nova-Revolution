@@ -68,6 +68,7 @@ public:
 	virtual FNovaOnResourceChangedSignature& GetOnWattChangedDelegate() override { return OnWattChanged; }
 	virtual FNovaOnResourceChangedSignature& GetOnSPChangedDelegate() override { return OnSPChanged; }
 	virtual FNovaOnResourceChangedSignature& GetOnPopulationChangedDelegate() override { return OnPopulationChanged; }
+	virtual FNovaOnResourceChangedSignature& GetOnTotalUnitWattChangedDelegate() override { return OnTotalUnitWattChanged; }
 	virtual FNovaOnResourceChangedSignature& GetOnWattLevelChangedDelegate() override { return OnWattLevelChanged; }
 	virtual FNovaOnResourceChangedSignature& GetOnSPLevelChangedDelegate() override { return OnSPLevelChanged; }
 
@@ -88,6 +89,9 @@ public:
 	
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
 	FNovaOnResourceChangedSignature OnPopulationChanged;
+	
+	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
+	FNovaOnResourceChangedSignature OnTotalUnitWattChanged;
 	
 	UPROPERTY(BlueprintAssignable, Category = "Nova|Resource")
 	FNovaOnResourceChangedSignature OnWattLevelChanged;

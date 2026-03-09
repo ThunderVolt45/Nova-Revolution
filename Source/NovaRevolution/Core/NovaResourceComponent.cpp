@@ -6,6 +6,8 @@
 #include "GAS/NovaGameplayTags.h"
 #include "AbilitySystemComponent.h"
 #include "GameplayEffectTypes.h"
+#include "NovaLog.h"
+#include "NovaRevolution.h"
 
 UNovaResourceComponent::UNovaResourceComponent()
 {
@@ -93,4 +95,18 @@ void UNovaResourceComponent::UpdatePopulation(float DeltaPopulation, float Delta
     // 이 부분도 GE를 활용하고자 한다면 ConsumeResources와 유사하게 구현 가능
     ResourceAttributeSet->SetCurrentPopulation(ResourceAttributeSet->GetCurrentPopulation() + DeltaPopulation);
     ResourceAttributeSet->SetTotalUnitWatt(ResourceAttributeSet->GetTotalUnitWatt() + DeltaWatt);
+}
+
+void UNovaResourceComponent::StopResourceRegen()
+{
+	if (RegenEffectHandle.IsValid())
+	{
+		UAbilitySystemComponent* ASC = OwnerPlayerState ? OwnerPlayerState->GetAbilitySystemComponent() : nullptr;
+		if (ASC)
+		{
+			ASC->RemoveActiveGameplayEffect(RegenEffectHandle);
+			RegenEffectHandle.Invalidate();
+			NOVA_LOG(Log, "Resource regeneration stopped for PlayerState: %s", *OwnerPlayerState->GetName());
+		}
+	}
 }
