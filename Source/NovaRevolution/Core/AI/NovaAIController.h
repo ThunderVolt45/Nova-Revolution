@@ -39,6 +39,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|AI")
 	TObjectPtr<UBehaviorTree> BehaviorTreeAsset;
 
+	// 이동 명령 시 불필요한 이동을 방지하기 위한 최소 이동 사거리
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
+	float MinMoveDistance = 10.f;
+
 private:
 	/** 블랙보드 키 이름 정의 */
 	static const FName TargetLocationKey;
