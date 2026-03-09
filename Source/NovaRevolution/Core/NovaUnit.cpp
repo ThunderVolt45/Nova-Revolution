@@ -11,8 +11,9 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Core/AI/NovaAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
-#include "NavigationSystem.h"
 #include "Core/NovaLog.h"
+#include "DSP/AudioDebuggingUtilities.h"
+#include "GAS/Abilities/NovaGameplayAbility.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -114,6 +115,7 @@ void ANovaUnit::BeginPlay()
 
 	// 3. 모든 부품이 부착된 후 스탯 합산 및 초기화
 	InitializeAttributesFromParts();
+	InitializeAbilitiesFromParts();
 
 	if (AbilitySystemComponent)
 	{
@@ -526,4 +528,52 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 {
 	// 체력이 0 이하가 되면 Die() 호출
 	if (Data.NewValue <= 0.0f) Die();
+}
+
+void ANovaUnit::InitializeAbilitiesFromParts()
+{
+	if (!AbilitySystemComponent) return;
+
+	// 중복 제거를 위한 Set 사용
+	TSet<TSubclassOf<class UNovaGameplayAbility>> UniqueAbilities;
+
+	// 수집할 모든 부품 액터 리스트업
+	TArray<AActor*> PartActors;
+	if (LegsPartComponent) PartActors.Add(LegsPartComponent->GetChildActor());
+	if (BodyPartComponent) PartActors.Add(BodyPartComponent->GetChildActor());
+	
+	// 무기는 여러 소켓에 붙어있을 수 있지만 모두 같은 무기만 붙으므로 무기 중 하나의 어빌리티만 등록한다.
+	for (auto WeaponComp : WeaponPartComponents)
+	{
+		if (WeaponComp)
+		{
+			PartActors.Add(WeaponComp->GetChildActor());
+			break;
+		}
+	}
+
+	// 각 부품에서 어빌리티 클래스 추출
+	for (AActor* Actor : PartActors)
+	{
+		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		{
+			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
+			for (auto AbilityClass : Spec.AbilityClasses)
+			{
+				if (AbilityClass)
+				{
+					UniqueAbilities.Add(AbilityClass);
+				}
+			}
+		}
+	}
+
+	// 수집된 고유 어빌리티들을 ASC에 부여
+	for (auto AbilityClass : UniqueAbilities)
+	{
+		if (AbilityClass)
+		{
+			AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, -1, this));
+		}
+	}
 }

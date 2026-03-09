@@ -7,8 +7,10 @@
 
 UNovaGA_Attack::UNovaGA_Attack()
 {
-	// 어빌리티 태그 설정
-	AbilityTags.AddTag(NovaGameplayTags::Ability_Attack);
+	// 어빌리티 태그 설정 (SetAssetTags 권장 API 사용)
+	FGameplayTagContainer AssetTags;
+	AssetTags.AddTag(NovaGameplayTags::Ability_Attack);
+	SetAssetTags(AssetTags);
 }
 
 void UNovaGA_Attack::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
