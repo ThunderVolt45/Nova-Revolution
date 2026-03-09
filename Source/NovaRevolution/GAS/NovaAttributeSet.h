@@ -67,7 +67,7 @@ public:
 	FGameplayAttributeData Speed;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, Speed)
 
-	// 연사 속도 (Fire Rate - 초당 공격 횟수 등)
+	// 연사 속도 (Fire Rate - 노바 1492 스타일: 100 수치당 1초 간격)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData FireRate;
 	ATTRIBUTE_ACCESSORS(UNovaAttributeSet, FireRate)

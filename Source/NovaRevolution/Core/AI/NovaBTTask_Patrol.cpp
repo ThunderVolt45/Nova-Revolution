@@ -1,11 +1,12 @@
 #include "Core/AI/NovaBTTask_Patrol.h"
-#include "AIController.h"
+#include "Core/AI/NovaAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "NavigationSystem.h"
 #include "NovaRevolution.h"
 #include "Navigation/PathFollowingComponent.h"
 #include "Core/NovaUnit.h"
 #include "GAS/NovaAttributeSet.h"
+#include "GAS/NovaGameplayTags.h"
 #include "AbilitySystemComponent.h"
 
 UNovaBTTask_Patrol::UNovaBTTask_Patrol()
@@ -18,11 +19,13 @@ UNovaBTTask_Patrol::UNovaBTTask_Patrol()
 	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, TargetLocationKey));
 	PatrolOriginKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, PatrolOriginKey));
 	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Patrol, TargetActorKey), AActor::StaticClass());
+
+	AbilityTag = NovaGameplayTags::Ability_Attack;
 }
 
 EBTNodeResult::Type UNovaBTTask_Patrol::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !BB || !AIC->GetPawn()) return EBTNodeResult::Failed;
 
@@ -48,7 +51,7 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 {
 	Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
 
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(AIC->GetPawn());
 	
@@ -62,6 +65,17 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 	if (Target && !Target->IsPendingKillPending())
 	{
+		// 타겟이 유닛인 경우 사망 여부 확인
+		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
+		{
+			if (TargetUnit->IsDead())
+			{
+				BB->ClearValue(TargetActorKey.SelectedKeyName);
+				CombatOrigin = FVector::ZeroVector;
+				return;
+			}
+		}
+
 		// 교전 시작 지점 기록
 		if (CombatOrigin.IsZero())
 		{
@@ -81,9 +95,21 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			{
 				AIC->StopMovement();
 				float CurrentTime = GetWorld()->GetTimeSeconds();
-				if (CurrentTime - LastAttackTime >= AttackInterval)
+
+				// FireRate 연동 (수치가 작을수록 빠름, 100 = 1.0s, 50 = 0.5s)
+				float CurrentAttackInterval = AttackInterval;
+				if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
 				{
-					PerformAttack(MyUnit, Target);
+					float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
+					if (FireRateValue > 0.0f)
+					{
+						CurrentAttackInterval = FireRateValue / 100.0f;
+					}
+				}
+
+				if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
+				{
+					AIC->ActivateAbilityByTag(AbilityTag, Target);
 					LastAttackTime = CurrentTime;
 				}
 			}
@@ -139,10 +165,4 @@ float UNovaBTTask_Patrol::GetAttackRange(ANovaUnit* Unit) const
 		if (AS) return AS->GetRange();
 	}
 	return 500.0f;
-}
-
-void UNovaBTTask_Patrol::PerformAttack(ANovaUnit* Unit, AActor* Target)
-{
-	if (!Unit || !Target) return;
-	NOVA_LOG(Log, "Patrol-Attack: %s attacking %s", *Unit->GetName(), *Target->GetName());
 }

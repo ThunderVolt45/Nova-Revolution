@@ -4,6 +4,8 @@
 #include "GAS/NovaAttributeSet.h"
 #include "GameplayEffect.h"
 #include "GameplayEffectExtension.h"
+#include "Core/NovaUnit.h"
+#include "NovaRevolution.h"
 
 UNovaAttributeSet::UNovaAttributeSet()
 {
@@ -15,7 +17,7 @@ UNovaAttributeSet::UNovaAttributeSet()
 	InitAttack(10.0f);
 	InitDefense(0.0f);
 	InitSpeed(300.0f);
-	InitFireRate(1.0f);
+	InitFireRate(100.0f);
 	InitSight(2400.0f);
 	InitRange(1800.0f);
 	InitMinRange(0.0f);
@@ -52,28 +54,33 @@ void UNovaAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 	// 데미지 메타 속성 처리
 	if (Data.EvaluatedData.Attribute == GetDamageAttribute())
 	{
-		// 적용된 데미지 추출 및 초기화
-		const float LocalDamageDone = GetDamage();
+		// MMC 등을 통해 계산된 최종 데미지량 추출
+		const float LocalDamageDone = Data.EvaluatedData.Magnitude;
+		
+		// 메타 속성 초기화 (이벤트 통로 역할이므로 즉시 리셋)
 		SetDamage(0.0f);
 
 		if (LocalDamageDone > 0.0f)
 		{
-			// 노바 1492 데미지 공식: 실제 데미지 = 원본 데미지 - 방어력 (최소 0)
-			const float ActualDamage = FMath::Max(LocalDamageDone - GetDefense(), 0.0f);
-			
-			// 현재 체력 반영 (PreAttributeChange에서 이미 클램핑 로직이 있지만 명시적으로 SetHealth 사용)
-			const float NewHealth = GetHealth() - ActualDamage;
+			// 현재 체력 반영 (방어력 계산은 이미 MMC에서 완료됨)
+			const float NewHealth = GetHealth() - LocalDamageDone;
 			SetHealth(FMath::Clamp(NewHealth, 0.0f, GetMaxHealth()));
 
-			// 데미지 출력 (디버그 로그 - 추후 UI 및 이펙트 연동 포인트)
-			UE_LOG(LogTemp, Log, TEXT("Unit Damage: Raw(%f) - Def(%f) = Actual(%f). HP: %f/%f"), 
-				LocalDamageDone, GetDefense(), ActualDamage, GetHealth(), GetMaxHealth());
+			// 데미지 출력 로그
+			NOVA_LOG(Log, "Unit Damaged: %f. Remaining HP: %f/%f", 
+				LocalDamageDone, GetHealth(), GetMaxHealth());
 
-			// 사망 처리 체크
+			// 사망 처리 호출
 			if (GetHealth() <= 0.0f)
 			{
-				// TODO: 유닛 사망 처리 로직 호출 (예: Actor의 Die() 함수 등)
-				UE_LOG(LogTemp, Error, TEXT("Unit has died!"));
+				if (ANovaUnit* Unit = Cast<ANovaUnit>(GetOwningActor()))
+				{
+					// 이미 죽었는지 확인하여 무한 루프 방지
+					if (!Unit->IsDead())
+					{
+						Unit->Die();
+					}
+				}
 			}
 		}
 	}

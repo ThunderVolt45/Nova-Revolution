@@ -6,6 +6,7 @@
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/BehaviorTree.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "NovaRevolution.h"
 #include "Core/NovaUnit.h"
 
@@ -121,4 +122,29 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 			BehaviorTreeComponent->RestartLogic();
 		}
 	}
+}
+
+void ANovaAIController::ActivateAbilityByTag(const FGameplayTag& AbilityTag, AActor* Target)
+{
+	APawn* MyPawn = GetPawn();
+	if (!MyPawn || !Target || !AbilityTag.IsValid()) return;
+
+	FGameplayEventData Payload;
+	Payload.Instigator = MyPawn;
+	Payload.Target = Target;
+	Payload.EventTag = AbilityTag;
+
+	// 빙의된 Pawn(유닛)에게 이벤트를 전송하여 어빌리티 발동
+	UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(MyPawn, AbilityTag, Payload);
+}
+
+void ANovaAIController::OnPawnDeath()
+{
+	if (BehaviorTreeComponent)
+	{
+		BehaviorTreeComponent->StopTree(EBTStopMode::Safe);
+		NOVA_LOG(Warning, "AIController: Behavior Tree Stopped due to Pawn death [%s]", *GetPawn()->GetName());
+	}
+
+	StopMovement();
 }

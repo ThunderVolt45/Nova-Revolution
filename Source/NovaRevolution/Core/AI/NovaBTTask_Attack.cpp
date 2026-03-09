@@ -1,12 +1,13 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/AI/NovaBTTask_Attack.h"
-#include "AIController.h"
+#include "Core/AI/NovaAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/NovaUnit.h"
 #include "Core/NovaTypes.h"
 #include "AbilitySystemComponent.h"
 #include "GAS/NovaAttributeSet.h"
+#include "GAS/NovaGameplayTags.h"
 #include "NovaRevolution.h"
 #include "Navigation/PathFollowingComponent.h"
 
@@ -20,11 +21,13 @@ UNovaBTTask_Attack::UNovaBTTask_Attack()
 	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, TargetActorKey), AActor::StaticClass());
 	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, TargetLocationKey));
 	CommandTypeKey.AddEnumFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, CommandTypeKey), StaticEnum<ECommandType>());
+
+	AbilityTag = NovaGameplayTags::Ability_Attack;
 }
 
 EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !BB) return EBTNodeResult::Failed;
 
@@ -54,7 +57,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 {
 	Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
 
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !BB)
 	{
@@ -66,6 +69,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 	FVector GoalLocation = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 
+	// 유닛이 유효하지 않으면 종료 (사망 시 처리는 AIController에서 StopTree 호출로 처리됨)
 	if (!MyUnit)
 	{
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
@@ -73,8 +77,31 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	}
 
 	// 1. 우선순위: 타겟 액터가 있는 경우 (추격 및 공격)
-	if (Target && !Target->IsPendingKillPending())
+	// 타겟 액터가 존재하면 목표 지점(GoalLocation) 로직은 완전히 무시합니다.
+	if (Target)
 	{
+		// 타겟이 유닛인 경우 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
+		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
+		{
+			if (TargetUnit->IsDead())
+			{
+				BB->ClearValue(TargetActorKey.SelectedKeyName);
+				BB->ClearValue(TargetLocationKey.SelectedKeyName);
+				AIC->StopMovement();
+				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+				return;
+			}
+		}
+
+		if (Target->IsPendingKillPending())
+		{
+			BB->ClearValue(TargetActorKey.SelectedKeyName);
+			BB->ClearValue(TargetLocationKey.SelectedKeyName);
+			AIC->StopMovement();
+			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+			return;
+		}
+
 		float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
 		float Range = GetAttackRange(MyUnit);
 		float RangeSq = FMath::Square(Range);
@@ -88,9 +115,21 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			}
 			
 			float CurrentTime = GetWorld()->GetTimeSeconds();
-			if (CurrentTime - LastAttackTime >= AttackInterval)
+			
+			// FireRate 연동 (수치가 작을수록 빠름, 100 = 1.0s, 50 = 0.5s)
+			float CurrentAttackInterval = AttackInterval;
+			if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
 			{
-				PerformAttack(MyUnit, Target);
+				float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
+				if (FireRateValue > 0.0f)
+				{
+					CurrentAttackInterval = FireRateValue / 100.0f;
+				}
+			}
+
+			if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
+			{
+				AIC->ActivateAbilityByTag(AbilityTag, Target);
 				LastAttackTime = CurrentTime;
 			}
 		}
@@ -99,13 +138,15 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			// 사거리 밖이라면 추적 이동
 			AIC->MoveToActor(Target, Range * 0.9f); 
 		}
+
+		return; // 타겟 액터 로직을 수행했으므로 하단의 지점 이동 로직은 실행하지 않음
 	}
+
 	// 2. 타겟 액터가 없지만 목표 지점이 있는 경우 (공격 이동 중)
-	else if (!GoalLocation.IsZero())
+	if (!GoalLocation.IsZero())
 	{
 		// [수정] 단순히 Moving 상태인지 체크하는 대신, 현재 경로의 도착지가 목표 지점과 일치하는지 확인하거나 
 		// 혹은 Tick에서 주기적으로 MoveToLocation을 재호출하여 갱신을 보장합니다.
-		// (MoveToLocation은 이미 같은 목표면 내부적으로 무시하므로 안전합니다.)
 		if (AIC->GetMoveStatus() == EPathFollowingStatus::Idle)
 		{
 			AIC->MoveToLocation(GoalLocation, 10.0f);
@@ -141,16 +182,4 @@ float UNovaBTTask_Attack::GetAttackRange(ANovaUnit* Unit) const
 		return ASC->GetNumericAttribute(UNovaAttributeSet::GetRangeAttribute());
 	}
 	return 100.0f;
-}
-
-void UNovaBTTask_Attack::PerformAttack(ANovaUnit* Unit, AActor* Target)
-{
-	// TODO: GAS를 통한 공격 어빌리티 실행 로직 구현
-	// 지금은 로그만 출력
-	NOVA_LOG(Log, "Unit %s is attacking %s!", *Unit->GetName(), *Target->GetName());
-	
-	// GAS 연동 시 예시:
-	// FGameplayTagContainer TagContainer;
-	// TagContainer.AddTag(NovaGameplayTags::Ability_Attack);
-	// Unit->GetAbilitySystemComponent()->TryActivateAbilitiesByTag(TagContainer);
 }

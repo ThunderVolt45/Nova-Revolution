@@ -79,4 +79,8 @@ public:
 	// 스플래시 범위
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float SplashRange = 0.0f;
+
+	/** 이 부품을 장착했을 때 유닛에게 부여할 어빌리티 클래스들 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Ability")
+	TArray<TSubclassOf<class UNovaGameplayAbility>> AbilityClasses;
 };
