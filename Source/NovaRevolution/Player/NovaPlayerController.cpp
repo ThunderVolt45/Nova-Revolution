@@ -181,6 +181,8 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				if (SelectedUnits.Num() > 0)
 				{
 					ControlGroups[SlotIndex].Targets = SelectedUnits;
+					// 유저가 직접 부대 지정 했다면 자동 편입 기능 false
+					ControlGroups[SlotIndex].bIsAutoAssignActive = false;
 					NOVA_SCREEN(Warning, "Control Group %d Assigned (%d units)", SlotIndex + 1, SelectedUnits.Num());
 				}
 				else
@@ -212,33 +214,25 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			if (bIsAltDown)
 			{
 				// TODO: 스킬 관련 Interface 추가 시 작업할 공간
-				
+
 				// 현재 구현된 스킬 인터페이스가 없음. 로그만 출력
 				NOVA_SCREEN(Warning, "Request Commander Skill: Slot %d (Not Implemented Yet)", SlotIndex + 1);
-				
+
 				return;
 			}
-			
+
 			// 부대 호출
 			if (ControlGroups[SlotIndex].Targets.Num() > 0)
 			{
-				// 기존 선택 해제
-				ClearSelection();
-				
-				// 유효한 Actor를 찾아 Slot에 추가 (사라진 유닛은 넣으면 안됨!)
-				for (TObjectPtr<AActor> Actor : ControlGroups[SlotIndex].Targets)
+				// 부대 지정된 유닛들을 Array에 포함 시킴 
+				TArray<AActor*> TargetActors;
+				for (const TObjectPtr<AActor>& ActorPtr : ControlGroups[SlotIndex].Targets)
 				{
-					// 유효성 확인
-					if (IsValid(Actor))
-					{
-						// INovaSelectableInterface를 가진 Actor만 선택
-						if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Actor))
-						{
-							Selectable->OnSelected();
-							SelectedUnits.Add(Actor);
-						}
-					}
+					if (ActorPtr) TargetActors.Add(ActorPtr.Get());
 				}
+				
+				// 선택 및 카메라 포커스 로직 실행
+				HandleFocusAndSelection(TargetActors, SlotIndex);
 				NOVA_SCREEN(Warning, "Control Group %d Selected", SlotIndex + 1);
 			}
 			return;
@@ -296,29 +290,9 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		{
 			if (ANovaBase* PlayerBase = PS->GetPlayerBase())
 			{
-				// 기존 선택 해제
-				ClearSelection();
-				float CurrentTime = GetWorld()->GetTimeSeconds();
-
-				// 기지 선택 및 배열 추가
-				if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(PlayerBase))
-				{
-					Selectable->OnSelected();
-					SelectedUnits.Add(PlayerBase);
-
-					NOVA_SCREEN(Warning, "Command: Base Selected");
-				}
-
-				if (CurrentTime - LastBaseSelectTime < 0.3f)
-				{
-					if (APawn* ControlledPawn = GetPawn())
-					{
-						FVector BaseLocation = PlayerBase->GetActorLocation();
-						BaseLocation.Z = ControlledPawn->GetActorLocation().Z;
-						ControlledPawn->SetActorLocation(BaseLocation);
-					}
-				}
-				LastBaseSelectTime = CurrentTime;
+				// Base의 ID는 10으로 지정
+				HandleFocusAndSelection({PlayerBase}, 10);
+				NOVA_SCREEN(Warning, "Command: Base Selected");
 			}
 			else
 			{
@@ -394,7 +368,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 			NovaHUD->UpdateDragRect(FVector2D::ZeroVector, FVector2D::ZeroVector, false);
 		}
 	}
-	
+
 	// 명령 수행
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
@@ -427,7 +401,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 
 			// 명령 수행 후 초기화
 			CancelPendingCommand();
-			bIsDraggingBox = false;	// 드래그 상태 초기화
+			bIsDraggingBox = false; // 드래그 상태 초기화
 			return;
 		}
 	}
@@ -492,7 +466,7 @@ void ANovaPlayerController::Input_AbilityInputTagHeld(FGameplayTag InputTag)
 {
 	// [버그 수정] 대기 중인 명령이 있는 상태에서는 드래그 박스를 그리지 않음
 	if (PendingCommandType != ECommandType::None) return;
-	
+
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
 		FVector2D CurrentPosition;
@@ -626,6 +600,16 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 {
 	for (AActor* Unit : SelectedUnits)
 	{
+		// 추가 : 자기 자신을 공격하는 명령이라면 명령을 전달하지 않음
+		if (CommandData.CommandType == ECommandType::Attack)
+		{
+			if (CommandData.TargetActor == Unit)
+			{
+				NOVA_SCREEN(Warning, "Self-attack command ignored for unit: %s", *Unit->GetName());
+				continue;
+			}
+		}
+		
 		if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
 		{
 			CmdInterface->IssueCommand(CommandData);
@@ -637,6 +621,54 @@ void ANovaPlayerController::CancelPendingCommand()
 {
 	PendingCommandType = ECommandType::None;
 	// TODO: 나중에 커서 모양 복구
+}
+
+// 단축키 입력 시 지정된 유닛 선택 및 카메라 이동 로직
+void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& TargetActors, int32 FocusID)
+{
+	float CurrentTime = GetWorld()->GetTimeSeconds();
+
+	// 입력 일치 여부 && 연타 여부 확인
+	bool bIsDoubleClick = (FocusID == LastFocusID) && (CurrentTime - LastFocusTime < DoubleClickThreshold);
+
+	// 기존 선택 초기화
+	ClearSelection();
+
+	FVector AverageLocation = FVector::ZeroVector;
+	int32 ValidCount = 0;
+
+	// 대상 유닛들 선택 처리 및 중심점 계산
+	for (AActor* Actor : TargetActors)
+	{
+		if (IsValid(Actor))
+		{
+			if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Actor))
+			{
+				Selectable->OnSelected();
+				SelectedUnits.Add(Actor);
+
+				AverageLocation += Actor->GetActorLocation();
+				ValidCount++;
+			}
+		}
+	}
+
+	// 연타 시 카메라 이동
+	if (bIsDoubleClick && ValidCount > 0)
+	{
+		AverageLocation /= (float)ValidCount; // 유닛들의 중심점
+		if (APawn* ControlledPawn = GetPawn())
+		{
+			FVector NewCameraLocation = AverageLocation;
+			NewCameraLocation.Z = ControlledPawn->GetActorLocation().Z; // Z값은 현재 카메라 높이를 유지
+			ControlledPawn->SetActorLocation(NewCameraLocation);
+			// NOVA_SCREEN(Warning, "Camera Move to Selected Targets");
+		}
+	}
+
+	// 포커스 정보 갱신
+	LastFocusID = FocusID;
+	LastFocusTime = CurrentTime;
 }
 
 void ANovaPlayerController::GetCursorHitResult(FHitResult& OutHitResult)
@@ -654,4 +686,19 @@ void ANovaPlayerController::ClearSelection()
 		}
 	}
 	SelectedUnits.Empty();
+}
+
+// 생성된 유닛 자동 부대 편입
+void ANovaPlayerController::OnUnitProduced(AActor* Unit, int32 SlotIndex)
+{
+	// 해당 유닛이 없거나 지정할 부대가 존재하지 않을 시 return
+	if (!IsValid(Unit) || !ControlGroups.IsValidIndex(SlotIndex)) return;
+	
+	// 자동 편입 기능 사용 여부 확인
+	if (ControlGroups[SlotIndex].bIsAutoAssignActive)
+	{
+		// 부대 지정 배열에 유닛 추가
+		ControlGroups[SlotIndex].Targets.AddUnique(Unit);
+		NOVA_SCREEN(Log, "Unit Auto-Assigned to Group %d", SlotIndex + 1);
+	}
 }
