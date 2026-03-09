@@ -20,7 +20,7 @@ USTRUCT(BlueprintType)
 struct FNovaControlGroup
 {
 	GENERATED_BODY()
-	
+
 	UPROPERTY(BlueprintReadOnly)
 	TArray<TObjectPtr<AActor>> Targets;
 };
@@ -51,10 +51,10 @@ protected:
 
 	// Shift 모드 여부 (선택 추가/제거, 즉시 생산 명령)
 	bool bIsShiftDown = false;
-	
+
 	// Ctrl 모드 여부 (부대 지정)
 	bool bIsCtrlDown = false;
-	
+
 	// Alt 모드 여부 (스킬 즉시 사용 명령)
 	bool bIsAltDown = false;
 
@@ -89,7 +89,7 @@ protected:
 	// 부대 지정을 위한 구조체 배열 (TArray<TArray<>> 형태를 사용할 수 없어 구조체로 선언)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Selection")
 	TArray<FNovaControlGroup> ControlGroups;
-	
+
 	// 현재 대기 중인 명령 타입 (None이 아니면 다음 좌클릭 시 해당 명령 수행)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Command")
 	ECommandType PendingCommandType = ECommandType::None;
@@ -118,12 +118,34 @@ protected:
 
 	// 드래그 선택을 수행하는 실제 판정 함수
 	void PerformBoxSelection();
-	
+
 	// 선택된 유닛들에게 실제 명령을 하달하는 헬퍼 함수
 	void IssueCommandToSelectedUnits(const FCommandData& CommandData);
-	
+
 	// 명령 취소 (우클릭 시 대기 중인 명령 해제 - ESC로 취소 추가 예정)
 	void CancelPendingCommand();
+
+	/**
+	 * 유닛 선택 및 카메라 포커싱 공통 로직(대상이 둘 이상일 경우 대상들의 중심으로 카메라 이동)
+	 * TagetActors : 선택할 액터 배열
+	 * FocusID : 호출 대상을 구분할 고유 ID (1 ~ 0 : 부대, 10 : 기지)
+	 */
+	void HandleFocusAndSelection(const TArray<AActor*>& TargetActors, int32 FocusID);
+
+private:
+	// 마우스 커서 아래에 무엇이 있는지 감지하는 헬퍼 함수
+	void GetCursorHitResult(FHitResult& OutHitResult);
+
+	// 헬퍼 함수 : 선택 비우기
+	void ClearSelection();
+	
+	// 연타 판정을 위한 상태 변수
+	int32 LastFocusID = -1;
+	float LastFocusTime = 0.f;
+	
+	// 연타 인정 시간(초)
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
+	float DoubleClickThreshold = 0.3f;
 
 protected:
 	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
@@ -133,13 +155,4 @@ protected:
 	/** 생성된 HUD 인스턴스 저장용 */
 	UPROPERTY()
 	class UUserWidget* MainHUDInstance;
-
-private:
-	float LastBaseSelectTime = 0.f;
-	
-	// 마우스 커서 아래에 무엇이 있는지 감지하는 헬퍼 함수
-	void GetCursorHitResult(FHitResult& OutHitResult);
-
-	// 헬퍼 함수 : 선택 비우기
-	void ClearSelection();
 };
