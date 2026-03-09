@@ -62,6 +62,10 @@ public:
 	/** 유닛의 이름을 반환합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
 	FString GetUnitName() const { return UnitName; }
+	
+	// 유닛의 생존 여부를 반환합니다.
+	UFUNCTION(BlueprintCallable, Category = "Nova|Unit")
+	bool IsDead() const { return bIsDead; }
 
 protected:
 	virtual void BeginPlay() override;
