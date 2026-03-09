@@ -142,13 +142,32 @@ void ANovaPart::PlayFireEffects()
 		{
 			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 			{
-				FGameplayCueParameters Params;
-				Params.Location = GetActorLocation();
-				Params.Normal = GetActorForwardVector();
-				Params.Instigator = OwnerActor;
-				Params.EffectCauser = this;
+				UPrimitiveComponent* Mesh = GetMainMesh();
 				
-				ASC->ExecuteGameplayCue(FireCueTag, Params);
+				// 지정된 모든 총구 소켓에서 동시에 효과 발생
+				if (MuzzleSocketNames.Num() > 0 && Mesh)
+				{
+					for (const FName& SocketName : MuzzleSocketNames)
+					{
+						FGameplayCueParameters Params;
+						Params.Location = Mesh->GetSocketLocation(SocketName);
+						Params.Normal = Mesh->GetSocketRotation(SocketName).Vector();
+						Params.Instigator = OwnerActor;
+						Params.EffectCauser = this;
+						
+						ASC->ExecuteGameplayCue(FireCueTag, Params);
+					}
+				}
+				else
+				{
+					FGameplayCueParameters Params;
+					Params.Location = GetActorLocation();
+					Params.Normal = GetActorForwardVector();
+					Params.Instigator = OwnerActor;
+					Params.EffectCauser = this;
+					
+					ASC->ExecuteGameplayCue(FireCueTag, Params);
+				}
 			}
 		}
 		else

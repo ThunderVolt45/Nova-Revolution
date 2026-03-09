@@ -52,7 +52,6 @@ void UNovaGA_Attack::EndAbility(const FGameplayAbilitySpecHandle Handle, const F
 {
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
-
 void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 {
 	if (!Target) return;
@@ -60,20 +59,49 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 	ANovaUnit* Unit = Cast<ANovaUnit>(GetAvatarActorFromActorInfo());
 	if (!Unit) return;
 
-	// 1. 모든 무기 부품의 발사 효과(애니메이션 + 발사 Cue) 실행
+	// 1. 발사 및 타격 정보 초기화
 	FGameplayTag ImpactTag;
+	FVector ImpactLocation = Target->GetActorLocation();
+	bool bSurfaceHit = false;
+
 	const TArray<TObjectPtr<UChildActorComponent>>& WeaponComps = Unit->GetWeaponPartComponents();
-	
+
 	for (auto WeaponComp : WeaponComps)
 	{
 		if (ANovaPart* WeaponPart = Cast<ANovaPart>(WeaponComp->GetChildActor()))
 		{
+			// 1-1. 무기 부품 애니메이션 및 발사 효과 (다중 소켓 지원)
 			WeaponPart->PlayFireEffects();
-			
-			// 적중 효과 태그 저장 (첫 번째 무기 기준 혹은 모든 무기 공통 사용)
+
 			if (!ImpactTag.IsValid())
 			{
 				ImpactTag = WeaponPart->GetImpactCueTag();
+			}
+
+			// 1-2. 히트스캔 표면 적중 지점 계산 (Trace)
+			if (!bSurfaceHit)
+			{
+				// 소켓이 있다면 첫 번째 소켓 위치를 트레이스 시작점으로 사용
+				FVector Start = WeaponPart->GetActorLocation();
+				if (WeaponPart->GetMuzzleSocketNames().Num() > 0 && WeaponPart->GetMainMesh())
+				{
+					Start = WeaponPart->GetMainMesh()->GetSocketLocation(WeaponPart->GetMuzzleSocketNames()[0]);
+				}
+
+				FVector End = Target->GetActorLocation() + (Target->GetActorLocation() - Start).GetSafeNormal() * 100.f;
+
+				FHitResult HitResult;
+				FCollisionQueryParams TraceParams;
+				TraceParams.AddIgnoredActor(Unit);
+
+				if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, TraceParams))
+				{
+					if (HitResult.GetActor() == Target)
+					{
+						ImpactLocation = HitResult.ImpactPoint;
+						bSurfaceHit = true;
+					}
+				}
 			}
 		}
 	}
@@ -93,19 +121,26 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 		{
 			// 대상에게 이펙트 적용 (히트스캔 방식: 즉시 적용)
 			SourceASC->ApplyGameplayEffectSpecToTarget(*SpecHandle.Data.Get(), TargetASC);
-			
+
 			NOVA_LOG(Log, "GA_Attack: Damage GE applied to %s via Hitscan", *Target->GetName());
 		}
 	}
 
-	// 3. 적중 효과 (Impact GameplayCue) 실행 (히트스캔인 경우 타겟 위치에서 발동)
+	// 3. 적중 효과 (Impact GameplayCue) 실행
 	if (ImpactTag.IsValid())
 	{
 		FGameplayCueParameters Params;
-		Params.Location = Target->GetActorLocation();
+		Params.Location = ImpactLocation;
+		
+		// 모델이 -90도 회전되어 있으므로, 계산된 법선을 -90도 회전시켜 방향 보정
+		FVector CorrectedNormal = (Unit->GetActorLocation() - ImpactLocation).GetSafeNormal();
+		CorrectedNormal = FRotator(0.f, -90.f, 0.f).RotateVector(CorrectedNormal);
+		
+		Params.Normal = CorrectedNormal;
 		Params.Instigator = Unit;
 		Params.EffectCauser = Unit;
-		
+
 		ExecuteGameplayCueWithParams(ImpactTag, Params);
 	}
 }
+

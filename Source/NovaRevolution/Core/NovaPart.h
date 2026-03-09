@@ -56,6 +56,12 @@ public:
 
 	/** 적중 시 사용할 GameplayCue 태그를 반환합니다. */
 	FGameplayTag GetImpactCueTag() const { return ImpactCueTag; }
+
+	/** 설정된 모든 총구 소켓 이름들을 반환합니다. */
+	const TArray<FName>& GetMuzzleSocketNames() const { return MuzzleSocketNames; }
+
+	/** 발사 효과가 생성될 소켓 이름들을 반환합니다. (주로 첫 번째 소켓 위치를 위해 사용하거나 내부적으로 활용) */
+	FName GetRandomMuzzleSocketName() const;
 	
 	// 무기 조준 관련 함수
 	/** 목표 Pitch 각도를 설정합니다. (ANovaUnit에서 호출) */
@@ -96,6 +102,10 @@ protected:
 	/** 적중 시 실행할 GameplayCue 태그 (발사체나 히트스캔 로직에서 참조용) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part|Effects")
 	FGameplayTag ImpactCueTag;
+
+	/** 발사 효과가 생성될 소켓 이름들 (동시 생성) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part|Effects")
+	TArray<FName> MuzzleSocketNames;
 
 	// 부품이 스켈레탈 메시일 경우 사용
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Part")
