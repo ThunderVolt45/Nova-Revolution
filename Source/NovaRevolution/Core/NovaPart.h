@@ -48,6 +48,13 @@ public:
 	/** 애니메이션 제어: 공격 애니메이션 재생 (무기 부품용) */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Animation")
 	virtual void PlayAttackAnimation();
+	
+	// 무기 조준 관련 함수
+	/** 목표 Pitch 각도를 설정합니다. (ANovaUnit에서 호출) */
+	void SetTargetPitch(float NewPitch) { TargetPitch = NewPitch; }
+
+	/** 조준 각도를 부드럽게 업데이트하고 ABP로 전달합니다. */
+	void UpdateAiming(float DeltaTime);
 
 protected:
 	virtual void BeginPlay() override;
@@ -81,4 +88,16 @@ protected:
 	// 부품이 스태틱 메시일 경우 사용
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Part")
 	TObjectPtr<UStaticMeshComponent> StaticMesh;
+	
+	//무기 조준 관련 변수
+protected:
+	// 현재 보간 중인 각도
+	float CurrentPitch = 0.0f;
+
+	// 유닛 본체로부터 전달받은 목표 각도
+	float TargetPitch = 0.0f;
+
+	// 조준 회전 속도 (값이 클수록 타겟을 빠르게 쫓습니다.)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Part|Rotation")
+	float AimInterpSpeed = 40.0f;
 };
