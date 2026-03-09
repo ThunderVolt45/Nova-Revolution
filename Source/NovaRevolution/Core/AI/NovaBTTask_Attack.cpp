@@ -1,12 +1,11 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/AI/NovaBTTask_Attack.h"
-#include "AIController.h"
+#include "Core/AI/NovaAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/NovaUnit.h"
 #include "Core/NovaTypes.h"
 #include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
 #include "GAS/NovaAttributeSet.h"
 #include "GAS/NovaGameplayTags.h"
 #include "NovaRevolution.h"
@@ -28,7 +27,7 @@ UNovaBTTask_Attack::UNovaBTTask_Attack()
 
 EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !BB) return EBTNodeResult::Failed;
 
@@ -58,7 +57,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 {
 	Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
 
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !BB)
 	{
@@ -70,10 +69,9 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 	FVector GoalLocation = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 
-	// 0. 유닛이 죽었으면 AI 중단
-	if (!MyUnit || MyUnit->IsDead())
+	// 유닛이 유효하지 않으면 종료 (사망 시 처리는 AIController에서 StopTree 호출로 처리됨)
+	if (!MyUnit)
 	{
-		AIC->StopMovement();
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		return;
 	}
@@ -119,7 +117,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 			if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
 			{
-				PerformAttack(MyUnit, Target);
+				AIC->ActivateAbilityByTag(AbilityTag, Target);
 				LastAttackTime = CurrentTime;
 			}
 		}
@@ -170,19 +168,4 @@ float UNovaBTTask_Attack::GetAttackRange(ANovaUnit* Unit) const
 		return ASC->GetNumericAttribute(UNovaAttributeSet::GetRangeAttribute());
 	}
 	return 100.0f;
-}
-
-void UNovaBTTask_Attack::PerformAttack(ANovaUnit* Unit, AActor* Target)
-{
-	if (Unit && Target && AbilityTag.IsValid())
-	{
-		FGameplayEventData Payload;
-		Payload.Instigator = Unit;
-		Payload.Target = Target;
-		Payload.EventTag = AbilityTag;
-
-		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Unit, AbilityTag, Payload);
-		
-		NOVA_LOG(Log, "Unit %s is attacking %s via GAS Event (%s)!", *Unit->GetName(), *Target->GetName(), *AbilityTag.ToString());
-	}
 }

@@ -50,7 +50,4 @@ private:
 
 	/** 유닛의 공격 사거리를 가져옵니다. */
 	float GetAttackRange(class ANovaUnit* Unit) const;
-
-	/** 공격을 실행합니다. (GAS 어빌리티 호출 등) */
-	void PerformAttack(class ANovaUnit* Unit, AActor* Target);
 };

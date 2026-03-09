@@ -63,7 +63,4 @@ private:
 
 	/** 공격 사거리 가져오기 */
 	float GetAttackRange(class ANovaUnit* Unit) const;
-
-	/** 공격 실행 */
-	void PerformAttack(class ANovaUnit* Unit, AActor* Target);
 };

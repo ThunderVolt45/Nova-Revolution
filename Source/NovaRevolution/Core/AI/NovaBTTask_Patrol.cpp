@@ -1,5 +1,5 @@
 #include "Core/AI/NovaBTTask_Patrol.h"
-#include "AIController.h"
+#include "Core/AI/NovaAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "NavigationSystem.h"
 #include "NovaRevolution.h"
@@ -8,7 +8,6 @@
 #include "GAS/NovaAttributeSet.h"
 #include "GAS/NovaGameplayTags.h"
 #include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
 
 UNovaBTTask_Patrol::UNovaBTTask_Patrol()
 {
@@ -26,7 +25,7 @@ UNovaBTTask_Patrol::UNovaBTTask_Patrol()
 
 EBTNodeResult::Type UNovaBTTask_Patrol::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !BB || !AIC->GetPawn()) return EBTNodeResult::Failed;
 
@@ -52,13 +51,12 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 {
 	Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
 
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(AIC->GetPawn());
 	
-	if (!AIC || !BB || !MyUnit || MyUnit->IsDead())
+	if (!AIC || !BB || !MyUnit)
 	{
-		if (AIC) AIC->StopMovement();
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		return;
 	}
@@ -111,7 +109,7 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 				if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
 				{
-					PerformAttack(MyUnit, Target);
+					AIC->ActivateAbilityByTag(AbilityTag, Target);
 					LastAttackTime = CurrentTime;
 				}
 			}
@@ -167,19 +165,4 @@ float UNovaBTTask_Patrol::GetAttackRange(ANovaUnit* Unit) const
 		if (AS) return AS->GetRange();
 	}
 	return 500.0f;
-}
-
-void UNovaBTTask_Patrol::PerformAttack(ANovaUnit* Unit, AActor* Target)
-{
-	if (Unit && Target && AbilityTag.IsValid())
-	{
-		FGameplayEventData Payload;
-		Payload.Instigator = Unit;
-		Payload.Target = Target;
-		Payload.EventTag = AbilityTag;
-
-		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Unit, AbilityTag, Payload);
-
-		NOVA_LOG(Log, "Patrol-Attack: %s attacking %s via GAS Event (%s)", *Unit->GetName(), *Target->GetName(), *AbilityTag.ToString());
-	}
 }

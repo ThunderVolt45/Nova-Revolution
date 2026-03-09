@@ -1,11 +1,10 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/AI/NovaBTTask_Hold.h"
-#include "AIController.h"
+#include "Core/AI/NovaAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/NovaUnit.h"
 #include "AbilitySystemComponent.h"
-#include "AbilitySystemBlueprintLibrary.h"
 #include "GAS/NovaAttributeSet.h"
 #include "GAS/NovaGameplayTags.h"
 #include "NovaRevolution.h"
@@ -23,7 +22,7 @@ UNovaBTTask_Hold::UNovaBTTask_Hold()
 
 EBTNodeResult::Type UNovaBTTask_Hold::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	if (!AIC) return EBTNodeResult::Failed;
 
 	// 초기 상태: 이동 즉시 중단
@@ -39,20 +38,15 @@ void UNovaBTTask_Hold::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMe
 {
 	Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
 
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !BB) return;
 
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(AIC->GetPawn());
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 
-	// 0. 유닛이 죽었으면 AI 중단
-	if (!MyUnit || MyUnit->IsDead())
-	{
-		AIC->StopMovement();
-		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
-		return;
-	}
+	// 유닛이 유효하지 않으면 종료
+	if (!MyUnit) return;
 
 	// Hold 상태에서는 절대 이동하지 않음 (강제 정지 상태 유지)
 	AIC->StopMovement();
@@ -91,7 +85,7 @@ void UNovaBTTask_Hold::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMe
 
 			if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
 			{
-				PerformAttack(MyUnit, Target);
+				AIC->ActivateAbilityByTag(AbilityTag, Target);
 				LastAttackTime = CurrentTime;
 			}
 		}
@@ -105,19 +99,4 @@ float UNovaBTTask_Hold::GetAttackRange(ANovaUnit* Unit) const
 		return ASC->GetNumericAttribute(UNovaAttributeSet::GetRangeAttribute());
 	}
 	return 100.0f;
-}
-
-void UNovaBTTask_Hold::PerformAttack(ANovaUnit* Unit, AActor* Target)
-{
-	if (Unit && Target && AbilityTag.IsValid())
-	{
-		FGameplayEventData Payload;
-		Payload.Instigator = Unit;
-		Payload.Target = Target;
-		Payload.EventTag = AbilityTag;
-
-		UAbilitySystemBlueprintLibrary::SendGameplayEventToActor(Unit, AbilityTag, Payload);
-
-		NOVA_LOG(Log, "Unit %s is attacking %s (from HOLD state) via GAS Event (%s)!", *Unit->GetName(), *Target->GetName(), *AbilityTag.ToString());
-	}
 }

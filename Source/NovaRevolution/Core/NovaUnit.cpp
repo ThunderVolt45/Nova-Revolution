@@ -526,6 +526,12 @@ void ANovaUnit::Die()
 	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
 
+	// AI 동작 정지 요청
+	if (ANovaAIController* AIC = Cast<ANovaAIController>(GetController()))
+	{
+		AIC->OnPawnDeath();
+	}
+
 	// 충돌 비활성화 및 소멸 처리 (필요에 따라 래그돌 또는 파편화 연출 추가 가능)
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
