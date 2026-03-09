@@ -90,8 +90,10 @@ void ANovaUnit::Tick(float DeltaTime)
 			// NOVA_SCREEN(Log,"Unit: %s | Current Speed: %.2f", *GetName(), CurrentSpeed);
 		}
 	}
-	// 3. [추가] 몸통(Body) 회전 로직을 매 프레임 실행합니다.
+	// 몸통(Body) 회전 로직을 매 프레임 실행합니다.
 	UpdateBodyRotation(DeltaTime);
+	// Weapon의 조준을 위한 함수
+	UpdateWeaponAiming(DeltaTime);
 }
 
 void ANovaUnit::OnConstruction(const FTransform& Transform)
@@ -157,22 +159,6 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 		WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
 }
 
-//
-// AActor* ANovaUnit::GetTargetFromBlackboard() const
-// {
-// 	// 1. 유닛의 AI 컨트롤러를 가져옵니다.
-// 	if (ANovaAIController* AICon = Cast<ANovaAIController>(GetController()))
-// 	{
-// 		// 2. 컨트롤러가 가진 블랙보드 컴포넌트를 가져옵니다.
-// 		if (UBlackboardComponent* BB = AICon->GetBlackboardComponent())
-// 		{
-// 			// 3. "TargetActor" 키에 저장된 값을 AActor 타입으로 반환합니다.
-// 			// (이미 ANovaAIController에 정의된 TargetActorKey 이름을 사용하는 것이 정확합니다.)
-// 			return Cast<AActor>(BB->GetValueAsObject(TEXT("TargetActor")));
-// 		}
-// 	}
-// 	return nullptr;
-// }
 
 void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 {
@@ -220,8 +206,46 @@ void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 	BodyPartComponent->SetWorldRotation(NewRotation);
 }
 
+void ANovaUnit::UpdateWeaponAiming(float DeltaTime)
+{
+	// 1. 타겟이 유효하지 않으면 모든 무기를 정면(0도)으로 복귀시킵니다.
+	if (!IsValid(CurrentTarget))
+	{
+		for (auto WeaponComp : WeaponPartComponents)
+		{
+			if (ANovaPart* WeaponPart = Cast<ANovaPart>(WeaponComp->GetChildActor()))
+			{
+				WeaponPart->SetTargetPitch(0.0f);
+				WeaponPart->UpdateAiming(DeltaTime);
+			}
+		}
+		return;
+	}
+
+	// 2. 각 무기 부품별로 타겟을 향한 각도를 계산합니다.
+	for (auto WeaponComp : WeaponPartComponents)
+	{
+		if (ANovaPart* WeaponPart = Cast<ANovaPart>(WeaponComp->GetChildActor()))
+		{
+			// 무기의 월드 위치와 타겟 위치 사이의 방향 벡터 계산
+			FVector WeaponLocation = WeaponComp->GetComponentLocation();
+			FVector TargetLocation = CurrentTarget->GetActorLocation();
+			FVector Direction = TargetLocation - WeaponLocation;
+
+			// 방향 벡터를 회전값으로 변환하여 Pitch 추출
+			FRotator LookAtRot = Direction.Rotation();
+
+			// 조준 각도 전달 (필요 시 -45 ~ 45도 등으로 제한 가능)
+			WeaponPart->SetTargetPitch(LookAtRot.Pitch);
+
+			// 무기 내부의 업데이트 로직 실행 (ABP 값 전달 포함)
+			WeaponPart->UpdateAiming(DeltaTime);
+		}
+	}
+}
+
 EBlackboardNotificationResult ANovaUnit::OnTargetActorChanged(const UBlackboardComponent& Blackboard,
-	FBlackboard::FKey KeyID)
+                                                              FBlackboard::FKey KeyID)
 {
 	// 1. 블랙보드에서 새로운 타겟을 꺼내 멤버 변수에 저장합니다.
 	// (이 함수는 타겟이 바뀔 때만 딱 한 번 실행되므로 매우 효율적입니다.)
