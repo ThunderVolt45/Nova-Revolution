@@ -37,7 +37,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Combat")
 	TSubclassOf<class UGameplayEffect> DamageEffectClass;
 
-	/** 발사체 클래스 (발사체형 무기일 경우) */
-	// UPROPERTY(EditDefaultsOnly, Category = "Nova|Combat")
-	// TSubclassOf<class ANovaProjectile> ProjectileClass;
+	/** 발사체 클래스 (할당 시 히트스캔 대신 발사체 사용) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Combat")
+	TSubclassOf<class ANovaProjectile> ProjectileClass;
+
+	/** 발사체 폭발 범위 (0이면 단일 타격) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Combat")
+	float ProjectileSplashRadius = 0.0f;
 };
