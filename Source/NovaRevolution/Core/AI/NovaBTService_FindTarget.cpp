@@ -62,16 +62,22 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 		FinalSearchRadius = FMath::Max(Sight, Range);
 	}
 
-	// 2. 주변 액터 탐색
+	// 2. 주변 액터 탐색 (유닛 및 기지/건물 포함)
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionQueryParams CollisionParams;
 	CollisionParams.AddIgnoredActor(MyUnit);
 
-	bool bHit = GetWorld()->OverlapMultiByChannel(
+	// Pawn뿐만 아니라 WorldStatic, WorldDynamic 오브젝트들도 탐색 대상에 포함 (기지 등 대응)
+	FCollisionObjectQueryParams ObjectParams;
+	ObjectParams.AddObjectTypesToQuery(ECC_Pawn);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+
+	bool bHit = GetWorld()->OverlapMultiByObjectType(
 		OverlapResults,
 		MyUnit->GetActorLocation(),
 		FQuat::Identity,
-		ECC_Pawn, // 유닛 탐색용 채널 (기획에 따라 조정 가능)
+		ObjectParams,
 		FCollisionShape::MakeSphere(FinalSearchRadius),
 		CollisionParams
 	);
@@ -82,29 +88,61 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	if (bHit)
 	{
 		int32 MyTeamID = MyUnit->GetTeamID();
+		ENovaTargetType MyWeaponTargetType = MyUnit->GetTargetType();
 
 		for (const FOverlapResult& Result : OverlapResults)
 		{
 			AActor* PotentialTarget = Result.GetActor();
 			
-			// [Fix] 자기 자신은 제외
+			// 자기 자신 제외 및 유효성 확인
 			if (!PotentialTarget || PotentialTarget == MyUnit) continue;
 
-			// 팀 인터페이스 확인
-			if (INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PotentialTarget))
+			// 1. 공격 가능 대상 확인 (ASC 구현 여부)
+			IAbilitySystemInterface* ASCTarget = Cast<IAbilitySystemInterface>(PotentialTarget);
+			if (!ASCTarget) continue;
+
+			// 2. 팀 확인 (적군인 경우에만 처리)
+			INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PotentialTarget);
+			if (!TeamInterface || TeamInterface->IsFriendly(MyTeamID)) continue;
+
+			// 3. 공격 가능 여부 확인 (지상/공중 타입 필터링)
+			bool bCanAttack = false;
+			ANovaUnit* TargetUnit = Cast<ANovaUnit>(PotentialTarget);
+
+			if (TargetUnit)
 			{
-				// 적군인 경우에만 처리
-				if (!TeamInterface->IsFriendly(MyTeamID))
+				ENovaMovementType TargetMoveType = TargetUnit->GetMovementType();
+				
+				switch (MyWeaponTargetType)
 				{
-					// 사망 여부 확인 (INovaSelectableInterface 등 활용 가능)
-					// 여기서는 간단하게 Actor의 생존 여부 확인
-					float DistSq = FVector::DistSquared(MyUnit->GetActorLocation(), PotentialTarget->GetActorLocation());
-					if (DistSq < MinDistanceSq)
-					{
-						MinDistanceSq = DistSq;
-						NearestEnemy = PotentialTarget;
-					}
+				case ENovaTargetType::GroundOnly:
+					bCanAttack = (TargetMoveType == ENovaMovementType::Ground);
+					break;
+				case ENovaTargetType::AirOnly:
+					bCanAttack = (TargetMoveType == ENovaMovementType::Air);
+					break;
+				case ENovaTargetType::All:
+					bCanAttack = true;
+					break;
+				case ENovaTargetType::None:
+					bCanAttack = false;
+					break;
 				}
+			}
+			else
+			{
+				// 유닛이 아니지만 ASC를 가진 대상(기지 등)은 기본적으로 지상 타겟으로 간주
+				bCanAttack = (MyWeaponTargetType != ENovaTargetType::AirOnly);
+			}
+
+			if (!bCanAttack) continue;
+
+			// 4. 최단 거리 적 갱신
+			float DistSq = FVector::DistSquared(MyUnit->GetActorLocation(), PotentialTarget->GetActorLocation());
+			if (DistSq < MinDistanceSq)
+			{
+				MinDistanceSq = DistSq;
+				NearestEnemy = PotentialTarget;
 			}
 		}
 	}

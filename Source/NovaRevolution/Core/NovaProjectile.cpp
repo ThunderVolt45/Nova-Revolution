@@ -7,7 +7,6 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "NovaRevolution.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "Core/NovaUnit.h"
 
 ANovaProjectile::ANovaProjectile()
 {
@@ -102,7 +101,6 @@ void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSp
 
 void ANovaProjectile::Explode(AActor* InTargetActor, const FVector& ImpactLocation)
 {
-	// ... (기존 Explode 내용 동일)
 	// 1. GameplayCue 재생 (폭발 효과)
 	if (ImpactCueTag.IsValid())
 	{

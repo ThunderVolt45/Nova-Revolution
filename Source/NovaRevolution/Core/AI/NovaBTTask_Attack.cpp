@@ -44,10 +44,10 @@ EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& Owne
 		return EBTNodeResult::Failed;
 	}
 
-	// [수정] 새로운 명령이 하달되어 ExecuteTask가 실행될 때, 즉시 이동을 시작하여 반응성 확보
+	// 새로운 명령이 하달되어 ExecuteTask가 실행될 때, 즉시 이동을 시작하여 반응성 확보
 	if (!Target && !GoalLocation.IsZero())
 	{
-		AIC->MoveToLocation(GoalLocation, 10.0f);
+		AIC->MoveToLocationOptimized(GoalLocation, 10.0f);
 	}
 
 	return EBTNodeResult::InProgress;
@@ -80,44 +80,22 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	// 타겟 액터가 존재하면 목표 지점(GoalLocation) 로직은 완전히 무시합니다.
 	if (Target)
 	{
-		// 타겟이 유닛인 경우 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
-		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
-		{
-			if (TargetUnit->IsDead())
-			{
-				BB->ClearValue(TargetActorKey.SelectedKeyName);
-				BB->ClearValue(TargetLocationKey.SelectedKeyName);
-				AIC->StopMovement();
-				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
-				return;
-			}
-		}
-
-		if (Target->IsPendingKillPending())
-		{
-			BB->ClearValue(TargetActorKey.SelectedKeyName);
-			BB->ClearValue(TargetLocationKey.SelectedKeyName);
-			AIC->StopMovement();
-			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
-			return;
-		}
-
 		float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
 		float Range = GetAttackRange(MyUnit);
 		float RangeSq = FMath::Square(Range);
 
 		if (DistanceSq <= RangeSq)
 		{
-			// [수정] 사거리 내라면 즉시 이동 중단 후 공격 수행
-			if (AIC->GetMoveStatus() != EPathFollowingStatus::Idle)
+			// 사거리 내라면 즉시 이동 중단 후 공격 수행
+			if (AIC->IsMoveInProgress())
 			{
-				AIC->StopMovement();
+				AIC->StopMovementOptimized();
 				// NOVA_LOG(Log, "Unit %s in range (%.f). Stopping to attack.", *MyUnit->GetName(), Range);
 			}
 			
 			float CurrentTime = GetWorld()->GetTimeSeconds();
 			
-			// FireRate 연동 (수치가 작을수록 빠름, 100 = 1.0s, 50 = 0.5s)
+			// FireRate 연동
 			float CurrentAttackInterval = AttackInterval;
 			if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
 			{
@@ -128,17 +106,39 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 				}
 			}
 
+			// 공격 어빌리티 발동
 			if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
 			{
 				AIC->ActivateAbilityByTag(AbilityTag, Target);
 				LastAttackTime = CurrentTime;
 			}
+			
+			// 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
+			bool bTargetIsDead = false;
+			if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
+			{
+				bTargetIsDead = TargetUnit->IsDead();
+			}
+		
+			if (bTargetIsDead || Target->IsPendingKillPending())
+			{
+				NOVA_LOG(Log, "Unit %s Is Dead. Stop attack.", *Target->GetName());
+			
+				BB->ClearValue(TargetActorKey.SelectedKeyName);
+				BB->ClearValue(TargetLocationKey.SelectedKeyName);
+				BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
+
+				// 이동 중단 명령 명시적 호출
+				AIC->StopMovementOptimized();
+
+				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+				return;
+			}
 		}
 		else
 		{
-			// 사거리 밖이라면 추적 이동
-			// 허용 반경을 작게 설정하여 유닛이 사거리 내로 완전히 들어올 때까지 이동을 멈추지 않게 함
-			AIC->MoveToActor(Target, 10.0f); 
+			// 추격 함수 호출
+			AIC->MoveToActorOptimized(Target, 10.0f); 
 		}
 
 		return; // 타겟 액터 로직을 수행했으므로 하단의 지점 이동 로직은 실행하지 않음
@@ -147,11 +147,11 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	// 2. 타겟 액터가 없지만 목표 지점이 있는 경우 (공격 이동 중)
 	if (!GoalLocation.IsZero())
 	{
-		// [수정] 단순히 Moving 상태인지 체크하는 대신, 현재 경로의 도착지가 목표 지점과 일치하는지 확인하거나 
+		// 단순히 Moving 상태인지 체크하는 대신, 현재 경로의 도착지가 목표 지점과 일치하는지 확인하거나 
 		// 혹은 Tick에서 주기적으로 MoveToLocation을 재호출하여 갱신을 보장합니다.
 		if (AIC->GetMoveStatus() == EPathFollowingStatus::Idle)
 		{
-			AIC->MoveToLocation(GoalLocation, 10.0f);
+			AIC->MoveToLocationOptimized(GoalLocation, 10.0f);
 		}
 
 		// 목표 지점에 거의 도달했는지 확인
@@ -161,19 +161,20 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
 			BB->ClearValue(TargetLocationKey.SelectedKeyName);
 			
-			NOVA_LOG(Log, "Unit %s finished Attack-Move to location. No target found, transitioning to Idle.", *MyUnit->GetName());
+			// NOVA_LOG(Log, "Unit %s finished Attack-Move to location. No target found, transitioning to Idle.", *MyUnit->GetName());
 			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 		}
 	}
 	// 3. 둘 다 없는 경우 (타겟 소실 및 지점 도달 등)
 	else
 	{
-		AIC->StopMovement();
 		BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
 		BB->ClearValue(TargetActorKey.SelectedKeyName);
+		BB->ClearValue(TargetLocationKey.SelectedKeyName);
 
-		NOVA_LOG(Log, "Unit %s attack command finished (No target/location).", *MyUnit->GetName());
+		AIC->StopMovementOptimized();
 		FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+		// NOVA_LOG(Log, "Unit %s attack command finished (No target/location).", *MyUnit->GetName());
 	}
 }
 

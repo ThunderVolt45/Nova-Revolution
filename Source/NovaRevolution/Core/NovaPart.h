@@ -61,7 +61,7 @@ public:
 	const TArray<FName>& GetMuzzleSocketNames() const { return MuzzleSocketNames; }
 
 	/** 발사 효과가 생성될 소켓 이름들을 반환합니다. (주로 첫 번째 소켓 위치를 위해 사용하거나 내부적으로 활용) */
-	FName GetRandomMuzzleSocketName() const;
+	// FName GetRandomMuzzleSocketName() const;
 	
 	// 무기 조준 관련 함수
 	/** 목표 Pitch 각도를 설정합니다. (ANovaUnit에서 호출) */
