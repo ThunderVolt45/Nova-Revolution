@@ -83,7 +83,8 @@ void ANovaUnit::Tick(float DeltaTime)
 		FCollisionQueryParams TraceParams;
 		TraceParams.AddIgnoredActor(this);
 
-		if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, TraceParams))
+		// 유닛(Pawn) 등을 지면으로 인식하지 않도록 WorldStatic 채널만 체크합니다.
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_WorldStatic, TraceParams))
 		{
 			float FloorZ = HitResult.ImpactPoint.Z;
 			float SafetyZ = FloorZ + MinSafetyHeight;
@@ -509,6 +510,15 @@ void ANovaUnit::InitializeAttributesFromParts()
 			
 			// 공중 유닛은 평면 제약 해제 (고도 조절을 위함)
 			GetCharacterMovement()->bConstrainToPlane = false;
+
+			if (AAIController* AIC = Cast<AAIController>(GetController()))
+			{
+				if (UPathFollowingComponent* PPathFollowing = AIC->GetPathFollowingComponent())
+				{
+					// 공중 유닛은 장애물 회피를 위해 NavMesh를 타지 않도록 설정
+					// (프로젝트 상황에 따라 하단의 코드가 필요할 수 있음)
+				}
+			}
 		}
 		else
 		{
