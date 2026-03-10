@@ -108,10 +108,11 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 		if (DistanceSq <= RangeSq)
 		{
-			// 사거리 내라면 이동 중단 후 공격
+			// [수정] 사거리 내라면 즉시 이동 중단 후 공격 수행
 			if (AIC->GetMoveStatus() != EPathFollowingStatus::Idle)
 			{
 				AIC->StopMovement();
+				// NOVA_LOG(Log, "Unit %s in range (%.f). Stopping to attack.", *MyUnit->GetName(), Range);
 			}
 			
 			float CurrentTime = GetWorld()->GetTimeSeconds();
@@ -136,7 +137,8 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		else
 		{
 			// 사거리 밖이라면 추적 이동
-			AIC->MoveToActor(Target, Range * 0.9f); 
+			// 허용 반경을 작게 설정하여 유닛이 사거리 내로 완전히 들어올 때까지 이동을 멈추지 않게 함
+			AIC->MoveToActor(Target, 10.0f); 
 		}
 
 		return; // 타겟 액터 로직을 수행했으므로 하단의 지점 이동 로직은 실행하지 않음

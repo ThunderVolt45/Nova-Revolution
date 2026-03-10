@@ -71,10 +71,17 @@ UPrimitiveComponent* ANovaPart::GetMainMesh() const
 {
 	if (SkeletalMesh && SkeletalMesh->GetSkeletalMeshAsset())
 	{
+		// NOVA_LOG(Log, "Part '%s': MainMesh is SkeletalMesh", *GetName());
 		return SkeletalMesh;
 	}
 	
-	return StaticMesh;
+	if (StaticMesh && StaticMesh->GetStaticMesh())
+	{
+		// NOVA_LOG(Log, "Part '%s': MainMesh is StaticMesh", *GetName());
+		return StaticMesh;
+	}
+
+	return nullptr;
 }
 
 void ANovaPart::SetMovementSpeed(float Speed)
