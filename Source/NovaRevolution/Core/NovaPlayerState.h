@@ -124,4 +124,8 @@ protected:
 	// 자원 속성 세트
 	UPROPERTY()
 	class UNovaResourceAttributeSet* ResourceAttributeSet;
+	
+	// 테스트 및 초기 부여용 어빌리티 리스트
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|GAS")
+	TArray<TSubclassOf<class UGameplayAbility>> CommanderAbilities;
 };

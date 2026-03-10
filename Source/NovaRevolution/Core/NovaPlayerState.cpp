@@ -33,6 +33,18 @@ void ANovaPlayerState::BeginPlay()
 		AbilitySystemComponent->InitAbilityActorInfo(this, this);
 	}
 	
+	if (GetNetMode() != NM_Client && AbilitySystemComponent)
+	{
+		for (const auto& AbilityClass : CommanderAbilities)
+		{
+			if (AbilityClass)
+			{
+				AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+			}
+		}
+	}
+	
+	
 
 	if (AbilitySystemComponent && ResourceAttributeSet)
 	{
