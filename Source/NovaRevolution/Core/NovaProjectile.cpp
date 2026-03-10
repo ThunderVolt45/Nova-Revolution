@@ -85,16 +85,27 @@ void ANovaProjectile::Explode(AActor* TargetActor, const FVector& ImpactLocation
 				TArray<AActor*> OverlappedActors;
 				TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 				ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+				ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
+				ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldStatic));
+
+				// NOVA_LOG(Log, "Projectile: Checking Splash Damage (Radius: %.f) at %s", SplashRadius, *ImpactLocation.ToString());
 				
 				if (UKismetSystemLibrary::SphereOverlapActors(GetWorld(), ImpactLocation, SplashRadius, ObjectTypes, AActor::StaticClass(), {GetInstigator()}, OverlappedActors))
 				{
+					int32 DamageCount = 0;
 					for (AActor* Actor : OverlappedActors)
 					{
 						if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Actor))
 						{
 							SourceASC->ApplyGameplayEffectSpecToTarget(*DamageSpecHandle.Data.Get(), TargetASC);
+							DamageCount++;
 						}
 					}
+					// NOVA_LOG(Log, "Projectile: Splash Damage applied to %d actors (Total Overlapped: %d)", DamageCount, OverlappedActors.Num());
+				}
+				else
+				{
+					// NOVA_LOG(Warning, "Projectile: No actors found in Splash Radius!");
 				}
 			}
 			else if (TargetActor)

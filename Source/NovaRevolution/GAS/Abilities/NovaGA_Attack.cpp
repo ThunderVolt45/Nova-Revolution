@@ -101,9 +101,24 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 
 			// 3-2. 소켓 위치 정보 (발사 지점)
 			FVector MuzzleLocation = WeaponPart->GetActorLocation();
-			if (WeaponPart->GetMuzzleSocketNames().Num() > 0 && WeaponPart->GetMainMesh())
+			const TArray<FName>& MuzzleSocketNames = WeaponPart->GetMuzzleSocketNames();
+			UPrimitiveComponent* MainMesh = WeaponPart->GetMainMesh();
+			
+			if (MuzzleSocketNames.Num() > 0 && MainMesh)
 			{
-				MuzzleLocation = WeaponPart->GetMainMesh()->GetSocketLocation(WeaponPart->GetMuzzleSocketNames()[0]);
+				if (MainMesh->DoesSocketExist(MuzzleSocketNames[0]))
+				{
+					MuzzleLocation = MainMesh->GetSocketLocation(MuzzleSocketNames[0]);
+					// NOVA_LOG(Log, "GA_Attack: Using Socket '%s' at %s", *MuzzleSocketNames[0].ToString(), *MuzzleLocation.ToString());
+				}
+				else
+				{
+					// NOVA_LOG(Warning, "GA_Attack: Socket '%s' NOT FOUND on Mesh '%s'!", *MuzzleSocketNames[0].ToString(), *MainMesh->GetName());
+				}
+			}
+			else
+			{
+				// NOVA_LOG(Log, "GA_Attack: No Sockets defined, using Actor Location: %s", *MuzzleLocation.ToString());
 			}
 
 			// 4. 발사체 생성 (Projectile 방식)
@@ -117,14 +132,22 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 				// 타겟을 향한 회전값 계산
 				FRotator SpawnRotation = (Target->GetActorLocation() - MuzzleLocation).Rotation();
 
+				// NOVA_LOG(Log, "GA_Attack: Attempting to spawn Projectile '%s'...", *ProjectileClass->GetName());
+				
 				if (ANovaProjectile* Projectile = GetWorld()->SpawnActor<ANovaProjectile>(ProjectileClass, MuzzleLocation, SpawnRotation, SpawnParams))
 				{
 					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius);
+					// NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully!");
+				}
+				else
+				{
+					NOVA_LOG(Error, "GA_Attack: Projectile Spawn FAILED!");
 				}
 			}
 			// 5. 히트스캔 처리 (Hitscan 방식 - ProjectileClass가 없을 때만)
 			else if (!bSurfaceHit)
 			{
+				// NOVA_LOG(Log, "GA_Attack: ProjectileClass is NULL. Falling back to Hitscan.");
 				// 소켓이 있다면 첫 번째 소켓 위치를 트레이스 시작점으로 사용
 				FVector Start = MuzzleLocation;
 				FVector End = Target->GetActorLocation() + (Target->GetActorLocation() - Start).GetSafeNormal() * 100.f;
@@ -132,6 +155,14 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 				FHitResult HitResult;
 				FCollisionQueryParams TraceParams;
 				TraceParams.AddIgnoredActor(Unit);
+
+				// [추가] 유닛에 부착된 모든 부품(Child Actor 등)도 트레이스에서 무시합니다.
+				TArray<AActor*> AttachedActors;
+				Unit->GetAttachedActors(AttachedActors, true);
+				for (AActor* Attached : AttachedActors)
+				{
+					TraceParams.AddIgnoredActor(Attached);
+				}
 
 				if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, TraceParams))
 				{
@@ -156,24 +187,34 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 				TArray<AActor*> OverlappedActors;
 				TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 				ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+				ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
+				ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldStatic));
+
+				// NOVA_LOG(Log, "GA_Attack: Checking Splash Damage (Radius: %.f) at %s", SplashRadius, *ImpactLocation.ToString());
 
 				if (UKismetSystemLibrary::SphereOverlapActors(GetWorld(), ImpactLocation, SplashRadius, ObjectTypes, AActor::StaticClass(), {Unit}, OverlappedActors))
 				{
+					int32 DamageCount = 0;
 					for (AActor* Actor : OverlappedActors)
 					{
 						if (UAbilitySystemComponent* TargetASC = Actor->FindComponentByClass<UAbilitySystemComponent>())
 						{
 							SourceASC->ApplyGameplayEffectSpecToTarget(*DamageSpecHandle.Data.Get(), TargetASC);
+							DamageCount++;
 						}
 					}
-					NOVA_LOG(Log, "GA_Attack: Splash Damage applied to %d actors via Hitscan (Radius: %.f)", OverlappedActors.Num(), SplashRadius);
+					// NOVA_LOG(Log, "GA_Attack: Splash Damage applied to %d actors (Total Overlapped: %d)", DamageCount, OverlappedActors.Num());
+				}
+				else
+				{
+					// NOVA_LOG(Warning, "GA_Attack: No actors found in Splash Radius!");
 				}
 			}
 			// 6-2. 단일 타겟 데미지 처리
 			else if (UAbilitySystemComponent* TargetASC = Target->FindComponentByClass<UAbilitySystemComponent>())
 			{
 				SourceASC->ApplyGameplayEffectSpecToTarget(*DamageSpecHandle.Data.Get(), TargetASC);
-				NOVA_LOG(Log, "GA_Attack: Damage GE applied to %s via Hitscan", *Target->GetName());
+				// NOVA_LOG(Log, "GA_Attack: Damage GE applied to %s via Hitscan", *Target->GetName());
 			}
 		}
 
