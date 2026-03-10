@@ -55,7 +55,7 @@ void ANovaFogManager::UpdateFog()
 
 	// 현재 시야 RT 초기화 (검은색)
 	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
-
+	
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (!PC) return;
 	ANovaPlayerState* PS = PC ? PC->GetPlayerState<ANovaPlayerState>() : nullptr;
@@ -130,22 +130,6 @@ void ANovaFogManager::UpdateFog()
 		}
 	}
 	Canvas.Flush_GameThread();
-
-	// 탐험 영역(History) 업데이트
-	// CurrentFogRT의 내용을 HistoryFogRT에 누적시킴 (Translucent 블렌딩 활용)
-	FCanvas HistoryCanvas(HistoryFogRT->GameThread_GetRenderTargetResource(),
-	                      nullptr,
-	                      FGameTime::GetTimeSinceAppStart(),
-	                      GetWorld()->GetFeatureLevel());
-	FCanvasTileItem HistroyUpdateItem(FVector2D(0.f, 0.f),
-	                                  CurrentFogRT->GetResource(), // CurrentRT 자체를 브러쉬로 사용
-	                                  FVector2D(TextureResolution, TextureResolution),
-	                                  FLinearColor::White);
-
-	// 이미 밝혀진 곳(Histroy)에 현재 밝은 곳(Current)을 더함
-	HistroyUpdateItem.BlendMode = SE_BLEND_MAX;
-	HistoryCanvas.DrawItem(HistroyUpdateItem);
-	HistoryCanvas.Flush_GameThread();
 }
 
 FVector2D ANovaFogManager::WorldToFogUV(const FVector& WorldLocation) const
