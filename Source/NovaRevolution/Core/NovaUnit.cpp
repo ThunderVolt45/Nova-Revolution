@@ -548,14 +548,14 @@ void ANovaUnit::InitializeAttributesFromParts()
 			// 공중 유닛은 평면 제약 해제 (고도 조절을 위함)
 			GetCharacterMovement()->bConstrainToPlane = false;
 
-			if (AAIController* AIC = Cast<AAIController>(GetController()))
-			{
-				if (UPathFollowingComponent* PPathFollowing = AIC->GetPathFollowingComponent())
-				{
-					// 공중 유닛은 장애물 회피를 위해 NavMesh를 타지 않도록 설정
-					// (프로젝트 상황에 따라 하단의 코드가 필요할 수 있음)
-				}
-			}
+			// if (AAIController* AIC = Cast<AAIController>(GetController()))
+			// {
+			// 	if (UPathFollowingComponent* PPathFollowing = AIC->GetPathFollowingComponent())
+			// 	{
+			// 		// 공중 유닛은 장애물 회피를 위해 NavMesh를 타지 않도록 설정
+			// 		// (프로젝트 상황에 따라 하단의 코드가 필요할 수 있음)
+			// 	}
+			// }
 		}
 		else
 		{
@@ -569,6 +569,40 @@ void ANovaUnit::InitializeAttributesFromParts()
 		MovementType == ENovaMovementType::Air ? TEXT("Air") : TEXT("Ground"));
 }
 
+
+bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
+{
+	if (!IsValid(Target)) return false;
+
+	FVector MyLoc = GetActorLocation();
+	FVector TargetLoc = Target->GetActorLocation();
+
+	// 1. 수평 거리 체크 (XY 평면상 거리)
+	float DistSqXY = FVector::DistSquaredXY(MyLoc, TargetLoc);
+	
+	// 타겟의 충돌체 크기를 고려하여 판정 완화 (타겟의 루트 컴포넌트가 PrimitiveComponent인 경우)
+	float TargetRadius = 0.0f;
+	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
+	{
+		TargetRadius = Capsule->GetScaledCapsuleRadius();
+	}
+	
+	float AdjustedRange = Range + TargetRadius;
+	if (DistSqXY > FMath::Square(AdjustedRange))
+	{
+		return false; // 수평 거리가 사거리를 벗어남
+	}
+
+	// 2. 수직 거리 체크 (Z축 차이)
+	// 공중 유닛과 지상 유닛 간의 교전을 위해 수직 허용 오차를 넉넉히 둡니다 (예: 1500.f)
+	// float VerticalDist = FMath::Abs(MyLoc.Z - TargetLoc.Z);
+	// if (VerticalDist > 1500.0f)
+	// {
+	// 	return false; // 고도 차이가 너무 커서 사격 불능
+	// }
+
+	return true;
+}
 
 UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
 {
@@ -652,6 +686,9 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 					break;
 				case ENovaTargetType::All:
 					bCanAttackTarget = true;
+					break;
+				case ENovaTargetType::None:
+					bCanAttackTarget = false;
 					break;
 				}
 			}

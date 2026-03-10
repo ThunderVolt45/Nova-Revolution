@@ -77,20 +77,39 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	}
 
 	// 1. 우선순위: 타겟 액터가 있는 경우 (추격 및 공격)
-	// 타겟 액터가 존재하면 목표 지점(GoalLocation) 로직은 완전히 무시합니다.
 	if (Target)
 	{
-		float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
-		float Range = GetAttackRange(MyUnit);
-		float RangeSq = FMath::Square(Range);
+		// 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
+		bool bTargetIsDead = false;
+		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
+		{
+			bTargetIsDead = TargetUnit->IsDead();
+		}
+		
+		if (bTargetIsDead || Target->IsPendingKillPending())
+		{
+			NOVA_LOG(Log, "Unit %s Is Dead. Stop attack.", *Target->GetName());
+			
+			BB->ClearValue(TargetActorKey.SelectedKeyName);
+			BB->ClearValue(TargetLocationKey.SelectedKeyName);
+			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
 
-		if (DistanceSq <= RangeSq)
+			// 이동 중단 명령 명시적 호출
+			AIC->StopMovementOptimized();
+
+			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+			return;
+		}
+		
+		float Range = GetAttackRange(MyUnit);
+
+		// [수정] 캡슐 기반 사거리 판정 함수 활용
+		if (MyUnit->IsTargetInRange(Target, Range))
 		{
 			// 사거리 내라면 즉시 이동 중단 후 공격 수행
 			if (AIC->IsMoveInProgress())
 			{
 				AIC->StopMovementOptimized();
-				// NOVA_LOG(Log, "Unit %s in range (%.f). Stopping to attack.", *MyUnit->GetName(), Range);
 			}
 			
 			float CurrentTime = GetWorld()->GetTimeSeconds();
@@ -114,7 +133,6 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			}
 			
 			// 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
-			bool bTargetIsDead = false;
 			if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
 			{
 				bTargetIsDead = TargetUnit->IsDead();

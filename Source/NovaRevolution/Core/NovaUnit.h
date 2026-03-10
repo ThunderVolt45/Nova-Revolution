@@ -69,9 +69,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
 	ENovaMovementType GetMovementType() const { return MovementType; }
 
-	/** 유닛 무기의 공격 가능 타겟 타입을 반환합니다. */
+	/** 유닛의 무기 공격 가능 타입 (대지/대공/모두) */
 	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
 	ENovaTargetType GetTargetType() const { return TargetType; }
+
+	/** 타겟이 사거리 내에 있는지 캡슐(원기둥) 방식으로 판정합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
+	bool IsTargetInRange(const AActor* Target, float Range) const;
 
 	// 유닛의 생존 여부를 반환합니다.
 	UFUNCTION(BlueprintCallable, Category = "Nova|Unit")

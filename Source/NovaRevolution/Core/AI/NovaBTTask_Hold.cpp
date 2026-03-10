@@ -25,10 +25,10 @@ EBTNodeResult::Type UNovaBTTask_Hold::ExecuteTask(UBehaviorTreeComponent& OwnerC
 	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	if (!AIC) return EBTNodeResult::Failed;
 
-	// 초기 상태: 이동 즉시 중단
-	AIC->StopMovement();
+	// 초기 상태: 이동 즉시 중단 (수동 이동 포함)
+	AIC->StopMovementOptimized();
 	
-	NOVA_LOG(Log, "Unit %s entered HOLD state.", *AIC->GetPawn()->GetName());
+	// NOVA_LOG(Log, "Unit %s entered HOLD state.", *AIC->GetPawn()->GetName());
 
 	// Hold 상태를 유지 (명령이 바뀌기 전까지)
 	return EBTNodeResult::InProgress;
@@ -49,10 +49,20 @@ void UNovaBTTask_Hold::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMe
 	if (!MyUnit) return;
 
 	// Hold 상태에서는 절대 이동하지 않음 (강제 정지 상태 유지)
-	AIC->StopMovement();
+	if (AIC->IsMoveInProgress())
+	{
+		AIC->StopMovementOptimized();
+	}
 
 	if (Target && !Target->IsPendingKillPending())
 	{
+		// [추가] 방어 로직: 타겟이 자기 자신인 경우 즉시 취소
+		if (Target == MyUnit)
+		{
+			BB->ClearValue(TargetActorKey.SelectedKeyName);
+			return;
+		}
+
 		// 타겟이 유닛인 경우 사망 여부 확인
 		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
 		{
@@ -63,16 +73,14 @@ void UNovaBTTask_Hold::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMe
 			}
 		}
 
-		float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
 		float Range = GetAttackRange(MyUnit);
-		float RangeSq = FMath::Square(Range);
 
-		// 사거리 내에 타겟이 있을 때만 공격 시도
-		if (DistanceSq <= RangeSq)
+		// [수정] 캡슐 기반 사거리 판정 함수 활용
+		if (MyUnit->IsTargetInRange(Target, Range))
 		{
 			float CurrentTime = GetWorld()->GetTimeSeconds();
 
-			// FireRate 연동 (수치가 작을수록 빠름, 100 = 1.0s, 50 = 0.5s)
+			// FireRate 연동
 			float CurrentAttackInterval = AttackInterval;
 			if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
 			{
