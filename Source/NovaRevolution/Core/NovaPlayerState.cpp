@@ -23,6 +23,16 @@ ANovaPlayerState::ANovaPlayerState()
 void ANovaPlayerState::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	
+	// --- 1. GAS 초기화 (가장 먼저 수행) ---
+	if (AbilitySystemComponent)
+	{
+		// Owner: 자신(PlayerState), Avatar: 자신(PlayerState)
+		// 이제 PlayerState는 '사령관'으로서 어빌리티를 실행할 권한을 얻습니다.
+		AbilitySystemComponent->InitAbilityActorInfo(this, this);
+	}
+	
 
 	if (AbilitySystemComponent && ResourceAttributeSet)
 	{
