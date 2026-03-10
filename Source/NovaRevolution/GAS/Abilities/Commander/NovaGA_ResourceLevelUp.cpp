@@ -1,10 +1,12 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "GAS/Abilities/Commander/NovaGA_ResourceLevelUp.h"
 #include "AbilitySystemComponent.h"
+#include "NovaRevolution.h"
 #include "Core/NovaPlayerState.h"
 #include "GAS/NovaGameplayTags.h"
+#include "Core/NovaLog.h"
+#include "Engine/Engine.h"
 
 UNovaGA_ResourceLevelUp::UNovaGA_ResourceLevelUp()
 {
@@ -16,6 +18,8 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
     // 0. 기본 유효성 검사
     if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
     {
+        NOVA_SCREEN(Error, "ResourceLevelUp: Ability Commit Failed!");
+        
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
@@ -25,6 +29,8 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
 
     if (!ASC || !PS)
     {
+        NOVA_SCREEN(Error, "ResourceLevelUp: Internal Error - ASC or PS is NULL!");
+        
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
@@ -33,6 +39,8 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
     float CurrentLevel = PS->GetWattLevel();
     if (CurrentLevel >= 6.0f)
     {
+        NOVA_SCREEN(Warning, "Resource Level is already at MAX (Level 6)!");
+        
         // TODO: UI에 '최대 레벨' 메시지 출력 로직 추가 가능
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
@@ -42,6 +50,8 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
     // 부모 클래스(UNovaCommanderAbility)의 기능을 활용합니다.
     if (!CheckCommanderResources(500.0f, 20.0f))
     {
+        NOVA_SCREEN(Warning, "Insufficient Resources! Need 500 Watt, 20 SP.");
+        
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
@@ -79,6 +89,10 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
             ASC->ApplyGameplayEffectSpecToSelf(*RegenSpec.Data.Get());
         }
     }
+    
+    // 6. 최종 성공 메시지
+    float NewLevel = CurrentLevel + 1.0f;
+    NOVA_SCREEN(Log, "RESOURCE LEVEL UP SUCCESS! (Level %.0f -> %.0f)", CurrentLevel, NewLevel);
 
     // 6. 어빌리티 종료
     EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
