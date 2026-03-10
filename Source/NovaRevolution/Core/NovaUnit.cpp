@@ -11,6 +11,7 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/AI/NovaAIController.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GAS/NovaAttributeSet.h"
 #include "GAS/Abilities/NovaGameplayAbility.h"
@@ -62,6 +63,15 @@ ANovaUnit::ANovaUnit()
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationRoll = false;
 	bUseControllerRotationYaw = false;
+
+	// 선택 표시 위젯 컴포넌트
+	SelectionWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("SelectionWidget"));
+	SelectionWidget->SetupAttachment(RootComponent);
+	SelectionWidget->SetWidgetSpace(EWidgetSpace::World); // 월드 공간에 배치
+	SelectionWidget->SetDrawAtDesiredSize(true);
+	SelectionWidget->SetRelativeRotation(FRotator(90.f, 0.f, 0.f)); // 바닥에 눕힘
+	SelectionWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // 충돌 끄기
+	SelectionWidget->SetVisibility(false); // 초기에는 숨김
 }
 
 void ANovaUnit::Tick(float DeltaTime)
@@ -82,10 +92,10 @@ void ANovaUnit::Tick(float DeltaTime)
 			float CurrentYaw = GetActorRotation().Yaw;
 			float YawDelta = FMath::FindDeltaAngleDegrees(LastYaw, CurrentYaw);
 			float RotationRate = YawDelta / DeltaTime; // 초당 회전 각도
-			
+
 			LegsActor->SetRotationRate(RotationRate);
 			LastYaw = CurrentYaw;
-			
+
 			// --- 실시간 속도 확인용 ---
 			// NOVA_SCREEN(Log,"Unit: %s | Current Speed: %.2f", *GetName(), CurrentSpeed);
 		}
@@ -94,6 +104,12 @@ void ANovaUnit::Tick(float DeltaTime)
 	UpdateBodyRotation(DeltaTime);
 	// Weapon의 조준을 위한 함수
 	UpdateWeaponAiming(DeltaTime);
+
+	// 선택된 상태일 때만 실시간으로 바닥 위치 추적 (선택됨, 죽지않음, widget존재)
+	if (bIsSelected && !bIsDead && SelectionWidget)
+	{
+		UpdateSelectionWidgetPosition();
+	}
 }
 
 void ANovaUnit::OnConstruction(const FTransform& Transform)
@@ -105,6 +121,22 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 
 	// 2. 부품들 실제 소켓에 정렬 부착
 	InitializePartAttachments();
+	
+	// 캡슐 반지름에 맞춰 위젯 크기 동적 설정
+	if (GetCapsuleComponent() && SelectionWidget)
+	{
+		// 캡슐 반지름 가져오기 (스케일 포함)
+		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+		
+		// 원의 지름 계산 (캡슐보다 약간 더 크게 1.2배 여유)
+		float Diameter = Radius * 2.0f * 1.2f;
+		
+		// DrawSize를 설정(지름 * 지름)
+		SelectionWidget->SetDrawSize(FVector2D(Diameter, Diameter));
+		
+		// DrawAtDesiredSize는 수동 설정 시 false
+		SelectionWidget->SetDrawAtDesiredSize(false);
+	}
 }
 
 void ANovaUnit::BeginPlay()
@@ -139,7 +171,7 @@ void ANovaUnit::BeginPlay()
 		FCommandData MoveCmd;
 		MoveCmd.CommandType = ECommandType::Move;
 		MoveCmd.TargetLocation = InitialRallyLocation;
-		
+
 		IssueCommand(MoveCmd);
 		NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
 	}
@@ -152,11 +184,11 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 	BodyPartClass = Data.BodyClass;
 	WeaponPartClass = Data.WeaponClass;
 
-	NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)", 
-		*UnitName, 
-		LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
-		BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
-		WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+	NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
+	         *UnitName,
+	         LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
+	         BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
+	         WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
 }
 
 
@@ -172,7 +204,7 @@ void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 	// 현재 몸통의 세계 회전값
 	FRotator CurrentRotation = BodyPartComponent->GetComponentRotation();
 	FRotator TargetRotation;
-	
+
 	// 1. [최적화] 블랙보드 조회 대신 캐싱된 CurrentTarget만 확인합니다.
 	// IsValid를 통해 타겟이 죽거나 사라졌는지도 동시에 체크합니다.
 	if (IsValid(CurrentTarget))
@@ -180,7 +212,6 @@ void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 		// 타겟 방향 계산
 		FVector Direction = CurrentTarget->GetActorLocation() - GetActorLocation();
 		TargetRotation = Direction.Rotation();
-		
 	}
 	else
 	{
@@ -258,7 +289,7 @@ EBlackboardNotificationResult ANovaUnit::OnTargetActorChanged(const UBlackboardC
 void ANovaUnit::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
-	
+
 	if (ANovaAIController* AIC = Cast<ANovaAIController>(NewController))
 	{
 		UBlackboardComponent* BB = AIC->GetBlackboardComponent();
@@ -281,7 +312,6 @@ void ANovaUnit::PossessedBy(AController* NewController)
 			CurrentTarget = Cast<AActor>(BB->GetValueAsObject(TEXT("TargetActor")));
 		}
 	}
-	
 }
 
 void ANovaUnit::UnPossessed()
@@ -305,22 +335,22 @@ void ANovaUnit::ConstructUnitParts()
 {
 	// 다리와 몸통 부품 할당
 	if (LegsPartClass)
-    {
-        LegsPartComponent->SetChildActorClass(LegsPartClass);
+	{
+		LegsPartComponent->SetChildActorClass(LegsPartClass);
 		if (LegsPartComponent->GetChildActor() == nullptr)
 		{
 			LegsPartComponent->CreateChildActor();
 		}
-    }
-    
+	}
+
 	if (BodyPartClass)
-    {
-        BodyPartComponent->SetChildActorClass(BodyPartClass);
+	{
+		BodyPartComponent->SetChildActorClass(BodyPartClass);
 		if (BodyPartComponent->GetChildActor() == nullptr)
 		{
 			BodyPartComponent->CreateChildActor();
 		}
-    }
+	}
 
 	// 기존에 동적으로 생성된 무기 컴포넌트들 제거 (중복 생성 방지)
 	for (UChildActorComponent* Comp : WeaponPartComponents)
@@ -349,14 +379,16 @@ void ANovaUnit::ConstructUnitParts()
 							WeaponComp->RegisterComponent();
 							WeaponComp->SetChildActorClass(WeaponPartClass);
 							WeaponComp->CreateChildActor(); // 명시적으로 자식 액터 생성 호출
-							WeaponComp->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+							WeaponComp->AttachToComponent(
+								BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 
 							WeaponPartComponents.Add(WeaponComp);
 						}
 					}
 					else
 					{
-						NOVA_LOG(Warning, "Weapon Socket '%s' does not exist on Body Mesh of %s", *SocketName.ToString(), *GetName());
+						NOVA_LOG(Warning, "Weapon Socket '%s' does not exist on Body Mesh of %s",
+						         *SocketName.ToString(), *GetName());
 					}
 				}
 			}
@@ -376,7 +408,8 @@ void ANovaUnit::InitializePartAttachments()
 		if (UPrimitiveComponent* LegsMesh = LegsActor->GetMainMesh())
 		{
 			// 몸통을 지정된 소켓에 부착
-			BodyPartComponent->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
+			BodyPartComponent->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+			                                     BodyTargetSocketName);
 		}
 	}
 
@@ -402,7 +435,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	TArray<AActor*> PartActors;
 	PartActors.Add(LegsPartComponent->GetChildActor());
 	PartActors.Add(BodyPartComponent->GetChildActor());
-	
+
 	// 무기 부품은 여러 개가 붙을 수 있지만 모두 같은 종류를 붙일 예정이므로 스펙은 첫 번째 것 하나만 반영함
 	for (auto WeaponComp : WeaponPartComponents)
 	{
@@ -420,7 +453,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 		{
 			// 데이터 테이블 방식 (PartSpec) 참조
 			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
-			
+
 			TotalWatt += Spec.Watt;
 			TotalHealth += Spec.Health;
 			TotalAttack += Spec.Attack;
@@ -473,13 +506,24 @@ void ANovaUnit::OnSelected()
 {
 	bIsSelected = true;
 	// TODO: 팀원 B가 구현할 하이라이트/데칼 로직이 들어갈 자리
+	if (SelectionWidget)
+	{
+		UpdateSelectionColor();
+		SelectionWidget->SetVisibility(true);
+		// 선택 즉시 위치를 한 번 잡아줌
+		UpdateSelectionWidgetPosition();
+	}
 	UE_LOG(LogTemp, Log, TEXT("Unit Selected: %s"), *GetName());
 }
 
 void ANovaUnit::OnDeselected()
 {
 	bIsSelected = false;
-	// TODO: 팀원 B가 구현할 하이라이트 해제 로직
+	// Widget을 비가시화
+	if (SelectionWidget)
+	{
+		SelectionWidget->SetVisibility(false);
+	}
 	UE_LOG(LogTemp, Log, TEXT("Unit Deselected: %s"), *GetName());
 }
 
@@ -493,7 +537,7 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 {
 	// 죽은 상태에서는 명령 수행 불가
 	if (bIsDead) return;
-	
+
 	// 1. 전용 AI 컨트롤러에게 명령 전달 (이동, 추적 등)
 	if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(GetController()))
 	{
@@ -521,7 +565,7 @@ void ANovaUnit::Die()
 	{
 		return;
 	}
-	
+
 	// 유닛 사망 처리 로직
 	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
@@ -530,7 +574,7 @@ void ANovaUnit::Die()
 	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
 	{
 		float UnitWatt = ASC->GetNumericAttribute(UNovaAttributeSet::GetWattAttribute());
-		
+
 		UWorld* World = GetWorld();
 		if (World)
 		{
@@ -544,10 +588,12 @@ void ANovaUnit::Die()
 						INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
 						if (TeamInterface && TeamInterface->GetTeamID() == TeamID)
 						{
-							if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+							if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<
+								UNovaResourceComponent>())
 							{
 								ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
-								NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
+								NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(),
+								         UnitWatt, TeamID);
 								break;
 							}
 						}
@@ -566,7 +612,7 @@ void ANovaUnit::Die()
 	// 충돌 비활성화 및 소멸 처리 (필요에 따라 래그돌 또는 파편화 연출 추가 가능)
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
-	
+
 	// 모든 부품에 사망 상태 전달
 	TArray<AActor*> PartActors;
 	PartActors.Add(LegsPartComponent->GetChildActor());
@@ -580,7 +626,7 @@ void ANovaUnit::Die()
 			Part->SetIsDead(true);
 		}
 	}
-	
+
 	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (오브젝트 풀링 적용?)
 	// Destroy();
 }
@@ -602,7 +648,7 @@ void ANovaUnit::InitializeAbilitiesFromParts()
 	TArray<AActor*> PartActors;
 	if (LegsPartComponent) PartActors.Add(LegsPartComponent->GetChildActor());
 	if (BodyPartComponent) PartActors.Add(BodyPartComponent->GetChildActor());
-	
+
 	// 무기는 여러 소켓에 붙어있을 수 있지만 모두 같은 무기만 붙으므로 무기 중 하나의 어빌리티만 등록한다.
 	for (auto WeaponComp : WeaponPartComponents)
 	{
@@ -636,5 +682,48 @@ void ANovaUnit::InitializeAbilitiesFromParts()
 		{
 			AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, -1, this));
 		}
+	}
+}
+
+void ANovaUnit::UpdateSelectionWidgetPosition()
+{
+	// 유닛 위치에서 아래로 레이를 쏴서 지면 높이를 찾음.
+	FVector Start = GetActorLocation();
+	FVector End = Start - FVector(0.f, 0.f, 2000.f);
+
+	FHitResult Hit;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this); // 자기 자신 무시
+
+	// Visibility 채널을 사용하여 지형(Landscape/StaticMesh)을 탐색
+	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params))
+	{
+		// 지면 충돌 지점보다 아주 살짝 위에 위젯을 배치하여 파묻힘 방지
+		FVector GroundLocation = Hit.Location + FVector(0.f, 0.f, 2.f);
+		SelectionWidget->SetWorldLocation(GroundLocation);
+	}
+}
+
+void ANovaUnit::UpdateSelectionColor()
+{
+	if (!SelectionWidget) return;
+
+	// 로컬 플레이어 팀 확인
+	int32 LocalPlayerTeamID = -1;
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (PC && PC->GetPlayerState<ANovaPlayerState>())
+	{
+		LocalPlayerTeamID = PC->GetPlayerState<ANovaPlayerState>()->GetTeamID();
+	}
+
+	FLinearColor TargetColor = FLinearColor::Red; // 기본 Red (적)
+	if (TeamID == LocalPlayerTeamID) TargetColor = FLinearColor::Green; // 내 유닛 Green
+	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow; // 중립, 아군 Yellow
+	
+	// 위젯 인스턴스에 접근하여 색상 전달
+	UUserWidget* WidgetObj = SelectionWidget->GetUserWidgetObject();
+	if (WidgetObj)
+	{
+		WidgetObj->SetColorAndOpacity(TargetColor);
 	}
 }

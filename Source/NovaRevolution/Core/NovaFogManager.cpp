@@ -32,7 +32,7 @@ void ANovaFogManager::BeginPlay()
 
 	// 시작 시 모든 RT 초기화 (검은색)
 	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
-	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), HistoryFogRT, FLinearColor::Black);
+	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), HistoryFogRT, FLinearColor::White);
 
 	// 게임 시작 시 타이머를 등록
 	// UpdateInterval 간격으로 UpdateFog 함수를 무한 반복(true) 호출
@@ -123,7 +123,7 @@ void ANovaFogManager::UpdateFog()
 			                         FVector2D(CanvasSize, CanvasSize));
 
 			// 블렌딩 모드 설정 (시야 원들이 서로 겹치 떄 자연스럽게 합쳐짐)
-			TileItem.BlendMode = SE_BLEND_Additive; // 또는 상황에 따라 SE_BLEND_Translucent
+			TileItem.BlendMode = SE_BLEND_MAX; // 또는 상황에 따라 SE_BLEND_Translucent
 
 			// 선언된 변수를 DrawItem에 전달
 			Canvas.DrawItem(TileItem);
@@ -132,7 +132,7 @@ void ANovaFogManager::UpdateFog()
 	Canvas.Flush_GameThread();
 
 	// 탐험 영역(History) 업데이트
-	// CurrentFogRT의 내용을 HistoryFogRT에 누적시킴 (Additive 블렌딩 활용)
+	// CurrentFogRT의 내용을 HistoryFogRT에 누적시킴 (Translucent 블렌딩 활용)
 	FCanvas HistoryCanvas(HistoryFogRT->GameThread_GetRenderTargetResource(),
 	                      nullptr,
 	                      FGameTime::GetTimeSinceAppStart(),
@@ -143,7 +143,7 @@ void ANovaFogManager::UpdateFog()
 	                                  FLinearColor::White);
 
 	// 이미 밝혀진 곳(Histroy)에 현재 밝은 곳(Current)을 더함
-	HistroyUpdateItem.BlendMode = SE_BLEND_Additive;
+	HistroyUpdateItem.BlendMode = SE_BLEND_MAX;
 	HistoryCanvas.DrawItem(HistroyUpdateItem);
 	HistoryCanvas.Flush_GameThread();
 }

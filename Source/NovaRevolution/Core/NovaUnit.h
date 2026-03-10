@@ -13,6 +13,7 @@
 
 class UAbilitySystemComponent;
 class UNovaAttributeSet;
+class UWidgetComponent;
 struct FOnAttributeChangeData;
 
 /**
@@ -187,4 +188,16 @@ private:
 
 	// 속성 변경 시 호출될 콜백 함수 (UI 업데이트 등)
 	void OnHealthChanged(const FOnAttributeChangeData& Data);
+	
+
+protected:
+	// 유닛 선택 표시용 WidgetComponent
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
+	TObjectPtr<UWidgetComponent> SelectionWidget;
+	
+	// 매 프레임 위젯을 지면에 붙이는 함수 (공중 유닛 대응)
+	void UpdateSelectionWidgetPosition();
+	
+	// 색 변경
+	void UpdateSelectionColor();
 };
