@@ -93,7 +93,11 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 			if (DistToTargetSq <= FMath::Square(Range))
 			{
-				AIC->StopMovement();
+				if (AIC->GetMoveStatus() != EPathFollowingStatus::Idle)
+				{
+					AIC->StopMovement();
+				}
+				
 				float CurrentTime = GetWorld()->GetTimeSeconds();
 
 				// FireRate 연동 (수치가 작을수록 빠름, 100 = 1.0s, 50 = 0.5s)
@@ -115,7 +119,8 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			}
 			else
 			{
-				AIC->MoveToActor(Target, Range * 0.9f);
+				// [수정] 허용 반경을 작게 설정하여 유닛이 타겟을 향해 끝까지 이동하게 함 (Tick에서 사거리 체크로 멈춤 제어)
+				AIC->MoveToActor(Target, 10.0f);
 			}
 			
 			// 교전 중이므로 여기서 리턴하여 아래의 순찰 로직 실행 방지
