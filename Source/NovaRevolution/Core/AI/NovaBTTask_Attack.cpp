@@ -77,20 +77,17 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	}
 
 	// 1. 우선순위: 타겟 액터가 있는 경우 (추격 및 공격)
-	// 타겟 액터가 존재하면 목표 지점(GoalLocation) 로직은 완전히 무시합니다.
 	if (Target)
 	{
-		float DistanceSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
 		float Range = GetAttackRange(MyUnit);
-		float RangeSq = FMath::Square(Range);
 
-		if (DistanceSq <= RangeSq)
+		// [수정] 캡슐 기반 사거리 판정 함수 활용
+		if (MyUnit->IsTargetInRange(Target, Range))
 		{
 			// 사거리 내라면 즉시 이동 중단 후 공격 수행
 			if (AIC->IsMoveInProgress())
 			{
 				AIC->StopMovementOptimized();
-				// NOVA_LOG(Log, "Unit %s in range (%.f). Stopping to attack.", *MyUnit->GetName(), Range);
 			}
 			
 			float CurrentTime = GetWorld()->GetTimeSeconds();
