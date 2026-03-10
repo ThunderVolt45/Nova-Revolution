@@ -80,6 +80,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float SplashRange = 0.0f;
 
+	/** 발사체 유도 여부 (Weapon 부품에서 사용) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Combat")
+	bool bHomingProjectile = true;
+
 	/** 이 부품을 장착했을 때 유닛에게 부여할 어빌리티 클래스들 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Ability")
 	TArray<TSubclassOf<class UNovaGameplayAbility>> AbilityClasses;
