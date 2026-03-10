@@ -43,6 +43,9 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_Watt, "Data.Resource.Watt");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_SP, "Data.Resource.SP");
 	
+	// --- GE 관련 식별 태그 ---
+	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen, "Effect.Resource.Regen");
+	
 	// --- 어빌리티 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Attack, "Ability.Attack");
 	

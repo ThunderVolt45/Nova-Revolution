@@ -49,6 +49,9 @@ namespace NovaGameplayTags
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Resource_Watt);
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Resource_SP);
 	
+	// --- GE 관련 식별 태그 ---
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen); 
+	
 	// --- 어빌리티 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Attack);
 	
