@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "AbilitySystemInterface.h"
+#include "NovaPartData.h"
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaTypes.h"
 #include "Core/NovaAssemblyTypes.h"
@@ -63,6 +64,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
 	FString GetUnitName() const { return UnitName; }
 	
+	/** 유닛의 이동 타입을 반환합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
+	ENovaMovementType GetMovementType() const { return MovementType; }
+
+	/** 유닛 무기의 공격 가능 타겟 타입을 반환합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
+	ENovaTargetType GetTargetType() const { return TargetType; }
+
 	// 유닛의 생존 여부를 반환합니다.
 	UFUNCTION(BlueprintCallable, Category = "Nova|Unit")
 	bool IsDead() const { return bIsDead; }
@@ -180,6 +189,27 @@ protected:
 	// 생성 시 초기 목표 지점 (랠리 포인트)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
 	FVector InitialRallyLocation = FVector::ZeroVector;
+
+	/** 유닛의 최종 이동 타입 (지상/공중) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
+	ENovaMovementType MovementType = ENovaMovementType::Ground;
+
+	/** 유닛의 무기 공격 가능 타입 (대지/대공/모두) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
+	ENovaTargetType TargetType = ENovaTargetType::All;
+
+protected:
+	/** 공중 유닛의 기본 고도 (지면 Z=0 기준) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Air")
+	float DefaultAirZ = 800.0f;
+
+	/** 지면으로부터 유지해야 할 최소 안전 거리 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Air")
+	float MinSafetyHeight = 300.0f;
+
+	/** 고도 조절 시 보간 속도 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Air")
+	float HeightInterpSpeed = 3.0f;
 
 private:
 	// 이전 프레임의 Yaw (회전 속도 계산용)
