@@ -44,8 +44,9 @@ void ANovaProjectile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// 1. 타겟 액터가 유효한 경우에만 실시간으로 위치를 갱신합니다.
-	if (IsValid(TargetActor))
+	// 1. 유도 모드인 경우에만 타겟 액터의 실시간 위치를 갱신합니다.
+	// 유도 모드가 아니면 생성 시점의 TargetLocation을 유지합니다.
+	if (bHoming && IsValid(TargetActor))
 	{
 		TargetLocation = TargetActor->GetActorLocation();
 	}
@@ -54,14 +55,14 @@ void ANovaProjectile::Tick(float DeltaTime)
 	if (!TargetLocation.IsZero())
 	{
 		float DistanceToTarget = FVector::Dist(GetActorLocation(), TargetLocation);
-		
+
 		// 충돌 체크 없이 거리상으로 도달했다면 즉시 폭발
 		if (DistanceToTarget <= HitToTargetRange)
 		{
 			Explode(TargetActor, TargetLocation);
 		}
 	}
-	// 3. 만약 타겟 액터도 없고 목표 위치 정보도 없는 비정상적인 상황이라면 소멸 처리
+	// 3. 만약 타겟 정보가 아예 없는 비정상적인 상황이라면 소멸 처리
 	else
 	{
 		if (GetLifeSpan() <= 0.0f)
@@ -71,20 +72,20 @@ void ANovaProjectile::Tick(float DeltaTime)
 	}
 }
 
-void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius, AActor* InTargetActor, FVector InTargetLocation)
+void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius, AActor* InTargetActor, FVector InTargetLocation, bool bInHoming)
 {
-	// ... (기존 InitializeProjectile 내용 동일하게 유지)
 	DamageSpecHandle = InSpecHandle;
 	ImpactCueTag = InImpactTag;
 	SplashRadius = InSplashRadius;
 	TargetActor = InTargetActor;
 	TargetLocation = InTargetLocation;
+	bHoming = bInHoming;
 
 	// 유도 기능 설정
-	if (ProjectileMovement && IsValid(TargetActor))
+	if (ProjectileMovement && IsValid(TargetActor) && bHoming)
 	{
 		ProjectileMovement->bIsHomingProjectile = true;
-		
+
 		// 타겟의 루트 컴포넌트를 유도 대상으로 설정
 		if (USceneComponent* TargetRoot = TargetActor->GetRootComponent())
 		{

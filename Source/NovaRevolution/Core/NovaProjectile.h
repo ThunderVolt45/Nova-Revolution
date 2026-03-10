@@ -24,7 +24,7 @@ public:
 	ANovaProjectile();
 
 	/** 발사체 초기화 정보를 설정합니다. */
-	void InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius = 0.0f, AActor* InTargetActor = nullptr, FVector InTargetLocation = FVector::ZeroVector);
+	void InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius = 0.0f, AActor* InTargetActor = nullptr, FVector InTargetLocation = FVector::ZeroVector, bool bInHoming = true);
 
 protected:
 	virtual void BeginPlay() override;
@@ -48,6 +48,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Projectile")
 	float SplashRadius = 0.0f;
 	
+	/** 유도 여부 (false일 경우 최초 목표 지점으로만 비행) */
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Projectile")
+	bool bHoming = true;
+
 	// 목표와의 충돌 판정에 사용할 거리
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nova|Projectile")
 	float HitToTargetRange = 25.f;

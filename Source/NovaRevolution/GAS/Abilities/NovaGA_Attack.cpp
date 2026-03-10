@@ -144,8 +144,11 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 						}
 					}
 
-					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius, Target, Target->GetActorLocation());
-					NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully!");
+					// 부품 스펙에서 유도 여부 가져오기
+					bool bIsHoming = WeaponPart->GetPartSpec().bHomingProjectile;
+
+					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius, Target, Target->GetActorLocation(), bIsHoming);
+					NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully! (Homing: %s)", bIsHoming ? TEXT("True") : TEXT("False"));
 				}
 				else
 				{
