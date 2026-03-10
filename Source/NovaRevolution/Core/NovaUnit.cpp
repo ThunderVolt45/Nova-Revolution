@@ -70,29 +70,60 @@ void ANovaUnit::Tick(float DeltaTime)
 
 	if (bIsDead) return;
 
+	// 1. 공중 유닛 고도 조절
+	if (MovementType == ENovaMovementType::Air)
+	{
+		FVector CurrentLocation = GetActorLocation();
+		float TargetZ = DefaultAirZ;
+
+		// 아래 방향으로 레이캐스트하여 지형 높이 확인
+		FHitResult HitResult;
+		FVector Start = CurrentLocation + FVector(0.f, 0.f, 100.f);
+		FVector End = CurrentLocation - FVector(0.f, 0.f, 2000.f);
+		FCollisionQueryParams TraceParams;
+		TraceParams.AddIgnoredActor(this);
+
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, TraceParams))
+		{
+			float FloorZ = HitResult.ImpactPoint.Z;
+			float SafetyZ = FloorZ + MinSafetyHeight;
+
+			// 지면이 높아서 안전 고도를 확보해야 하는 경우 목표 Z 상향 조정
+			if (SafetyZ > DefaultAirZ)
+			{
+				TargetZ = SafetyZ;
+			}
+		}
+
+		// 현재 Z값을 목표 Z값으로 부드럽게 보간
+		if (!FMath::IsNearlyEqual(CurrentLocation.Z, TargetZ, 1.0f))
+		{
+			float NewZ = FMath::FInterpTo(CurrentLocation.Z, TargetZ, DeltaTime, HeightInterpSpeed);
+			SetActorLocation(FVector(CurrentLocation.X, CurrentLocation.Y, NewZ));
+		}
+	}
+
+	// 2. 다리(Legs) 부품 애니메이션 데이터 전달
 	if (LegsPartComponent)
 	{
 		if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
 		{
-			// 1. 이동 속도 전달
+			// 이동 속도 전달
 			float CurrentSpeed = GetVelocity().Size();
 			LegsActor->SetMovementSpeed(CurrentSpeed);
 
-			// 2. 회전 속도 계산 및 전달
+			// 회전 속도 계산 및 전달
 			float CurrentYaw = GetActorRotation().Yaw;
 			float YawDelta = FMath::FindDeltaAngleDegrees(LastYaw, CurrentYaw);
-			float RotationRate = YawDelta / DeltaTime; // 초당 회전 각도
+			float RotationRate = YawDelta / DeltaTime;
 			
 			LegsActor->SetRotationRate(RotationRate);
 			LastYaw = CurrentYaw;
-			
-			// --- 실시간 속도 확인용 ---
-			// NOVA_SCREEN(Log,"Unit: %s | Current Speed: %.2f", *GetName(), CurrentSpeed);
 		}
 	}
-	// 몸통(Body) 회전 로직을 매 프레임 실행합니다.
+
+	// 3. 몸통(Body) 및 무기 회전 로직 실행
 	UpdateBodyRotation(DeltaTime);
-	// Weapon의 조준을 위한 함수
 	UpdateWeaponAiming(DeltaTime);
 }
 

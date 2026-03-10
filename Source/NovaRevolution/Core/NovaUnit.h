@@ -198,6 +198,19 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
 	ENovaTargetType TargetType = ENovaTargetType::All;
 
+protected:
+	/** 공중 유닛의 기본 고도 (지면 Z=0 기준) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Air")
+	float DefaultAirZ = 800.0f;
+
+	/** 지면으로부터 유지해야 할 최소 안전 거리 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Air")
+	float MinSafetyHeight = 300.0f;
+
+	/** 고도 조절 시 보간 속도 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Air")
+	float HeightInterpSpeed = 3.0f;
+
 private:
 	// 이전 프레임의 Yaw (회전 속도 계산용)
 	float LastYaw = 0.0f;

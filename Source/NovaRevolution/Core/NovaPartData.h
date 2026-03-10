@@ -25,6 +25,7 @@ enum class ENovaPartType : uint8
 UENUM(BlueprintType)
 enum class ENovaMovementType : uint8
 {
+	None, // 해당 없음
 	Ground, // 지상 이동
 	Air     // 공중 이동 (NavMesh 미사용)
 };
@@ -35,6 +36,7 @@ enum class ENovaMovementType : uint8
 UENUM(BlueprintType)
 enum class ENovaTargetType : uint8
 {
+	None, // 해당 없음
 	GroundOnly, // 지상만 공격 가능
 	AirOnly,    // 공중만 공격 가능
 	All         // 지상 및 공중 모두 공격 가능
@@ -59,11 +61,11 @@ public:
 
 	// 이동 타입 (Legs 부품에서 사용)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part", meta = (EditCondition = "PartType == ENovaPartType::Legs"))
-	ENovaMovementType MovementType = ENovaMovementType::Ground;
+	ENovaMovementType MovementType = ENovaMovementType::None;
 
 	// 공격 가능 타겟 타입 (Weapon 부품에서 사용)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Part", meta = (EditCondition = "PartType == ENovaPartType::Weapon"))
-	ENovaTargetType TargetType = ENovaTargetType::All;
+	ENovaTargetType TargetType = ENovaTargetType::None;
 
 	// 와트
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
