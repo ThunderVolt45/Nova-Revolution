@@ -55,4 +55,6 @@ namespace NovaGameplayTags
 	// --- 게임플레이 큐 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Rifle_Fire);
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Rifle_Hit);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Rocketeer_Fire);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Rocketeer_Hit);
 }
