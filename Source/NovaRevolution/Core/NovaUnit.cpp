@@ -553,6 +553,49 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 	// 죽은 상태에서는 명령 수행 불가
 	if (bIsDead) return;
 	
+	// 공격 명령 하달시 타겟 유효성(지상/공중) 필터링
+	if (CommandData.CommandType == ECommandType::Attack && CommandData.TargetActor)
+	{
+		bool bCanAttackTarget = true;
+		
+		// 1. 공격 가능 대상 확인 (ASC 구현 여부)
+		if (CommandData.TargetActor->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()) == nullptr)
+		{
+			bCanAttackTarget = false;
+		}
+		else
+		{
+			ANovaUnit* TargetUnit = Cast<ANovaUnit>(CommandData.TargetActor);
+			if (TargetUnit)
+			{
+				ENovaMovementType TargetMoveType = TargetUnit->GetMovementType();
+				switch (TargetType)
+				{
+				case ENovaTargetType::GroundOnly:
+					bCanAttackTarget = (TargetMoveType == ENovaMovementType::Ground);
+					break;
+				case ENovaTargetType::AirOnly:
+					bCanAttackTarget = (TargetMoveType == ENovaMovementType::Air);
+					break;
+				case ENovaTargetType::All:
+					bCanAttackTarget = true;
+					break;
+				}
+			}
+			else
+			{
+				// 유닛이 아니지만 ASC를 가진 대상(기지 등)은 기본적으로 지상 타겟으로 간주
+				bCanAttackTarget = (TargetType != ENovaTargetType::AirOnly);
+			}
+		}
+
+		if (!bCanAttackTarget)
+		{
+			NOVA_LOG(Warning, "Unit %s cannot attack %s due to TargetType mismatch or invalid target.", *GetName(), *CommandData.TargetActor->GetName());
+			return; // 공격 불가능한 대상이면 명령 무시
+		}
+	}
+
 	// 1. 전용 AI 컨트롤러에게 명령 전달 (이동, 추적 등)
 	if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(GetController()))
 	{
