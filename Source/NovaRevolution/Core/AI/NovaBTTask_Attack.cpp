@@ -79,6 +79,28 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	// 1. 우선순위: 타겟 액터가 있는 경우 (추격 및 공격)
 	if (Target)
 	{
+		// 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
+		bool bTargetIsDead = false;
+		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
+		{
+			bTargetIsDead = TargetUnit->IsDead();
+		}
+		
+		if (bTargetIsDead || Target->IsPendingKillPending())
+		{
+			NOVA_LOG(Log, "Unit %s Is Dead. Stop attack.", *Target->GetName());
+			
+			BB->ClearValue(TargetActorKey.SelectedKeyName);
+			BB->ClearValue(TargetLocationKey.SelectedKeyName);
+			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
+
+			// 이동 중단 명령 명시적 호출
+			AIC->StopMovementOptimized();
+
+			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+			return;
+		}
+		
 		float Range = GetAttackRange(MyUnit);
 
 		// [수정] 캡슐 기반 사거리 판정 함수 활용
@@ -111,7 +133,6 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			}
 			
 			// 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
-			bool bTargetIsDead = false;
 			if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
 			{
 				bTargetIsDead = TargetUnit->IsDead();
