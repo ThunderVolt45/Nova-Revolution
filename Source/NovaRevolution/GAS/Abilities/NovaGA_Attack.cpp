@@ -100,7 +100,7 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 			}
 
 			// 3-2. 소켓 위치 정보 (발사 지점)
-			FVector MuzzleLocation = WeaponPart->GetActorLocation();
+			FVector MuzzleLocation = WeaponComp->GetComponentLocation();
 			const TArray<FName>& MuzzleSocketNames = WeaponPart->GetMuzzleSocketNames();
 			UPrimitiveComponent* MainMesh = WeaponPart->GetMainMesh();
 			
@@ -111,14 +111,6 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 					MuzzleLocation = MainMesh->GetSocketLocation(MuzzleSocketNames[0]);
 					// NOVA_LOG(Log, "GA_Attack: Using Socket '%s' at %s", *MuzzleSocketNames[0].ToString(), *MuzzleLocation.ToString());
 				}
-				else
-				{
-					// NOVA_LOG(Warning, "GA_Attack: Socket '%s' NOT FOUND on Mesh '%s'!", *MuzzleSocketNames[0].ToString(), *MainMesh->GetName());
-				}
-			}
-			else
-			{
-				// NOVA_LOG(Log, "GA_Attack: No Sockets defined, using Actor Location: %s", *MuzzleLocation.ToString());
 			}
 
 			// 4. 발사체 생성 (Projectile 방식)
@@ -128,20 +120,36 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 				SpawnParams.Owner = Unit;
 				SpawnParams.Instigator = Unit;
 				SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				SpawnParams.bNoFail = true; // 무조건 생성 보장
 
 				// 타겟을 향한 회전값 계산
 				FRotator SpawnRotation = (Target->GetActorLocation() - MuzzleLocation).Rotation();
 
-				// NOVA_LOG(Log, "GA_Attack: Attempting to spawn Projectile '%s'...", *ProjectileClass->GetName());
+				NOVA_LOG(Log, "GA_Attack: Attempting to spawn Projectile '%s' at %s", *ProjectileClass->GetName(), *MuzzleLocation.ToString());
 				
 				if (ANovaProjectile* Projectile = GetWorld()->SpawnActor<ANovaProjectile>(ProjectileClass, MuzzleLocation, SpawnRotation, SpawnParams))
 				{
+					// [수정] 루트 컴포넌트(SphereComponent 등)를 가져와 이동 무시 설정
+					if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(Projectile->GetRootComponent()))
+					{
+						// 발사자(유닛) 무시
+						RootPrim->IgnoreActorWhenMoving(Unit, true);
+						
+						// 유닛에 부착된 모든 부품(무기, 몸통 등) 무시
+						TArray<AActor*> AttachedActors;
+						Unit->GetAttachedActors(AttachedActors, true);
+						for (AActor* Attached : AttachedActors)
+						{
+							RootPrim->IgnoreActorWhenMoving(Attached, true);
+						}
+					}
+
 					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius);
-					// NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully!");
+					NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully!");
 				}
 				else
 				{
-					NOVA_LOG(Error, "GA_Attack: Projectile Spawn FAILED!");
+					NOVA_LOG(Error, "GA_Attack: Projectile Spawn FAILED! (Class: %s)", *ProjectileClass->GetName());
 				}
 			}
 			// 5. 히트스캔 처리 (Hitscan 방식 - ProjectileClass가 없을 때만)

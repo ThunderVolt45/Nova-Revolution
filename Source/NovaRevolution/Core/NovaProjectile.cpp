@@ -7,15 +7,25 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "NovaRevolution.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Core/NovaUnit.h"
 
 ANovaProjectile::ANovaProjectile()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
-	// 충돌체 설정: 장애물을 무시하기 위해 기본적으로 Overlap 모드 사용
+	// 충돌체 설정: 필요한 채널만 선택적으로 감지
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	SphereComponent->InitSphereRadius(15.0f);
-	SphereComponent->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	
+	// 1. 모든 충돌 응답을 무시로 초기화
+	SphereComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	SphereComponent->SetCollisionObjectType(ECC_WorldDynamic);
+	SphereComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
+	
+	// 2. 유닛(Pawn)과 고정 구조물/지형(WorldStatic)만 Overlap으로 설정
+	SphereComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	SphereComponent->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Overlap);
+	
 	SphereComponent->SetGenerateOverlapEvents(true);
 	RootComponent = SphereComponent;
 
@@ -47,14 +57,27 @@ void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSp
 
 void ANovaProjectile::OnProjectileHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// 발사자 자신은 무시
-	if (OtherActor == GetInstigator()) return;
+	// 1. 유효성 및 자기 자신 제외
+	if (!OtherActor || OtherActor == this) return;
 
-	// 타겟이 유효한 경우 폭발 처리
-	if (OtherActor)
+	// 2. 발사자(Instigator) 및 발사자에게 부착된 액터(부품 등) 무시
+	if (OtherActor == GetInstigator()) return;
+	if (GetInstigator() && OtherActor->IsAttachedTo(GetInstigator())) return;
+
+	// 3. 타겟 판정 (엄밀한 검사)
+	// - ASC를 가진 대상 (유닛, 기지 등 데미지를 입을 수 있는 모든 것)
+	// - 또는 월드 스태틱(지형/건물 등 고정 장애물)
+	bool bShouldHit = (OtherActor->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()) != nullptr);
+	
+	if (!bShouldHit && OtherComp)
 	{
-		Explode(OtherActor, GetActorLocation());
+		bShouldHit = (OtherComp->GetCollisionObjectType() == ECC_WorldStatic);
 	}
+
+	if (!bShouldHit) return;
+
+	// 4. 폭발 처리
+	Explode(OtherActor, GetActorLocation());
 }
 
 void ANovaProjectile::Explode(AActor* TargetActor, const FVector& ImpactLocation)
