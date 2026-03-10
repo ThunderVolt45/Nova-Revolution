@@ -431,6 +431,16 @@ void ANovaUnit::InitializeAttributesFromParts()
 			TotalRange += Spec.Range;
 			TotalMinRange += Spec.MinRange;
 			TotalSplashRange += Spec.SplashRange;
+
+			// --- 신규 타입 정보 추출 ---
+			if (Spec.PartType == ENovaPartType::Legs)
+			{
+				MovementType = Spec.MovementType;
+			}
+			else if (Spec.PartType == ENovaPartType::Weapon)
+			{
+				TargetType = Spec.TargetType;
+			}
 		}
 	}
 
@@ -458,9 +468,27 @@ void ANovaUnit::InitializeAttributesFromParts()
 	if (GetCharacterMovement())
 	{
 		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
+		GetCharacterMovement()->MaxFlySpeed = TotalSpeed;
+
+		// 공중 유닛 설정
+		if (MovementType == ENovaMovementType::Air)
+		{
+			GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+			GetCharacterMovement()->bCheatFlying = true; // 중력 영향 배제 보강
+			
+			// 공중 유닛은 평면 제약 해제 (고도 조절을 위함)
+			GetCharacterMovement()->bConstrainToPlane = false;
+		}
+		else
+		{
+			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+			GetCharacterMovement()->bConstrainToPlane = true;
+		}
 	}
 
-	NOVA_SCREEN(Log, "Unit Stats Initialized: HP(%.f), Speed(%.f), Watt(%.f)", TotalHealth, TotalSpeed, TotalWatt);
+	NOVA_SCREEN(Log, "Unit Stats Initialized: %s | HP(%.f), Speed(%.f), Type(%s)", 
+		*UnitName, TotalHealth, TotalSpeed, 
+		MovementType == ENovaMovementType::Air ? TEXT("Air") : TEXT("Ground"));
 }
 
 
