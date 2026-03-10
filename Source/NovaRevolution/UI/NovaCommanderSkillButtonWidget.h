@@ -29,14 +29,34 @@ public:
 	/** 버튼에 표시될 스킬 아이콘 이미지 (에디터에서 버튼마다 다르게 설정 가능) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
 	TObjectPtr<UTexture2D> SkillIcon;
+	
+protected:
+	/**
+	* 블루프린트 위젯(WBP)에 이름이 정확히 'SkillImage'인 Image 컴포넌트가 있어야 합니다.
+	*/
+	UPROPERTY(meta = (BindWidget))
+	class UImage* SkillButtonImage;
+	
+	/**
+	 * 블루프린트 위젯(WBP)에 이름이 정확히 'SkillButton'인 Button 컴포넌트가 있어야 합니다.
+	 */
+	UPROPERTY(meta = (BindWidget))
+	class UButton* CommanderSkillButton;
 
 protected:
 	/**
-	 * 버튼 클릭 시 호출될 로직입니다.
-	 * 블루프린트 위젯 내 Button 컴포넌트의 OnClicked 이벤트에서 이 함수를 호출하도록 연결합니다.
+	 * 버튼 클릭 시 호출될 로직입니다. Button 컴포넌트의 OnClicked 이벤트에서 이 함수를 호출하도록 연결합니다.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Ability")
 	void OnButtonClicked();
 	
+	/**
+	* NativePreConstruct는 블루프린트의 PreConstruct 이벤트와 동일하게 작동합니다. 에디터 디자인 시와 게임 실행 시 모두 호출됩니다.
+	*/
+	virtual void NativePreConstruct() override;
 	
+	/**
+	 * NativeConstruct는 블루프린트의 Construct 이벤트와 동일하게 작동합니다. 위젯이 생성될 때 딱 한 번 실행됩니다.
+	 */
+	virtual void NativeConstruct() override;
 };

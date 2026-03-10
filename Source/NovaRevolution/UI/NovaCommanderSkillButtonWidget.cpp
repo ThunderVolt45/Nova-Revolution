@@ -4,6 +4,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "UI/NovaCommanderSkillButtonWidget.h"
+
+#include "Components/Button.h"
+#include "Components/Image.h"
 #include "Core/NovaInterfaces.h"
 #include "GameFramework/PlayerState.h"
 
@@ -31,6 +34,31 @@ void UNovaCommanderSkillButtonWidget::OnButtonClicked()
 		 * IInterfaceName::Execute_FunctionName(대상, 인자...) 형식을 사용합니다.
 		 */
 		INovaCommanderInterface::Execute_ActivateCommanderAbility(PS, ActionAbilityTag);
+	}
+}
+
+void UNovaCommanderSkillButtonWidget::NativePreConstruct()
+{
+	Super::NativePreConstruct();
+	
+	if (SkillButtonImage && SkillIcon)
+	{
+		// 텍스처를 이미지 컴포넌트에 할당합니다.
+		// 이 코드는 에디터에서 아이콘을 바꿀 때마다 실시간으로 실행됩니다!
+		SkillButtonImage->SetBrushFromTexture(SkillIcon);
+	}
+}
+
+void UNovaCommanderSkillButtonWidget::NativeConstruct()
+{
+	Super::NativeConstruct();
+	
+	// 1. SkillButton 컴포넌트가 유효한지 확인합니다 (BindWidget이 잘 되었는지).
+	if (CommanderSkillButton)
+	{
+		// 2. 버튼의 OnClicked 델리게이트에 우리가 만든 함수를 '동적 바인딩'합니다.
+		// 이 코드가 '전선'을 연결하는 역할을 합니다!
+		CommanderSkillButton->OnClicked.AddDynamic(this, &UNovaCommanderSkillButtonWidget::OnButtonClicked);
 	}
 }
 
