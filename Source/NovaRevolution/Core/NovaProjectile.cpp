@@ -11,22 +11,13 @@
 
 ANovaProjectile::ANovaProjectile()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true; // 유도 및 거리 체크를 위해 Tick 활성화
 
-	// 충돌체 설정: 필요한 채널만 선택적으로 감지
+	// 충돌체 설정: 물리적 충돌 없이 위치 정보만 활용하므로 NoCollision 설정
 	SphereComponent = CreateDefaultSubobject<USphereComponent>(TEXT("SphereComponent"));
 	SphereComponent->InitSphereRadius(15.0f);
-	
-	// 1. 모든 충돌 응답을 무시로 초기화
-	SphereComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	SphereComponent->SetCollisionObjectType(ECC_WorldDynamic);
-	SphereComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
-	
-	// 2. 유닛(Pawn)과 고정 구조물/지형(WorldStatic)만 Overlap으로 설정
-	SphereComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	SphereComponent->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Overlap);
-	
-	SphereComponent->SetGenerateOverlapEvents(true);
+	SphereComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SphereComponent->SetGenerateOverlapEvents(false);
 	RootComponent = SphereComponent;
 
 	// 투사체 이동 컴포넌트
@@ -35,53 +26,82 @@ ANovaProjectile::ANovaProjectile()
 	ProjectileMovement->MaxSpeed = 2000.f;
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	ProjectileMovement->ProjectileGravityScale = 0.0f; // 기본적으로 직선 비행
+
+	// 유도(Homing) 설정 초기화
+	ProjectileMovement->bIsHomingProjectile = false;
+	ProjectileMovement->HomingAccelerationMagnitude = 100000.f; // 유도 성능 (회전력)
 }
 
 void ANovaProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	// 적중 이벤트 등록
-	SphereComponent->OnComponentBeginOverlap.AddDynamic(this, &ANovaProjectile::OnProjectileHit);
-
-	// 일정 시간 후 자동 소멸 (안전장치)
-	SetLifeSpan(5.0f);
+	// 목표에 도달할 때까지 사라지지 않도록 무한 수명 설정
+	SetLifeSpan(0.0f);
 }
 
-void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius)
+void ANovaProjectile::Tick(float DeltaTime)
 {
+	Super::Tick(DeltaTime);
+
+	// 1. 타겟 액터가 유효한 경우에만 실시간으로 위치를 갱신합니다.
+	if (IsValid(TargetActor))
+	{
+		TargetLocation = TargetActor->GetActorLocation();
+	}
+
+	// 2. 목표 지점에 도달했는지 확인 (RTS 특성상 빗나감 방지)
+	if (!TargetLocation.IsZero())
+	{
+		float DistanceToTarget = FVector::Dist(GetActorLocation(), TargetLocation);
+		
+		// 충돌 체크 없이 거리상으로 도달했다면 즉시 폭발
+		if (DistanceToTarget <= HitToTargetRange)
+		{
+			Explode(TargetActor, TargetLocation);
+		}
+	}
+	// 3. 만약 타겟 액터도 없고 목표 위치 정보도 없는 비정상적인 상황이라면 소멸 처리
+	else
+	{
+		if (GetLifeSpan() <= 0.0f)
+		{
+			SetLifeSpan(1.0f);
+		}
+	}
+}
+
+void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius, AActor* InTargetActor, FVector InTargetLocation)
+{
+	// ... (기존 InitializeProjectile 내용 동일하게 유지)
 	DamageSpecHandle = InSpecHandle;
 	ImpactCueTag = InImpactTag;
 	SplashRadius = InSplashRadius;
-}
+	TargetActor = InTargetActor;
+	TargetLocation = InTargetLocation;
 
-void ANovaProjectile::OnProjectileHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	// 1. 유효성 및 자기 자신 제외
-	if (!OtherActor || OtherActor == this) return;
-
-	// 2. 발사자(Instigator) 및 발사자에게 부착된 액터(부품 등) 무시
-	if (OtherActor == GetInstigator()) return;
-	if (GetInstigator() && OtherActor->IsAttachedTo(GetInstigator())) return;
-
-	// 3. 타겟 판정 (엄밀한 검사)
-	// - ASC를 가진 대상 (유닛, 기지 등 데미지를 입을 수 있는 모든 것)
-	// - 또는 월드 스태틱(지형/건물 등 고정 장애물)
-	bool bShouldHit = (OtherActor->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()) != nullptr);
-	
-	if (!bShouldHit && OtherComp)
+	// 유도 기능 설정
+	if (ProjectileMovement && IsValid(TargetActor))
 	{
-		bShouldHit = (OtherComp->GetCollisionObjectType() == ECC_WorldStatic);
+		ProjectileMovement->bIsHomingProjectile = true;
+		
+		// 타겟의 루트 컴포넌트를 유도 대상으로 설정
+		if (USceneComponent* TargetRoot = TargetActor->GetRootComponent())
+		{
+			ProjectileMovement->HomingTargetComponent = TargetRoot;
+		}
 	}
 
-	if (!bShouldHit) return;
-
-	// 4. 폭발 처리
-	Explode(OtherActor, GetActorLocation());
+	// 목표 지점이 설정되어 있지 않고 타겟 액터가 있다면 초기 위치 저장
+	if (TargetLocation.IsZero() && IsValid(TargetActor))
+	{
+		TargetLocation = TargetActor->GetActorLocation();
+	}
 }
 
-void ANovaProjectile::Explode(AActor* TargetActor, const FVector& ImpactLocation)
+void ANovaProjectile::Explode(AActor* InTargetActor, const FVector& ImpactLocation)
 {
+	// ... (기존 Explode 내용 동일)
 	// 1. GameplayCue 재생 (폭발 효과)
 	if (ImpactCueTag.IsValid())
 	{
@@ -111,30 +131,21 @@ void ANovaProjectile::Explode(AActor* TargetActor, const FVector& ImpactLocation
 				ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
 				ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldStatic));
 
-				// NOVA_LOG(Log, "Projectile: Checking Splash Damage (Radius: %.f) at %s", SplashRadius, *ImpactLocation.ToString());
-				
 				if (UKismetSystemLibrary::SphereOverlapActors(GetWorld(), ImpactLocation, SplashRadius, ObjectTypes, AActor::StaticClass(), {GetInstigator()}, OverlappedActors))
 				{
-					int32 DamageCount = 0;
 					for (AActor* Actor : OverlappedActors)
 					{
 						if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(Actor))
 						{
 							SourceASC->ApplyGameplayEffectSpecToTarget(*DamageSpecHandle.Data.Get(), TargetASC);
-							DamageCount++;
 						}
 					}
-					// NOVA_LOG(Log, "Projectile: Splash Damage applied to %d actors (Total Overlapped: %d)", DamageCount, OverlappedActors.Num());
-				}
-				else
-				{
-					// NOVA_LOG(Warning, "Projectile: No actors found in Splash Radius!");
 				}
 			}
-			else if (TargetActor)
+			else if (InTargetActor)
 			{
 				// 단일 타겟 데미지 처리
-				if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(TargetActor))
+				if (UAbilitySystemComponent* TargetASC = UAbilitySystemBlueprintLibrary::GetAbilitySystemComponent(InTargetActor))
 				{
 					SourceASC->ApplyGameplayEffectSpecToTarget(*DamageSpecHandle.Data.Get(), TargetASC);
 				}

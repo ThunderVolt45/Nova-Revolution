@@ -24,17 +24,14 @@ public:
 	ANovaProjectile();
 
 	/** 발사체 초기화 정보를 설정합니다. */
-	void InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius = 0.0f);
+	void InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius = 0.0f, AActor* InTargetActor = nullptr, FVector InTargetLocation = FVector::ZeroVector);
 
 protected:
 	virtual void BeginPlay() override;
-
-	/** 착탄 시 호출되는 함수 */
-	UFUNCTION()
-	virtual void OnProjectileHit(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	virtual void Tick(float DeltaTime) override;
 
 	/** 실제 폭발/데미지 처리 로직 */
-	void Explode(AActor* TargetActor, const FVector& ImpactLocation);
+	void Explode(AActor* InTargetActor, const FVector& ImpactLocation);
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Projectile")
@@ -50,6 +47,18 @@ protected:
 	/** 광역 데미지 범위 (0이면 단일 타겟) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Projectile")
 	float SplashRadius = 0.0f;
+	
+	// 목표와의 충돌 판정에 사용할 거리
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nova|Projectile")
+	float HitToTargetRange = 25.f;
+
+	/** 유도 대상 액터 */
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Projectile")
+	TObjectPtr<AActor> TargetActor;
+
+	/** 목표 지점 (액터가 없을 때 사용하거나 최초 위치 저장용) */
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Projectile")
+	FVector TargetLocation;
 
 	/** 어빌리티로부터 전달받은 데미지 스펙 */
 	FGameplayEffectSpecHandle DamageSpecHandle;

@@ -144,7 +144,7 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 						}
 					}
 
-					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius);
+					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius, Target, Target->GetActorLocation());
 					NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully!");
 				}
 				else
