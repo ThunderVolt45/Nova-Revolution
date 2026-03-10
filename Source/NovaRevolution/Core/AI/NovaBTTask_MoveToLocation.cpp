@@ -1,111 +1,83 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/AI/NovaBTTask_MoveToLocation.h"
-#include "AIController.h"
-#include "BehaviorTree/BlackboardComponent.h"
+
 #include "NavigationSystem.h"
-#include "NovaRevolution.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "Core/AI/NovaAIController.h"
 #include "Core/NovaUnit.h"
 #include "Core/NovaTypes.h"
-#include "Navigation/PathFollowingComponent.h"
 
 UNovaBTTask_MoveToLocation::UNovaBTTask_MoveToLocation()
 {
 	NodeName = TEXT("Nova Move To Location");
-	bNotifyTick = true; // 이동 상태 감시를 위해 틱 활성화
+	bNotifyTick = true;
 
-	// 블랙보드 키 필터링 (Vector 타입만 선택 가능하게 함)
+	// 블랙보드 키 필터링
 	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_MoveToLocation, TargetLocationKey));
 	CommandTypeKey.AddEnumFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_MoveToLocation, CommandTypeKey), StaticEnum<ECommandType>());
 }
 
 EBTNodeResult::Type UNovaBTTask_MoveToLocation::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	if (!AIC) return EBTNodeResult::Failed;
 
 	APawn* Pawn = AIC->GetPawn();
 	if (!Pawn) return EBTNodeResult::Failed;
 
+	ANovaUnit* MyUnit = Cast<ANovaUnit>(Pawn);
+	ENovaMovementType MoveType = MyUnit ? MyUnit->GetMovementType() : ENovaMovementType::Ground;
+
 	// 목표 지점 읽기
-	FVector RawTargetLocation = OwnerComp.GetBlackboardComponent()->GetValueAsVector(TargetLocationKey.SelectedKeyName);
-	FVector FinalGoal = RawTargetLocation;
+	FVector GoalLocation = OwnerComp.GetBlackboardComponent()->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 
-	// 1. 네비메쉬 위로 투영 (기존 ANovaUnit::MoveToLocation의 로직 흡수)
-	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-	if (NavSys)
+	// [수정] 지상 유닛인 경우 도달 불가능한 위치 보정
+	if (MoveType == ENovaMovementType::Ground)
 	{
-		FNavLocation ProjectedLocation;
-		if (NavSys->ProjectPointToNavigation(RawTargetLocation, ProjectedLocation, FVector(1000.f, 1000.f, 1000.f)))
+		UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+		if (NavSys)
 		{
-			FinalGoal = ProjectedLocation.Location;
+			FNavLocation ProjectedLocation;
+			// 수평 1000, 수직 2000 범위 내에서 가장 가까운 유효한 NavMesh 지점을 탐색합니다.
+			if (NavSys->ProjectPointToNavigation(GoalLocation, ProjectedLocation, FVector(1000.f, 1000.f, 2000.f)))
+			{
+				GoalLocation = ProjectedLocation.Location;
+			}
+			else
+			{
+				// 투영에 실패했다는 것은 근처에 NavMesh가 아예 없다는 의미일 수 있음
+				// 이때는 태스크를 실패시키기보다 최소한 현재 위치에서 그 방향으로 조금이라도 시도하도록 GoalLocation 유지
+				// (엔진의 AllowPartialPath가 나머지를 처리)
+			}
 		}
 	}
 
-	// 2. 이동 요청 설정
-	FAIMoveRequest MoveRequest;
-	MoveRequest.SetGoalLocation(FinalGoal);
-	MoveRequest.SetAcceptanceRadius(AcceptanceRadius);
-	MoveRequest.SetAllowPartialPath(true);
-	MoveRequest.SetProjectGoalLocation(true);
-	MoveRequest.SetRequireNavigableEndLocation(false);
+	// 컨트롤러 통합 이동 함수 호출 (지상/공중 자동 분기)
+	AIC->MoveToLocationOptimized(GoalLocation, AcceptanceRadius);
 
-	FPathFollowingRequestResult Result = AIC->MoveTo(MoveRequest);
-
-	// 결과 처리
-	switch (Result.Code)
-	{
-	case EPathFollowingRequestResult::Failed:
-		NOVA_LOG(Warning, "MoveToTask Failed! Unit: %s", *Pawn->GetName());
-		return EBTNodeResult::Failed;
-
-	case EPathFollowingRequestResult::AlreadyAtGoal:
-		// 이미 도착한 경우 즉시 상태 초기화
-		if (UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent())
-		{
-			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
-			BB->ClearValue(TargetLocationKey.SelectedKeyName);
-		}
-		return EBTNodeResult::Succeeded;
-
-	case EPathFollowingRequestResult::RequestSuccessful:
-		return EBTNodeResult::InProgress; // 틱에서 완료 여부 체크
-	}
-
-	return EBTNodeResult::Failed;
+	return EBTNodeResult::InProgress;
 }
 
 void UNovaBTTask_MoveToLocation::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
 {
 	Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
 
-	AAIController* AIC = OwnerComp.GetAIOwner();
-	if (!AIC || !AIC->GetPathFollowingComponent())
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
+	if (!AIC)
 	{
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		return;
 	}
 
-	// 이동이 완료되었는지 확인
-	EPathFollowingStatus::Type MoveStatus = AIC->GetPathFollowingComponent()->GetStatus();
-	
-	if (MoveStatus == EPathFollowingStatus::Idle)
+	// 이동이 완료되었는지 확인 (수동 이동 포함)
+	if (!AIC->IsMoveInProgress())
 	{
-		// 경로 추종이 멈춘 경우 (도착 또는 중단)
-		if (AIC->GetPathFollowingComponent()->DidMoveReachGoal())
+		if (UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent())
 		{
-			// 이동 완료 후 상태 초기화
-			if (UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent())
-			{
-				BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
-				BB->ClearValue(TargetLocationKey.SelectedKeyName);
-				NOVA_LOG(Log, "Unit %s reached destination, transitioning to Idle.", *AIC->GetPawn()->GetName());
-			}
-			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
+			BB->ClearValue(TargetLocationKey.SelectedKeyName);
 		}
-		else
-		{
-			FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
-		}
+		FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 	}
 }

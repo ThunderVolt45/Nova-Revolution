@@ -23,8 +23,22 @@ class NOVAREVOLUTION_API ANovaAIController : public AAIController, public INovaC
 public:
 	ANovaAIController();
 
+	virtual void Tick(float DeltaTime) override;
+
 	// --- INovaCommandInterface 구현 ---
 	virtual void IssueCommand(const FCommandData& CommandData) override;
+
+	/** 유닛 타입에 맞춰 최적화된 이동 명령 (위치 기반) */
+	void MoveToLocationOptimized(const FVector& Dest, float AcceptanceRadius = 50.f);
+
+	/** 유닛 타입에 맞춰 최적화된 이동 명령 (액터 추적 기반) */
+	void MoveToActorOptimized(AActor* TargetActor, float AcceptanceRadius = 50.f);
+
+	/** 현재 이동 명령이 진행 중인지 여부를 반환합니다. (수동 이동 포함) */
+	bool IsMoveInProgress() const;
+
+	/** 모든 방식의 이동을 즉시 중단합니다. */
+	void StopMovementOptimized();
 
 	/** 태그를 통해 빙의된 유닛의 어빌리티를 발동합니다. (중복 로직 통합) */
 	UFUNCTION(BlueprintCallable, Category = "Nova|AI")
@@ -52,6 +66,15 @@ protected:
 	float MinMoveDistance = 10.f;
 
 private:
+	/** 공중 유닛 수동 이동 제어를 위한 변수 */
+	bool bIsManualMoving = false;
+	FVector ManualMoveGoal = FVector::ZeroVector;
+	TWeakObjectPtr<AActor> ManualMoveTargetActor;
+	float ManualAcceptanceRadius = 50.f;
+
+	/** 공중 유닛 수동 이동 처리 로직 (Tick에서 호출) */
+	void UpdateManualMovement(float DeltaTime);
+
 	/** 블랙보드 키 이름 정의 */
 	static const FName TargetLocationKey;
 	static const FName TargetActorKey;

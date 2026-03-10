@@ -1,3 +1,5 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
 #include "Core/AI/NovaBTTask_Patrol.h"
 #include "Core/AI/NovaAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -29,7 +31,7 @@ EBTNodeResult::Type UNovaBTTask_Patrol::ExecuteTask(UBehaviorTreeComponent& Owne
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !BB || !AIC->GetPawn()) return EBTNodeResult::Failed;
 
-	// 타겟 키 바인딩 확인 (에디터 설정 누락 방지)
+	// 타겟 키 바인딩 확인
 	if (TargetActorKey.IsNone())
 	{
 		NOVA_SCREEN(Warning, "Patrol Task: TargetActorKey is NOT set in Behavior Tree Editor!");
@@ -42,7 +44,7 @@ EBTNodeResult::Type UNovaBTTask_Patrol::ExecuteTask(UBehaviorTreeComponent& Owne
 	CombatOrigin = FVector::ZeroVector;
 	
 	FVector Goal = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
-	AIC->MoveToLocation(Goal, AcceptanceRadius);
+	AIC->MoveToLocationOptimized(Goal, AcceptanceRadius);
 
 	return EBTNodeResult::InProgress;
 }
@@ -65,7 +67,7 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	AActor* Target = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 	if (Target && !Target->IsPendingKillPending())
 	{
-		// 타겟이 유닛인 경우 사망 여부 확인
+		// 타겟 사망 여부 확인
 		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
 		{
 			if (TargetUnit->IsDead())
@@ -80,7 +82,6 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		if (CombatOrigin.IsZero())
 		{
 			CombatOrigin = MyUnit->GetActorLocation();
-			NOVA_LOG(Log, "Patrol: Enemy spotted! CombatOrigin set to %s", *CombatOrigin.ToString());
 		}
 
 		float DistFromCombatOriginSq = FVector::DistSquared(MyUnit->GetActorLocation(), CombatOrigin);
@@ -93,14 +94,12 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 			if (DistToTargetSq <= FMath::Square(Range))
 			{
-				if (AIC->GetMoveStatus() != EPathFollowingStatus::Idle)
+				if (AIC->IsMoveInProgress())
 				{
-					AIC->StopMovement();
+					AIC->StopMovementOptimized();
 				}
 				
 				float CurrentTime = GetWorld()->GetTimeSeconds();
-
-				// FireRate 연동 (수치가 작을수록 빠름, 100 = 1.0s, 50 = 0.5s)
 				float CurrentAttackInterval = AttackInterval;
 				if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
 				{
@@ -119,11 +118,8 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			}
 			else
 			{
-				// [수정] 허용 반경을 작게 설정하여 유닛이 타겟을 향해 끝까지 이동하게 함 (Tick에서 사거리 체크로 멈춤 제어)
-				AIC->MoveToActor(Target, 10.0f);
+				AIC->MoveToActorOptimized(Target, 10.0f);
 			}
-			
-			// 교전 중이므로 여기서 리턴하여 아래의 순찰 로직 실행 방지
 			return; 
 		}
 		else
@@ -131,11 +127,9 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			// 추격 한계선 벗어남
 			BB->ClearValue(TargetActorKey.SelectedKeyName);
 			CombatOrigin = FVector::ZeroVector;
-			NOVA_SCREEN(Log, "Patrol: Target/Unit out of leash range (%f). Resuming patrol.", ChaseDistanceLimit);
 			
-			// 순찰 지점으로 다시 이동 명령 명시적 수행
 			FVector Goal = bMovingToOrigin ? BB->GetValueAsVector(PatrolOriginKey.SelectedKeyName) : BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
-			AIC->MoveToLocation(Goal, AcceptanceRadius);
+			AIC->MoveToLocationOptimized(Goal, AcceptanceRadius);
 		}
 	}
 	else
@@ -143,22 +137,13 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		CombatOrigin = FVector::ZeroVector;
 	}
 
-	// 2. 순찰 이동 로직 (Target이 없을 때만 실행됨)
-	if (AIC->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Idle)
+	// 2. 순찰 이동 로직 (Target이 없을 때만 실행)
+	if (!AIC->IsMoveInProgress())
 	{
-		if (AIC->GetPathFollowingComponent()->DidMoveReachGoal())
-		{
-			bMovingToOrigin = !bMovingToOrigin;
-			FVector NextGoal = bMovingToOrigin ? BB->GetValueAsVector(PatrolOriginKey.SelectedKeyName) : BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
-			AIC->MoveToLocation(NextGoal, AcceptanceRadius);
-			NOVA_LOG(Log, "Patrol: Reached goal, switching to %s", bMovingToOrigin ? TEXT("Origin") : TEXT("Target"));
-		}
-		else
-		{
-			// 이동이 멈췄는데 목표에 도달하지 않은 경우 (교전 직후 또는 경로 막힘) 재시작
-			FVector NextGoal = bMovingToOrigin ? BB->GetValueAsVector(PatrolOriginKey.SelectedKeyName) : BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
-			AIC->MoveToLocation(NextGoal, AcceptanceRadius);
-		}
+		// 도착 시 지점 교체
+		bMovingToOrigin = !bMovingToOrigin;
+		FVector NextGoal = bMovingToOrigin ? BB->GetValueAsVector(PatrolOriginKey.SelectedKeyName) : BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
+		AIC->MoveToLocationOptimized(NextGoal, AcceptanceRadius);
 	}
 }
 

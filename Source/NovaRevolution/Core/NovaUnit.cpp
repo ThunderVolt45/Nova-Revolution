@@ -81,15 +81,50 @@ void ANovaUnit::Tick(float DeltaTime)
 
 	if (bIsDead) return;
 
+	// 1. 공중 유닛 고도 조절
+	if (MovementType == ENovaMovementType::Air)
+	{
+		FVector CurrentLocation = GetActorLocation();
+		float TargetZ = DefaultAirZ;
+
+		// 아래 방향으로 레이캐스트하여 지형 높이 확인
+		FHitResult HitResult;
+		FVector Start = CurrentLocation + FVector(0.f, 0.f, 100.f);
+		FVector End = CurrentLocation - FVector(0.f, 0.f, 2000.f);
+		FCollisionQueryParams TraceParams;
+		TraceParams.AddIgnoredActor(this);
+
+		// 유닛(Pawn) 등을 지면으로 인식하지 않도록 WorldStatic 채널만 체크합니다.
+		if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_WorldStatic, TraceParams))
+		{
+			float FloorZ = HitResult.ImpactPoint.Z;
+			float SafetyZ = FloorZ + MinSafetyHeight;
+
+			// 지면이 높아서 안전 고도를 확보해야 하는 경우 목표 Z 상향 조정
+			if (SafetyZ > DefaultAirZ)
+			{
+				TargetZ = SafetyZ;
+			}
+		}
+
+		// 현재 Z값을 목표 Z값으로 부드럽게 보간
+		if (!FMath::IsNearlyEqual(CurrentLocation.Z, TargetZ, 1.0f))
+		{
+			float NewZ = FMath::FInterpTo(CurrentLocation.Z, TargetZ, DeltaTime, HeightInterpSpeed);
+			SetActorLocation(FVector(CurrentLocation.X, CurrentLocation.Y, NewZ));
+		}
+	}
+
+	// 2. 다리(Legs) 부품 애니메이션 데이터 전달
 	if (LegsPartComponent)
 	{
 		if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
 		{
-			// 1. 이동 속도 전달
+			// 이동 속도 전달
 			float CurrentSpeed = GetVelocity().Size();
 			LegsActor->SetMovementSpeed(CurrentSpeed);
 
-			// 2. 회전 속도 계산 및 전달
+			// 회전 속도 계산 및 전달
 			float CurrentYaw = GetActorRotation().Yaw;
 			float YawDelta = FMath::FindDeltaAngleDegrees(LastYaw, CurrentYaw);
 			float RotationRate = YawDelta / DeltaTime; // 초당 회전 각도
@@ -101,9 +136,9 @@ void ANovaUnit::Tick(float DeltaTime)
 			// NOVA_SCREEN(Log,"Unit: %s | Current Speed: %.2f", *GetName(), CurrentSpeed);
 		}
 	}
-	// 몸통(Body) 회전 로직을 매 프레임 실행합니다.
+
+	// 3. 몸통(Body) 및 무기 회전 로직 실행
 	UpdateBodyRotation(DeltaTime);
-	// Weapon의 조준을 위한 함수
 	UpdateWeaponAiming(DeltaTime);
 
 	// 선택된 상태일 때만 실시간으로 바닥 위치 추적 (선택됨, 죽지않음, widget존재)
@@ -465,6 +500,16 @@ void ANovaUnit::InitializeAttributesFromParts()
 			TotalRange += Spec.Range;
 			TotalMinRange += Spec.MinRange;
 			TotalSplashRange += Spec.SplashRange;
+
+			// --- 신규 타입 정보 추출 ---
+			if (Spec.PartType == ENovaPartType::Legs)
+			{
+				MovementType = Spec.MovementType;
+			}
+			else if (Spec.PartType == ENovaPartType::Weapon)
+			{
+				TargetType = Spec.TargetType;
+			}
 		}
 	}
 
@@ -492,9 +537,36 @@ void ANovaUnit::InitializeAttributesFromParts()
 	if (GetCharacterMovement())
 	{
 		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
+		GetCharacterMovement()->MaxFlySpeed = TotalSpeed;
+
+		// 공중 유닛 설정
+		if (MovementType == ENovaMovementType::Air)
+		{
+			GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+			GetCharacterMovement()->bCheatFlying = true; // 중력 영향 배제 보강
+			
+			// 공중 유닛은 평면 제약 해제 (고도 조절을 위함)
+			GetCharacterMovement()->bConstrainToPlane = false;
+
+			if (AAIController* AIC = Cast<AAIController>(GetController()))
+			{
+				if (UPathFollowingComponent* PPathFollowing = AIC->GetPathFollowingComponent())
+				{
+					// 공중 유닛은 장애물 회피를 위해 NavMesh를 타지 않도록 설정
+					// (프로젝트 상황에 따라 하단의 코드가 필요할 수 있음)
+				}
+			}
+		}
+		else
+		{
+			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+			GetCharacterMovement()->bConstrainToPlane = true;
+		}
 	}
 
-	NOVA_SCREEN(Log, "Unit Stats Initialized: HP(%.f), Speed(%.f), Watt(%.f)", TotalHealth, TotalSpeed, TotalWatt);
+	NOVA_SCREEN(Log, "Unit Stats Initialized: %s | HP(%.f), Speed(%.f), Type(%s)", 
+		*UnitName, TotalHealth, TotalSpeed, 
+		MovementType == ENovaMovementType::Air ? TEXT("Air") : TEXT("Ground"));
 }
 
 
@@ -553,6 +625,49 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 {
 	// 죽은 상태에서는 명령 수행 불가
 	if (bIsDead) return;
+	
+	// 공격 명령 하달시 타겟 유효성(지상/공중) 필터링
+	if (CommandData.CommandType == ECommandType::Attack && CommandData.TargetActor)
+	{
+		bool bCanAttackTarget = true;
+		
+		// 1. 공격 가능 대상 확인 (ASC 구현 여부)
+		if (CommandData.TargetActor->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()) == nullptr)
+		{
+			bCanAttackTarget = false;
+		}
+		else
+		{
+			ANovaUnit* TargetUnit = Cast<ANovaUnit>(CommandData.TargetActor);
+			if (TargetUnit)
+			{
+				ENovaMovementType TargetMoveType = TargetUnit->GetMovementType();
+				switch (TargetType)
+				{
+				case ENovaTargetType::GroundOnly:
+					bCanAttackTarget = (TargetMoveType == ENovaMovementType::Ground);
+					break;
+				case ENovaTargetType::AirOnly:
+					bCanAttackTarget = (TargetMoveType == ENovaMovementType::Air);
+					break;
+				case ENovaTargetType::All:
+					bCanAttackTarget = true;
+					break;
+				}
+			}
+			else
+			{
+				// 유닛이 아니지만 ASC를 가진 대상(기지 등)은 기본적으로 지상 타겟으로 간주
+				bCanAttackTarget = (TargetType != ENovaTargetType::AirOnly);
+			}
+		}
+
+		if (!bCanAttackTarget)
+		{
+			NOVA_LOG(Warning, "Unit %s cannot attack %s due to TargetType mismatch or invalid target.", *GetName(), *CommandData.TargetActor->GetName());
+			return; // 공격 불가능한 대상이면 명령 무시
+		}
+	}
 
 	// 1. 전용 AI 컨트롤러에게 명령 전달 (이동, 추적 등)
 	if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(GetController()))

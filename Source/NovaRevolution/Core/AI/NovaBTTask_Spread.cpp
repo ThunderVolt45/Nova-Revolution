@@ -1,10 +1,9 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "Core/AI/NovaBTTask_Spread.h"
-#include "AIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "NavigationSystem.h"
-#include "Navigation/PathFollowingComponent.h"
+#include "Core/AI/NovaAIController.h"
 #include "Core/NovaUnit.h"
 #include "Core/NovaTypes.h"
 #include "AbilitySystemComponent.h"
@@ -23,7 +22,7 @@ UNovaBTTask_Spread::UNovaBTTask_Spread()
 
 EBTNodeResult::Type UNovaBTTask_Spread::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
 	if (!AIC || !AIC->GetPawn() || !BB) return EBTNodeResult::Failed;
 
@@ -33,6 +32,12 @@ EBTNodeResult::Type UNovaBTTask_Spread::ExecuteTask(UBehaviorTreeComponent& Owne
 	// 1. 산개 중심점(명령 지점) 읽기
 	FVector SpreadOrigin = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 	FVector CurrentPos = MyUnit->GetActorLocation();
+
+	// 1-1. 공중 유닛인 경우 중심점의 Z값을 현재 고도로 맞추어 수평 산개 유도
+	if (MyUnit->GetMovementType() == ENovaMovementType::Air)
+	{
+		SpreadOrigin.Z = CurrentPos.Z;
+	}
 
 	// 2. 산개 거리 결정 (Max(MinRange, DefaultMinSpreadDistance))
 	float MinRange = 0.0f;
@@ -48,7 +53,6 @@ EBTNodeResult::Type UNovaBTTask_Spread::ExecuteTask(UBehaviorTreeComponent& Owne
 
 	if (SpreadDir.IsNearlyZero())
 	{
-		// 유닛이 중심점에 정확히 있다면 무작위 방향 선택
 		SpreadDir = FMath::VRand();
 		SpreadDir.Z = 0.0f;
 	}
@@ -57,21 +61,23 @@ EBTNodeResult::Type UNovaBTTask_Spread::ExecuteTask(UBehaviorTreeComponent& Owne
 	// 4. 최종 이동 지점 계산
 	FVector MoveTarget = SpreadOrigin + (SpreadDir * FinalSpreadDistance);
 
-	// 5. 네비메쉬 투영
-	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-	if (NavSys)
+	// 5. 지상 유닛인 경우 도달 불가능한 위치 보정 (네비메쉬 투영)
+	if (MyUnit->GetMovementType() == ENovaMovementType::Ground)
 	{
-		FNavLocation ProjectedLocation;
-		if (NavSys->ProjectPointToNavigation(MoveTarget, ProjectedLocation, FVector(500.f, 500.f, 500.f)))
+		UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+		if (NavSys)
 		{
-			MoveTarget = ProjectedLocation.Location;
+			FNavLocation ProjectedLocation;
+			if (NavSys->ProjectPointToNavigation(MoveTarget, ProjectedLocation, FVector(500.f, 500.f, 1000.f)))
+			{
+				MoveTarget = ProjectedLocation.Location;
+			}
 		}
 	}
 
-	AIC->MoveToLocation(MoveTarget, AcceptanceRadius);
+	// 통합 이동 함수 호출
+	AIC->MoveToLocationOptimized(MoveTarget, AcceptanceRadius);
 	
-	NOVA_LOG(Log, "Unit %s SPREADING from command point. Distance: %.1f", *MyUnit->GetName(), FinalSpreadDistance);
-
 	return EBTNodeResult::InProgress;
 }
 
@@ -79,21 +85,21 @@ void UNovaBTTask_Spread::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 {
 	Super::TickTask(OwnerComp, NodeMemory, DeltaSeconds);
 
-	AAIController* AIC = OwnerComp.GetAIOwner();
+	ANovaAIController* AIC = Cast<ANovaAIController>(OwnerComp.GetAIOwner());
 	UBlackboardComponent* BB = OwnerComp.GetBlackboardComponent();
-	if (!AIC || !AIC->GetPathFollowingComponent() || !BB)
+	if (!AIC || !BB)
 	{
 		FinishLatentTask(OwnerComp, EBTNodeResult::Failed);
 		return;
 	}
 
-	if (AIC->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Idle)
+	// 이동 완료 확인 (수동 이동 포함)
+	if (!AIC->IsMoveInProgress())
 	{
 		// 산개 이동 완료 후 상태를 Idle(None)으로 전환
 		BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
-		BB->ClearValue(TargetLocationKey.SelectedKeyName); // 위치 정보도 정리
+		BB->ClearValue(TargetLocationKey.SelectedKeyName);
 
-		NOVA_LOG(Log, "Unit %s finished SPREAD. Returning to IDLE.", *AIC->GetPawn()->GetName());
 		FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 	}
 }
