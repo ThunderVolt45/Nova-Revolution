@@ -174,3 +174,13 @@ float ANovaPlayerState::GetSPLevel() const
 {
 	return ResourceAttributeSet ? ResourceAttributeSet->GetSPLevel() : 1.0f;
 }
+
+void ANovaPlayerState::ActivateCommanderAbility_Implementation(FGameplayTag AbilityTag)
+{
+	if (AbilitySystemComponent)
+	{
+		// 입력받은 태그를 가진 어빌리티(사령관 스킬)를 찾아 실행을 시도합니다.
+		// 이 한 줄로 앞으로 추가될 모든 사령관 스킬이 공통으로 처리됩니다.
+		AbilitySystemComponent->TryActivateAbilitiesByTag(FGameplayTagContainer(AbilityTag));
+	}
+}
