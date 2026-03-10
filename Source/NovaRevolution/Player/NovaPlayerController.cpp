@@ -547,6 +547,12 @@ void ANovaPlayerController::PerformBoxSelection()
 	{
 		if (Actor)
 		{
+			// 유닛이 현재 선택 가능한 상태(안개 밖 등)인지 먼저 확인
+			if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Actor))
+			{
+				if (!Selectable->IsSelectable()) continue;
+			}
+			
 			// 유닛의 3D 위치를 화면의 2D 좌표로 투영
 			FVector2D ScreenPos;
 			if (ProjectWorldLocationToScreen(Actor->GetActorLocation(), ScreenPos))
@@ -700,5 +706,30 @@ void ANovaPlayerController::OnUnitProduced(AActor* Unit, int32 SlotIndex)
 		// 부대 지정 배열에 유닛 추가
 		ControlGroups[SlotIndex].Targets.AddUnique(Unit);
 		NOVA_SCREEN(Log, "Unit Auto-Assigned to Group %d", SlotIndex + 1);
+	}
+}
+
+void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
+{
+	if (!SelectedTargets) return;
+	
+	// 현재 선택된 유닛 리스트에서 해당 유닛을 찾아 제거
+	if (SelectedUnits.Contains(SelectedTargets))
+	{
+		if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(SelectedTargets))
+		{
+			// 선택 해제 실행
+			Selectable->OnDeselected();
+		}
+		SelectedUnits.Remove(SelectedTargets);
+	}
+	
+	// 부대 지정(ControlGroups) 리스트에서도 제거
+	for (int32 i = 0; i < ControlGroups.Num(); ++i)
+	{
+		if (ControlGroups[i].Targets.Contains(SelectedTargets))
+		{
+			ControlGroups[i].Targets.Remove(SelectedTargets);
+		}
 	}
 }

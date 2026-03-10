@@ -15,6 +15,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GAS/NovaAttributeSet.h"
 #include "GAS/Abilities/NovaGameplayAbility.h"
+#include "Player/NovaPlayerController.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -529,8 +530,23 @@ void ANovaUnit::OnDeselected()
 
 bool ANovaUnit::IsSelectable() const
 {
-	// 플레이어 팀만 선택 가능하게 하려면 여기서 필터링 가능 (기본값 true)
-	return true;
+	// 죽었거나 안개 속에 있으면 선택 불가
+	if (bIsDead || !bIsVisibleByFog) return false;
+	
+	// 로컬 플레이어 팀 확인
+	int32 LocalPlayerTeamID = -1;
+	if (auto* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
+		{
+			LocalPlayerTeamID = PS->GetTeamID();
+		}
+	}
+	
+	// 아군이면 항상 선택 가능, 적군이면 시야 내에 있을 때만 선택 가능
+	if (TeamID == LocalPlayerTeamID) return true;
+	
+	return bIsVisibleByFog;
 }
 
 void ANovaUnit::IssueCommand(const FCommandData& CommandData)
@@ -570,6 +586,14 @@ void ANovaUnit::Die()
 	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
 
+	// NovaPlayerController에 선택 해제 요청
+	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (ANovaPlayerController* NovaPC = Cast<ANovaPlayerController>(PC))
+		{
+			NovaPC->NotifyTargetUnselectable(this);
+		}
+	}
 	// 자원 반납 (인구수 -1, 자신의 와트 비용만큼 차감)
 	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
 	{
@@ -725,5 +749,36 @@ void ANovaUnit::UpdateSelectionColor()
 	if (WidgetObj)
 	{
 		WidgetObj->SetColorAndOpacity(TargetColor);
+	}
+}
+
+void ANovaUnit::SetFogVisibility(bool bVisible)
+{
+	if (bIsVisibleByFog == bVisible) return;
+	bIsVisibleByFog = bVisible;
+	
+	// 시각적 처리
+	SetActorHiddenInGame(!bVisible);
+	
+	// 마우스 클릭(Visibility)만 선택적으로 무시
+	if (GetCapsuleComponent())
+	{
+		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, bVisible ? ECR_Block : ECR_Ignore);
+	}
+	
+	// 선택된 상태에서 안개 속으로 사라졌을 때
+	if (!bVisible && bIsSelected)
+	{
+		// 로컬 플레이어 컨트롤러를 찾아 알림을 보냄
+		if (auto* NovaPC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+		{
+			NovaPC->NotifyTargetUnselectable(this);
+		}
+	}
+	
+	// 선택 표시 위젯이 켜져 있었다면 강제로 끄기
+	if (!bVisible && SelectionWidget)
+	{
+		SelectionWidget->SetVisibility(false);
 	}
 }

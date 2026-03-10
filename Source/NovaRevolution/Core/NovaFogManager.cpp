@@ -55,7 +55,8 @@ void ANovaFogManager::UpdateFog()
 
 	// 현재 시야 RT 초기화 (검은색)
 	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
-	
+
+	// 로컬 플레이어 정보 가져오기
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (!PC) return;
 	ANovaPlayerState* PS = PC ? PC->GetPlayerState<ANovaPlayerState>() : nullptr;
@@ -73,14 +74,16 @@ void ANovaFogManager::UpdateFog()
 	TArray<AActor*> FoundActors;
 	UGameplayStatics::GetAllActorsWithInterface(GetWorld(), UNovaTeamInterface::StaticClass(), FoundActors);
 
-	if (FoundActors.Num() == 0)
+	// 시야 계산을 위한 임시 저장소
+	struct FSightSource
 	{
-		// 이 로그가 계속 찍힌다면 유닛들이 INovaTeamInterface를 상속받지 않았거나 월드에 없는 것임
-		// UE_LOG(LogTemp, Warning, TEXT("FogManager: No Actors with Team Interface found!"));
-		return;
-	}
+		FVector Location;
+		float RadiusSq; // 계산 최적화를 위해 반지름의 제곱 저장
+	};
+	TArray<FSightSource> FriendlySights;
+	TArray<ANovaUnit*> EnemyUnits;
 
-	// Canvas에 드로잉 시작
+	// --- 드로잉 준비 ---
 	FCanvas Canvas(CurrentFogRT->GameThread_GetRenderTargetResource(),
 	               nullptr,
 	               FGameTime::GetTimeSinceAppStart(),
@@ -89,11 +92,12 @@ void ANovaFogManager::UpdateFog()
 
 	float WorldWidth = FogVolume->Bounds.GetBox().Max.X - FogVolume->Bounds.GetBox().Min.X;
 
+	// --- 1차 순회 : 아군 시야 그리기 및 정보 수집 ---
 	for (AActor* Actor : FoundActors)
 	{
 		// PlayerState에 의해 생긴 유령시야 해결 (INovaTeamInterface를 상속받았기 때문에 생긴 문제)
 		if (Actor->IsA<APlayerState>()) continue;
-		
+
 		INovaTeamInterface* TeamActor = Cast<INovaTeamInterface>(Actor);
 		if (TeamActor && TeamActor->GetTeamID() == PlayerTeamID)
 		{
@@ -105,7 +109,12 @@ void ANovaFogManager::UpdateFog()
 					SightRadius = Unit->GetAbilitySystemComponent()->GetNumericAttribute(
 						UNovaAttributeSet::GetSightAttribute());
 				}
+				// 아군 유닛은 항상 보이도록 설정
+				Unit->SetFogVisibility(true);
 			}
+
+			// 시야 정보 저장 (나중에 적군 가시성 체크용)
+			FriendlySights.Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
 
 			// UV 좌표 계산
 			FVector2D UV = WorldToFogUV(Actor->GetActorLocation());
@@ -113,23 +122,46 @@ void ANovaFogManager::UpdateFog()
 			// 캔버스에서 크기 계산 (Box 전체 너비 대비 시야 지름의 비율)
 			float CanvasSize = (SightRadius * 2.0f / WorldWidth) * TextureResolution;
 
-			// 로그 : 유닛 위치와 계산된 UV 확인
-			// UE_LOG(LogTemp, Display, TEXT("FogManager: Drawing %s | Team: %d | UV: %s | Sight: %.1f"),
-			//        *Actor->GetName(), TeamActor->GetTeamID(), *UV.ToString(), SightRadius);
-
-			// 그리기 (중앙 정렬을 위해 CanvasSize * 0.5f 차감)
+			// 시야 원 그리기 (중앙 정렬을 위해 CanvasSize * 0.5f 차감)
 			FCanvasTileItem TileItem(UV * TextureResolution - (CanvasSize * 0.5f),
 			                         BrushMaterial ? BrushMaterial->GetRenderProxy() : nullptr,
 			                         FVector2D(CanvasSize, CanvasSize));
 
 			// 블렌딩 모드 설정 (시야 원들이 서로 겹치 떄 자연스럽게 합쳐짐)
-			TileItem.BlendMode = SE_BLEND_MAX; // 또는 상황에 따라 SE_BLEND_Translucent
-
-			// 선언된 변수를 DrawItem에 전달
+			// TileItem.BlendMode = SE_BLEND_MAX;
+			TileItem.BlendMode = SE_BLEND_Additive;
 			Canvas.DrawItem(TileItem);
+		}
+		// 적군인 경우: 일단 리스트에 담아둠 (2차 순회에 한꺼번에 체크)
+		else
+		{
+			if (ANovaUnit* EnemyUnit = Cast<ANovaUnit>(Actor))
+			{
+				EnemyUnits.Add(EnemyUnit);
+			}
 		}
 	}
 	Canvas.Flush_GameThread();
+
+	// --- 2차 순회: 적군 유닛 가시성 판단 (O(N*M)) ---
+	for (ANovaUnit* Enemy : EnemyUnits)
+	{
+		bool bIsVisible = false;
+		FVector EnemyLoc = Enemy->GetActorLocation();
+
+		// 모든 아군 시야 범위와 비교
+		for (const auto& Sight : FriendlySights)
+		{
+			float DistSq = FVector::DistSquared(EnemyLoc, Sight.Location);
+			if (DistSq < Sight.RadiusSq)
+			{
+				bIsVisible = true;
+				break; // 하나라도 겹치면 더 볼 필요 없음
+			}
+		}
+		// 적군 유닛의 가시성 상태 업데이트
+		Enemy->SetFogVisibility(bIsVisible);
+	}
 }
 
 FVector2D ANovaFogManager::WorldToFogUV(const FVector& WorldLocation) const

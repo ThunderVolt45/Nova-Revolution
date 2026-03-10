@@ -200,4 +200,15 @@ protected:
 	
 	// 색 변경
 	void UpdateSelectionColor();
+	
+	
+protected:
+	// --- 안개에 의한 가시성 설정 변수 및 함수 ---
+	// 안개에 의해 보이고 있는지 여부
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
+	bool bIsVisibleByFog = true;
+	
+public:
+	// 안개 가시성 설정 함수
+	void SetFogVisibility(bool bVisible);
 };
