@@ -90,9 +90,9 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		if (DistFromCombatOriginSq <= LeashSq)
 		{
 			float Range = GetAttackRange(MyUnit);
-			float DistToTargetSq = FVector::DistSquared(MyUnit->GetActorLocation(), Target->GetActorLocation());
 
-			if (DistToTargetSq <= FMath::Square(Range))
+			// [수정] 캡슐 기반 사거리 판정 함수 활용
+			if (MyUnit->IsTargetInRange(Target, Range))
 			{
 				if (AIC->IsMoveInProgress())
 				{

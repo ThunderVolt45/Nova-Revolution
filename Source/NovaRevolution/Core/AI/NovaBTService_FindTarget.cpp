@@ -65,7 +65,7 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	// 2. 주변 액터 탐색 (유닛 및 기지/건물 포함)
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionQueryParams CollisionParams;
-	CollisionParams.AddIgnoredActor(MyUnit);
+	CollisionParams.AddIgnoredActor(ControllingPawn);
 
 	// Pawn뿐만 아니라 WorldStatic, WorldDynamic 오브젝트들도 탐색 대상에 포함 (기지 등 대응)
 	FCollisionObjectQueryParams ObjectParams;
@@ -73,12 +73,14 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
 	ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
 
+	// [수정] Sphere 대신 Capsule(원기둥) 형상을 사용하여 고도 차이에 유연하게 대응
+	// Radius는 탐색 범위, HalfHeight는 1500.f로 설정하여 지상/공중 통합 감지
 	bool bHit = GetWorld()->OverlapMultiByObjectType(
 		OverlapResults,
-		MyUnit->GetActorLocation(),
+		ControllingPawn->GetActorLocation(),
 		FQuat::Identity,
 		ObjectParams,
-		FCollisionShape::MakeSphere(FinalSearchRadius),
+		FCollisionShape::MakeCapsule(FinalSearchRadius, 1500.0f),
 		CollisionParams
 	);
 
@@ -137,12 +139,15 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 
 			if (!bCanAttack) continue;
 
-			// 4. 최단 거리 적 갱신
-			float DistSq = FVector::DistSquared(MyUnit->GetActorLocation(), PotentialTarget->GetActorLocation());
-			if (DistSq < MinDistanceSq)
+			// 4. [수정] 최단 거리 적 갱신 시 캡슐 기반 사거리 판정 함수 활용
+			if (MyUnit->IsTargetInRange(PotentialTarget, FinalSearchRadius))
 			{
-				MinDistanceSq = DistSq;
-				NearestEnemy = PotentialTarget;
+				float DistSq = FVector::DistSquaredXY(MyUnit->GetActorLocation(), PotentialTarget->GetActorLocation());
+				if (DistSq < MinDistanceSq)
+				{
+					MinDistanceSq = DistSq;
+					NearestEnemy = PotentialTarget;
+				}
 			}
 		}
 	}
