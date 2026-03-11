@@ -11,6 +11,7 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/AI/NovaAIController.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/ProgressBar.h"
 #include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GAS/NovaAttributeSet.h"
@@ -68,11 +69,9 @@ ANovaUnit::ANovaUnit()
 	// 선택 표시 위젯 컴포넌트
 	SelectionWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("SelectionWidget"));
 	SelectionWidget->SetupAttachment(RootComponent);
-
 	// 부모 캡슐의 스케일과 회전이 위젯을 조절하지 못하게 차단
 	SelectionWidget->SetUsingAbsoluteScale(true);
 	SelectionWidget->SetUsingAbsoluteRotation(true);
-
 	SelectionWidget->SetWidgetSpace(EWidgetSpace::World); // 월드 공간에 배치
 	SelectionWidget->SetRelativeRotation(FRotator(90.f, 0.f, 0.f)); // 바닥에 눕힘
 	SelectionWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // 충돌 끄기
@@ -97,13 +96,24 @@ ANovaUnit::ANovaUnit()
 	{
 		HeightIndicatorLine->SetStaticMesh(CubeMesh.Object);
 	}
-
 	// 항상 수직을 유지하도록 설정
 	HeightIndicatorLine->SetUsingAbsoluteRotation(true);
 	HeightIndicatorLine->SetWorldRotation(FRotator::ZeroRotator);;
 	HeightIndicatorLine->SetCastShadow(false); // 선은 그림자를 만들지 않음
 	HeightIndicatorLine->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeightIndicatorLine->SetVisibility(false);
+
+	// 체력바 위젯 생성
+	HealthBarWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HealthBarWidget"));
+	HealthBarWidget->SetupAttachment(RootComponent);
+	HealthBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	// 체력바 크기
+	HealthBarWidget->SetDrawSize(FVector2D(MinHealthBarWidth, HealthBarHeight));
+	HealthBarWidget->SetDrawAtDesiredSize(false);
+	HealthBarWidget->SetUsingAbsoluteScale(true);
+	HealthBarWidget->SetUsingAbsoluteRotation(true);
+	HealthBarWidget->SetUsingAbsoluteScale(true);
+	HealthBarWidget->SetVisibility(true);
 }
 
 void ANovaUnit::Tick(float DeltaTime)
@@ -177,6 +187,30 @@ void ANovaUnit::Tick(float DeltaTime)
 	{
 		UpdateGroundCircleAndLine();
 	}
+
+	if (HealthBarWidget && HealthBarWidget->IsVisible())
+	{
+		if (APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
+		{
+			// 1. 카메라의 상단 벡터(Up Vector)를 가져옵니다.
+			// 화면상의 "아래"는 이 벡터의 반대 방향(-UpVector)입니다.
+			FVector CameraUp = CamManager->GetCameraRotation().Quaternion().GetUpVector();
+			FVector ScreenDownDir = -CameraUp;
+
+			// 2. 캡슐의 바닥 지점을 찾습니다.
+			float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+			FVector CapsuleBottom = GetActorLocation() - FVector(0.f, 0.f, HalfHeight);
+
+			// 3. 사용자님 제안: 캡슐 반지름(Radius) + 추가 오프셋(예: 20.f)
+			float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+			float TotalOffset = Radius + 20.0f; // 여기서 간격 조절 가능
+
+			// 4. 최종 3D 위치: 캡슐 바닥에서 "화면 아래 방향"으로 오프셋만큼 이동
+			FVector FinalAnchorLoc = CapsuleBottom + (ScreenDownDir * TotalOffset);
+
+			HealthBarWidget->SetWorldLocation(FinalAnchorLoc);
+		}
+	}
 }
 
 void ANovaUnit::OnConstruction(const FTransform& Transform)
@@ -191,6 +225,7 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 
 	// 위젯 크기 설정 함수 호출
 	UpdateSelectionCircleTransform();
+	UpdateHealthBarTransform();
 
 	// 3. 에디터 프리뷰 환경에서만 미리 계산 반영 (런타임 이중 초기화 방지)
 	if (GetWorld() && !GetWorld()->IsGameWorld())
@@ -242,6 +277,11 @@ void ANovaUnit::BeginPlay()
 
 	// 모든 조립과 캡슐 크기 변경이 끝난 후 위젯 사이즈 갱신 함수 호출
 	UpdateSelectionCircleTransform();
+	UpdateHealthBarTransform();
+	// 초기 체력바 상태 설정
+	UpdateHealthBar();
+	UpdateHealthBarSize();
+
 
 	// --- 랠리 포인트 이동 로직 추가 ---
 	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
@@ -829,7 +869,8 @@ void ANovaUnit::Die()
 		UWorld* World = GetWorld();
 		if (World)
 		{
-			for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+			for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++
+			     Iterator)
 			{
 				if (APlayerController* PC = Iterator->Get())
 				{
@@ -886,6 +927,9 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 {
 	// 체력이 0 이하가 되면 Die() 호출
 	if (Data.NewValue <= 0.0f) Die();
+
+	// 실시간 체력바 업데이트 호출
+	UpdateHealthBar();
 }
 
 void ANovaUnit::InitializeAbilitiesFromParts()
@@ -950,7 +994,8 @@ void ANovaUnit::UpdateSelectionCircleColor()
 
 	FLinearColor TargetColor = FLinearColor::Red; // 기본 Red (적)
 	if (TeamID == LocalPlayerTeamID) TargetColor = FLinearColor::Green; // 내 유닛 Green
-	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow; // 중립, 아군 Yellow
+	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow;
+	// 중립, 아군 Yellow
 
 	// 위젯 인스턴스에 접근하여 색상 전달
 	// 1. 본체 위젯 색상 변경
@@ -1052,6 +1097,91 @@ void ANovaUnit::UpdateGroundCircleAndLine()
 			HeightIndicatorLine->SetVisibility(false);
 		}
 	}
+}
+
+void ANovaUnit::UpdateHealthBar()
+{
+	if (!HealthBarWidget || !AttributeSet) return;
+
+	UUserWidget* WidgetObj = HealthBarWidget->GetUserWidgetObject();
+	if (!WidgetObj) return;
+
+	// 위젯 내부의 ProgressBar 찾기 (BP에서 HealthBar로 이름 설정)
+	UProgressBar* HealthBar = Cast<UProgressBar>(WidgetObj->GetWidgetFromName(TEXT("HealthBar")));
+	if (HealthBar)
+	{
+		// 현재 체력 비율 계산 (CurrentHealth / MaxHealth)
+		float CurrentHP = AttributeSet->GetHealth();
+		float MaxHP = AttributeSet->GetMaxHealth();
+		float HPPercent = (MaxHP > 0.f) ? (CurrentHP / MaxHP) : (0.f);
+
+		// 체력 퍼센트 적용
+		HealthBar->SetPercent(HPPercent);
+
+		// 팀 색상 적용
+		int32 LocalPlayerTeamID = -1;
+		if (auto* PC = GetWorld()->GetFirstPlayerController())
+		{
+			if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
+			{
+				// TeamID 받아오기
+				LocalPlayerTeamID = PS->GetTeamID();
+			}
+		}
+		FLinearColor TargetColor = FLinearColor::Red; // 적
+		if (TeamID == LocalPlayerTeamID) TargetColor = FLinearColor::Green; // 아군
+		else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow; // 중립
+
+		// 색상 부여
+		HealthBar->SetFillColorAndOpacity(TargetColor);
+	}
+}
+
+void ANovaUnit::UpdateHealthBarTransform()
+{
+	if (GetCapsuleComponent() && HealthBarWidget)
+	{
+		// 1. 기준점 계산 (캡슐의 하단 지점)
+		float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+
+		// 2. 오프셋 설정: 캡슐 반지름(Radius)이나 특정 수치(AirWidgetHeightOffset 등)를 고려하여
+		// 유닛 아래쪽(또는 위쪽)으로 3D 앵커를 띄워줍니다.
+		float HealthBarZ = -HalfHeight - 20.0f; // 기본 유닛 아래 20.f 지점
+
+		// 공중 유닛의 경우 선택 원이 이미 아래로 내려가 있으므로, 그보다 더 아래에 배치
+		if (MovementType == ENovaMovementType::Air)
+		{
+			HealthBarZ = -HalfHeight - AirWidgetHeightOffset - 40.0f;
+		}
+
+		// 3. Screen Space 위젯의 3D 투영점(Anchor) 설정
+		HealthBarWidget->SetRelativeLocation(FVector(0.f, 0.f, HealthBarZ));
+
+		// 4. 스케일 상속 방지 및 크기 고정
+		HealthBarWidget->SetUsingAbsoluteScale(true);
+		HealthBarWidget->SetRelativeScale3D(FVector(1.f, 1.f, 1.f));
+		HealthBarWidget->SetRelativeScale3D(FVector(1.f, 1.f, 1.f));
+	}
+}
+
+void ANovaUnit::UpdateHealthBarSize()
+{
+	if (!HealthBarWidget || !AttributeSet) return;
+	
+	// 최대 체력 가져오기
+	float MaxHP = AttributeSet->GetMaxHealth();
+	
+	// 로그 스케일 가로 길이 계산
+	float LogHPVal = FMath::Loge(FMath::Max(1.0f, MaxHP / 100.0f));
+	
+	// 가로 길이 계산 : 기본값 + (최대 체력 * 비례 계수)
+	float TargetWidth = MinHealthBarWidth + (LogHPVal * HealthBarLogScaleFactor);
+	
+	// 최소/최대 범위 제한 (Clamp)
+	TargetWidth = FMath::Clamp(TargetWidth, MinHealthBarWidth, MaxHealthBarWidth);
+	
+	// 위젯 컴포넌트에 적용 (세로 길이는 고정)
+	HealthBarWidget->SetDrawSize(FVector2D(TargetWidth, HealthBarHeight));
 }
 
 void ANovaUnit::SetFogVisibility(bool bVisible)
