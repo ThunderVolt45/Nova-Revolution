@@ -9,9 +9,9 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "NovaRevolution.h"
 #include "Core/NovaUnit.h"
-#include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
 #include "Components/CapsuleComponent.h"
+#include "NovaNavigationFilter_Move.h"
 
 const FName ANovaAIController::TargetLocationKey(TEXT("TargetLocation"));
 const FName ANovaAIController::TargetActorKey(TEXT("TargetActor"));
@@ -25,6 +25,9 @@ ANovaAIController::ANovaAIController()
 	// 컴포넌트 초기화
 	BehaviorTreeComponent = CreateDefaultSubobject<UBehaviorTreeComponent>(TEXT("BehaviorTreeComponent"));
 	BlackboardComponent = CreateDefaultSubobject<UBlackboardComponent>(TEXT("BlackboardComponent"));
+
+	// 기본 내비게이션 필터 설정: 모든 경로 탐색에서 유닛 장애물 비용 무시
+	DefaultNavigationFilterClass = UNovaNavigationFilter_Move::StaticClass();
 }
 
 void ANovaAIController::Tick(float DeltaTime)
@@ -69,6 +72,16 @@ void ANovaAIController::OnPossess(APawn* InPawn)
 	
 	Super::OnPossess(InPawn);
 
+	// 블랙보드 옵저버 등록: CommandType 변화 감지
+	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
+	{
+		FBlackboard::FKey CommandTypeKeyID = BlackboardComponent->GetBlackboardAsset()->GetKeyID(CommandTypeKey);
+		if (CommandTypeKeyID != FBlackboard::InvalidKey)
+		{
+			BlackboardComponent->RegisterObserver(CommandTypeKeyID, this, FOnBlackboardChangeNotification::CreateUObject(this, &ANovaAIController::OnCommandTypeChanged));
+		}
+	}
+
 	// 초기 위치 저장
 	if (InPawn)
 	{
@@ -76,12 +89,63 @@ void ANovaAIController::OnPossess(APawn* InPawn)
 	}
 }
 
+void ANovaAIController::OnUnPossess()
+{
+	// 블랙보드 옵저버 해제 (KeyID를 캐싱하지 않았으므로 모든 옵저버 해제 또는 시스템에 맡김)
+	if (BlackboardComponent)
+	{
+		BlackboardComponent->UnregisterObserversFrom(this);
+	}
+
+	Super::OnUnPossess();
+}
+
+EBlackboardNotificationResult ANovaAIController::OnCommandTypeChanged(const UBlackboardComponent& InBlackboard, FBlackboard::FKey KeyID)
+{
+	APawn* MyPawn = GetPawn();
+	if (!MyPawn) return EBlackboardNotificationResult::RemoveObserver;
+
+	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
+	if (!MyUnit) return EBlackboardNotificationResult::ContinueObserving;
+
+	ECommandType CurrentCommand = static_cast<ECommandType>(InBlackboard.GetValueAsEnum(CommandTypeKey));
+
+	// 모든 상태 변화(플레이어 명령 + 행동 트리 자율 변경)에 대해 장애물 상태를 자동 전환
+	switch (CurrentCommand)
+	{
+	case ECommandType::Move:
+	case ECommandType::Patrol:
+	case ECommandType::Attack:
+	case ECommandType::Spread:
+		// 이동이 필요한 상태면 장애물 해제
+		MyUnit->SetNavigationObstacle(false);
+		break;
+
+	case ECommandType::None:
+	case ECommandType::Stop:
+	case ECommandType::Hold:
+	case ECommandType::Halt:
+		// 정지해야 하는 상태면 장애물 활성화
+		MyUnit->SetNavigationObstacle(true);
+		break;
+
+	default:
+		break;
+	}
+
+	return EBlackboardNotificationResult::ContinueObserving;
+}
+
+#include "Core/AI/NovaNavigationFilter_Move.h"
+
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 {
 	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
 		APawn* MyPawn = GetPawn();
 		if (!MyPawn) return;
+
+		ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
 
 		// 새로운 명령 시 Stuck 상태 초기화
 		StuckTimer = 0.0f;
@@ -101,6 +165,7 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 		}
 
 		// 3. 블랙보드 데이터 업데이트
+		// 이 호출 직후 OnCommandTypeChanged 옵저버가 실행되어 내비게이션 장애물 상태가 자동으로 변경됩니다.
 		BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)CommandData.CommandType);
 		
 		switch (CommandData.CommandType)
@@ -183,9 +248,9 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 		return;
 	}
 
-	// 2. 지상 유닛: 기존 엔진 이동
+	// 2. 지상 유닛: 이동용 필터를 사용하여 유닛 간 뭉침 상황에서도 즉시 경로 생성
 	bIsManualMoving = false;
-	MoveToLocation(Dest, AcceptanceRadius, true, true, false, true, nullptr, true);
+	MoveToLocation(Dest, AcceptanceRadius, true, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
 }
 
 void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float AcceptanceRadius)
@@ -233,14 +298,14 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 			FNavLocation ProjectedLocation;
 			if (NavSys->ProjectPointToNavigation(TargetLoc, ProjectedLocation, FVector(500.f, 500.f, 2000.f)))
 			{
-				MoveToLocation(ProjectedLocation.Location, AcceptanceRadius, true, true, false, true, nullptr, true);
+				MoveToLocation(ProjectedLocation.Location, AcceptanceRadius, true, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
 				return;
 			}
 		}
 	}
 
-	// 일반적인 지상 타겟 추적 (MoveToActor는 엔진 내부에서 최적화되므로 중복 체크 제거)
-	MoveToActor(TargetActor, AcceptanceRadius, true, true, false, nullptr, true);
+	// 일반적인 지상 타겟 추적 시에도 필터 적용 및 목적지 투영 활성화
+	MoveToActor(TargetActor, AcceptanceRadius, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
 }
 
 bool ANovaAIController::IsMoveInProgress() const
@@ -263,6 +328,11 @@ void ANovaAIController::StopMovementOptimized()
 	if (APawn* MyPawn = GetPawn())
 	{
 		ManualMoveGoal = MyPawn->GetActorLocation();
+
+		if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
+		{
+			MyUnit->SetNavigationObstacle(true);
+		}
 	}
 	
 	StopMovement();

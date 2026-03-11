@@ -237,12 +237,21 @@ protected:
 	
 	
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit", meta = (AllowPrivateAccess = "true"))
+	class UNavModifierComponent* NavModifier;
+
 	// --- 안개에 의한 가시성 설정 변수 및 함수 ---
 	// 안개에 의해 보이고 있는지 여부
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
 	bool bIsVisibleByFog = true;
+
+	/** 현재 내비게이션 장애물로 설정되어 있는지 여부 */
+	bool bIsNavigationObstacle = false;
 	
 public:
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
+
+	/** 유닛이 NavMesh 상에서 장애물로 작동할지 여부를 설정합니다. */
+	void SetNavigationObstacle(bool bIsObstacle);
 };

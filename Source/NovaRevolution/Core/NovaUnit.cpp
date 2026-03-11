@@ -17,9 +17,29 @@
 #include "GAS/Abilities/NovaGameplayAbility.h"
 #include "Player/NovaPlayerController.h"
 
+#include "NavModifierComponent.h"
+#include "NovaNavArea_Unit.h"
+#include "AI/Navigation/NavigationDataResolution.h"
+#include "NavAreas/NavArea_Default.h"
+
 ANovaUnit::ANovaUnit()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	// 내비게이션 설정: 캡슐 기하구조가 직접 NavMesh를 파내지 않게 함 (이동 방해 방지)
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCanEverAffectNavigation(false);
+	}
+
+	// NavModifier 생성: 장애물 상태일 때만 특정 영역(고비용)을 생성하도록 설정
+	NavModifier = CreateDefaultSubobject<UNavModifierComponent>(TEXT("NavModifier"));
+	if (NavModifier)
+	{
+		NavModifier->SetAreaClass(UNovaNavArea_Unit::StaticClass());
+		NavModifier->bAutoActivate = false; // 기본적으로는 비활성화 (이동 우선)
+		NavModifier->NavMeshResolution = ENavigationDataResolution::High;
+	}
 
 	// AI 설정: 스폰 시 자동으로 전용 AI 컨트롤러 생성 및 빙의
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -523,6 +543,17 @@ void ANovaUnit::InitializeAttributesFromParts()
 					{
 						Capsule->SetCapsuleRadius(Spec.CollisionRadius);
 
+						// --- 네비게이션 장애물 크기 동기화 ---
+						if (NavModifier)
+						{
+							// 캡슐 반경의 80% 정도로 장애물 크기 설정 (유닛 간 최소 틈새 확보)
+							float ModifierRadius = Spec.CollisionRadius * 0.8f;
+							float ModifierHeight = Capsule->GetUnscaledCapsuleHalfHeight();
+							
+							// FailsafeExtent는 박스 형태의 Half-Extent를 의미함
+							NavModifier->FailsafeExtent = FVector(ModifierRadius, ModifierRadius, ModifierHeight);
+						}
+
 						// --- 네비게이션 및 이동 컴포넌트 데이터 동기화 ---
 						if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 						{
@@ -579,15 +610,6 @@ void ANovaUnit::InitializeAttributesFromParts()
 			
 			// 공중 유닛은 평면 제약 해제 (고도 조절을 위함)
 			GetCharacterMovement()->bConstrainToPlane = false;
-
-			// if (AAIController* AIC = Cast<AAIController>(GetController()))
-			// {
-			// 	if (UPathFollowingComponent* PPathFollowing = AIC->GetPathFollowingComponent())
-			// 	{
-			// 		// 공중 유닛은 장애물 회피를 위해 NavMesh를 타지 않도록 설정
-			// 		// (프로젝트 상황에 따라 하단의 코드가 필요할 수 있음)
-			// 	}
-			// }
 		}
 		else
 		{
@@ -624,14 +646,6 @@ bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 	{
 		return false; // 수평 거리가 사거리를 벗어남
 	}
-
-	// 2. 수직 거리 체크 (Z축 차이)
-	// 공중 유닛과 지상 유닛 간의 교전을 위해 수직 허용 오차를 넉넉히 둡니다 (예: 1500.f)
-	// float VerticalDist = FMath::Abs(MyLoc.Z - TargetLoc.Z);
-	// if (VerticalDist > 1500.0f)
-	// {
-	// 	return false; // 고도 차이가 너무 커서 사격 불능
-	// }
 
 	return true;
 }
@@ -964,5 +978,34 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 	if (!bVisible && SelectionWidget)
 	{
 		SelectionWidget->SetVisibility(false);
+	}
+}
+
+void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
+{
+	// 공중 유닛은 지상 내비게이션에 영향을 주지 않음
+	if (MovementType == ENovaMovementType::Air) return;
+
+	// 상태 변화가 있을 때만 실행하여 불필요한 부하 방지
+	if (bIsNavigationObstacle == bIsObstacle) return;
+	bIsNavigationObstacle = bIsObstacle;
+
+	if (NavModifier)
+	{
+		// 장애물 상태에 따라 영역 클래스 설정 (UnitArea: 고비용, Default: 일반)
+		TSubclassOf<UNavArea> NewAreaClass = bIsObstacle ? UNovaNavArea_Unit::StaticClass() : UNavArea_Default::StaticClass();
+		
+		// 영역 클래스 설정 및 활성화/비활성화 처리
+		NavModifier->SetAreaClass(NewAreaClass);
+
+		// 유닛이 멈췄을 때만 Modifier를 활성화하여 고비용 영역을 생성
+		if (bIsObstacle)
+		{
+			NavModifier->Activate(true);
+		}
+		else
+		{
+			NavModifier->Deactivate();
+		}
 	}
 }

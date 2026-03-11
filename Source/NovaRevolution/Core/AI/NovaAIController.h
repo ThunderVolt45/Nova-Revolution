@@ -6,10 +6,10 @@
 #include "AIController.h"
 #include "Core/NovaInterfaces.h"
 #include "GameplayTagContainer.h"
+#include "BehaviorTree/BlackboardComponent.h"
 #include "NovaAIController.generated.h"
 
 class UBehaviorTreeComponent;
-class UBlackboardComponent;
 class UBehaviorTree;
 
 /**
@@ -49,6 +49,10 @@ public:
 
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void OnUnPossess() override;
+
+	/** 블랙보드 값이 변경될 때 호출될 콜백 함수 */
+	EBlackboardNotificationResult OnCommandTypeChanged(const UBlackboardComponent& InBlackboard, FBlackboard::FKey KeyID);
 
 	/** 유닛이 장애물이나 다른 유닛에 막혀 멈춰있는지(Stuck) 감지하고 처리합니다. */
 	void UpdateStuckDetection(float DeltaTime);
