@@ -919,6 +919,9 @@ void ANovaUnit::Die()
 		AIC->OnPawnDeath();
 	}
 
+	// 내비게이션 장애물 해제 (죽은 유닛은 길을 막지 않음)
+	SetNavigationObstacle(false);
+
 	// 충돌 비활성화 및 소멸 처리 (필요에 따라 래그돌 또는 파편화 연출 추가 가능)
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
