@@ -10,6 +10,10 @@ UNovaResourceAttributeSet::UNovaResourceAttributeSet()
 	InitMaxSP(100.f);
 	InitMaxPopulation(20.f);
 	InitMaxUnitWatt(6000.f);
+	
+	// AttributeSet 초기화 추가:
+	InitWattLevel(1.0f); // 와트 생산 레벨 1단계로 시작
+	InitSPLevel(1.0f);   // SP 생산 레벨 1단계로 시작
 }
 
 void UNovaResourceAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
