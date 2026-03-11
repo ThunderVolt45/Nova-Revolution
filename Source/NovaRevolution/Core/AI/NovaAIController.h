@@ -50,6 +50,12 @@ public:
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
 
+	/** 유닛이 장애물이나 다른 유닛에 막혀 멈춰있는지(Stuck) 감지하고 처리합니다. */
+	void UpdateStuckDetection(float DeltaTime);
+
+	/** Stuck 상태로 판정되었을 때 실행할 회피 기동 로직입니다. */
+	void HandleStuckStatus();
+
 	// --- AI 컴포넌트 ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI")
 	TObjectPtr<UBehaviorTreeComponent> BehaviorTreeComponent;
@@ -65,7 +71,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
 	float MinMoveDistance = 10.f;
 
+	/** Stuck 감지용 시간 임계값 (이 시간 동안 못 움직이면 Stuck으로 간주) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
+	float StuckTimeThreshold = 1.0f;
+
+	/** Stuck 판단 기준 거리 (이 거리보다 적게 움직이면 멈춘 것으로 간주) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
+	float StuckDistanceThreshold = 5.0f;
+
 private:
+	/** Stuck 감지용 누적 타이머 */
+	float StuckTimer = 0.0f;
+
+	/** 마지막으로 위치를 체크했던 좌표 */
+	FVector LastStuckCheckLocation = FVector::ZeroVector;
+
 	/** 공중 유닛 수동 이동 제어를 위한 변수 */
 	bool bIsManualMoving = false;
 	FVector ManualMoveGoal = FVector::ZeroVector;

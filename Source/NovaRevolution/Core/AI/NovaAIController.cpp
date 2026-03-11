@@ -11,6 +11,7 @@
 #include "Core/NovaUnit.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
+#include "Components/CapsuleComponent.h"
 
 const FName ANovaAIController::TargetLocationKey(TEXT("TargetLocation"));
 const FName ANovaAIController::TargetActorKey(TEXT("TargetActor"));
@@ -33,6 +34,16 @@ void ANovaAIController::Tick(float DeltaTime)
 	if (bIsManualMoving)
 	{
 		UpdateManualMovement(DeltaTime);
+	}
+
+	// 이동 중일 때만 Stuck 감지 로직 실행
+	if (IsMoveInProgress())
+	{
+		UpdateStuckDetection(DeltaTime);
+	}
+	else
+	{
+		StuckTimer = 0.0f;
 	}
 }
 
@@ -57,6 +68,12 @@ void ANovaAIController::OnPossess(APawn* InPawn)
 	}
 	
 	Super::OnPossess(InPawn);
+
+	// 초기 위치 저장
+	if (InPawn)
+	{
+		LastStuckCheckLocation = InPawn->GetActorLocation();
+	}
 }
 
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
@@ -65,6 +82,10 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 	{
 		APawn* MyPawn = GetPawn();
 		if (!MyPawn) return;
+
+		// 새로운 명령 시 Stuck 상태 초기화
+		StuckTimer = 0.0f;
+		LastStuckCheckLocation = MyPawn->GetActorLocation();
 
 		// 1. 자기 자신을 대상으로 하는 공격 명령 차단
 		if (CommandData.CommandType == ECommandType::Attack && CommandData.TargetActor == MyPawn)
@@ -142,6 +163,10 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
 	ENovaMovementType MoveType = MyUnit ? MyUnit->GetMovementType() : ENovaMovementType::Ground;
 
+	// 이동 시작 시 타이머 초기화
+	StuckTimer = 0.0f;
+	LastStuckCheckLocation = MyPawn->GetActorLocation();
+
 	// 1. 공중 유닛: 수동 이동 설정
 	if (MoveType == ENovaMovementType::Air)
 	{
@@ -172,6 +197,10 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
 	ENovaMovementType MyMoveType = MyUnit ? MyUnit->GetMovementType() : ENovaMovementType::Ground;
+
+	// 이동 시작 시 타이머 초기화
+	StuckTimer = 0.0f;
+	LastStuckCheckLocation = MyPawn->GetActorLocation();
 
 	// 타겟의 정보 확인
 	ANovaUnit* TargetUnit = Cast<ANovaUnit>(TargetActor);
@@ -237,6 +266,9 @@ void ANovaAIController::StopMovementOptimized()
 	}
 	
 	StopMovement();
+	
+	// Stuck 감지 상태 해제
+	StuckTimer = 0.0f;
 }
 
 void ANovaAIController::UpdateManualMovement(float DeltaSeconds)
@@ -288,6 +320,121 @@ void ANovaAIController::UpdateManualMovement(float DeltaSeconds)
 	FRotator TargetRotation = Direction.Rotation();
 	FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaSeconds, 5.0f);
 	MyPawn->SetActorRotation(NewRotation);
+}
+
+void ANovaAIController::UpdateStuckDetection(float DeltaTime)
+{
+	APawn* MyPawn = GetPawn();
+	if (!MyPawn) return;
+
+	FVector CurrentLocation = MyPawn->GetActorLocation();
+	float DistanceMoved = FVector::Dist(CurrentLocation, LastStuckCheckLocation);
+
+	// 일정 거리보다 적게 움직였는지 확인 (수평 거리 위주)
+	if (DistanceMoved < StuckDistanceThreshold)
+	{
+		StuckTimer += DeltaTime;
+		
+		if (StuckTimer >= StuckTimeThreshold)
+		{
+			NOVA_LOG(Warning, "AIController: Stuck Detected for Pawn [%s]! Handling...", *MyPawn->GetName());
+			HandleStuckStatus();
+			StuckTimer = 0.0f; // 한 번 처리 후 타이머 초기화 (반복 방지)
+		}
+	}
+	else
+	{
+		// 유의미한 움직임이 있었다면 타이머 및 체크 위치 갱신
+		StuckTimer = 0.0f;
+		LastStuckCheckLocation = CurrentLocation;
+	}
+}
+
+void ANovaAIController::HandleStuckStatus()
+{
+	APawn* MyPawn = GetPawn();
+	if (!MyPawn || !BlackboardComponent) return;
+
+	FVector CurrentLocation = MyPawn->GetActorLocation();
+	FVector GoalLocation = BlackboardComponent->GetValueAsVector(TargetLocationKey);
+	AActor* TargetActor = Cast<AActor>(BlackboardComponent->GetValueAsObject(TargetActorKey));
+	ECommandType CurrentCommand = (ECommandType)BlackboardComponent->GetValueAsEnum(CommandTypeKey);
+
+	// --- 명령 성격 구분 ---
+	// 목표 지점이 점유되었을 때 중단되어도 괜찮은 명령들 (단발성 이동)
+	bool bIsDisposableCommand = (CurrentCommand == ECommandType::Move || CurrentCommand == ECommandType::Spread);
+
+	// 1. 목표 지점 점유 체크
+	// 목표 지점 근처(예: 500유닛 이내)에서만 점유 판정 수행 (멀리서 미리 멈추는 것 방지)
+	float DistToGoalSq = FVector::DistSquared(CurrentLocation, GoalLocation);
+	bool bIsNearGoal = DistToGoalSq < FMath::Square(500.0f);
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(MyPawn);
+	if (TargetActor) QueryParams.AddIgnoredActor(TargetActor);
+
+	float CheckRadius = 50.0f;
+	if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
+	{
+		if (UCapsuleComponent* Capsule = MyUnit->GetCapsuleComponent())
+		{
+			CheckRadius = Capsule->GetScaledCapsuleRadius();
+		}
+	}
+
+	FHitResult Hit;
+	bool bIsGoalOccupied = bIsNearGoal && GetWorld()->SweepSingleByChannel(
+		Hit, GoalLocation, GoalLocation + FVector(0,0,10), 
+		FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(CheckRadius), QueryParams);
+
+	// 2. 대응 로직 분기
+	if (bIsGoalOccupied)
+	{
+		if (bIsDisposableCommand)
+		{
+			// 이동/산개 명령은 목표 지점이 꽉 차있으면 중단 (명령 완료로 간주)
+			NOVA_LOG(Log, "AIController: Goal is occupied. Terminating disposable command [%d] for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
+			BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)ECommandType::None);
+			StopMovementOptimized();
+		}
+		else
+		{
+			// 순찰/공격 등은 멈추지 않고 주변에서 대기하며 기회를 봄
+			NOVA_LOG(Log, "AIController: Goal occupied but persistent command [%d] remains. Waiting for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
+			StopMovementOptimized(); 
+		}
+		return;
+	}
+
+	// 3. 목표 지점은 비어있는데 끼어있는 경우 -> 옆으로 우회 시도
+	NOVA_LOG(Log, "AIController: Goal clear but stuck. Attempting bypass for [%s]", *MyPawn->GetName());
+
+	FVector MoveDirection = (GoalLocation - CurrentLocation).GetSafeNormal();
+	FVector BypassDirection = FVector::CrossProduct(MoveDirection, FVector::UpVector);
+	
+	if (FMath::RandBool()) BypassDirection *= -1.0f;
+
+	FVector DetourPoint = CurrentLocation + BypassDirection * 200.0f;
+
+	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (NavSys)
+	{
+		FNavLocation ProjectedLocation;
+		if (NavSys->ProjectPointToNavigation(DetourPoint, ProjectedLocation, FVector(300.f, 300.f, 300.f)))
+		{
+			// 일시적으로 우회 지점으로 이동
+			MoveToLocationOptimized(ProjectedLocation.Location, 50.0f);
+		}
+		else
+		{
+			// 우회 지점조차 없다면 중단 가능한 명령만 종료
+			if (bIsDisposableCommand)
+			{
+				BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)ECommandType::None);
+			}
+			StopMovementOptimized();
+		}
+	}
 }
 
 void ANovaAIController::ActivateAbilityByTag(const FGameplayTag& AbilityTag, AActor* Target)
