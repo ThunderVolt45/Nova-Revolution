@@ -8,9 +8,9 @@
 #include "NovaSkillButtonWidget.generated.h"
 
 /**
- * UNovaCommanderSkillButtonWidget
+ * UNovaSkillButtonWidget
  * 사령관 스킬 버튼의 공통 로직을 담당하는 베이스 클래스입니다.
- * 이 클래스를 상속받아 WBP_CommanderSkillButton을 제작합니다.
+ * 이 클래스를 상속받아 WBP_SkillButton을 제작합니다.
  */
 UCLASS()
 class NOVAREVOLUTION_API UNovaSkillButtonWidget : public UUserWidget
@@ -21,7 +21,7 @@ public:
 	/**
 	 * 이 버튼이 눌렸을 때 실행할 사령관 스킬의 Gameplay Tag입니다.
 	 * 에디터에서 각 버튼 인스턴스마다 다르게 설정하여 스킬을 할당합니다.
-	 * (예: Ability.Commander.ResourceLevelUp)
+	 * (예: Ability.Skill.ResourceLevelUp)
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Ability")
 	FGameplayTag ActionAbilityTag;
