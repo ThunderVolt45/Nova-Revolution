@@ -85,6 +85,9 @@ public:
 	/** 무기 부품 컴포넌트들을 반환합니다. */
 	const TArray<TObjectPtr<UChildActorComponent>>& GetWeaponPartComponents() const { return WeaponPartComponents; }
 
+	/** 공중 유닛의 고정 목표 Z 고도를 반환합니다. */
+	float GetDefaultAirZ() const { return DefaultAirZ; }
+
 protected:
 	virtual void BeginPlay() override;
 

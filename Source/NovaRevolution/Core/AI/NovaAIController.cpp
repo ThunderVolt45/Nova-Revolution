@@ -169,33 +169,46 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 			StopMovementOptimized();
 		}
 
+		// [추가] 공중 유닛의 목표 위치 Z값을 공중(가상 평면) 고도로 강제 고정
+		FCommandData AdjustedCommandData = CommandData;
+		if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
+		{
+			if (MyUnit->GetMovementType() == ENovaMovementType::Air && 
+			   (AdjustedCommandData.CommandType == ECommandType::Move || 
+			    AdjustedCommandData.CommandType == ECommandType::Patrol || 
+			    AdjustedCommandData.CommandType == ECommandType::Spread))
+			{
+				AdjustedCommandData.TargetLocation.Z = MyUnit->GetDefaultAirZ();
+			}
+		}
+
 		// 3. 블랙보드 데이터 업데이트
 		// 이 호출 직후 OnCommandTypeChanged 옵저버가 실행되어 내비게이션 장애물 상태가 자동으로 변경됩니다.
-		BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)CommandData.CommandType);
+		BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)AdjustedCommandData.CommandType);
 		
-		switch (CommandData.CommandType)
+		switch (AdjustedCommandData.CommandType)
 		{
 		case ECommandType::Move:
 		case ECommandType::Patrol:
 			// 이미 해당 위치(최소 사거리) 근처에 있다면 불필요한 이동 명령 방지
-			if (FVector::DistSquared(MyPawn->GetActorLocation(), CommandData.TargetLocation) < FMath::Square(MinMoveDistance))
+			if (FVector::DistSquared(MyPawn->GetActorLocation(), AdjustedCommandData.TargetLocation) < FMath::Square(MinMoveDistance))
 			{
 				BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)ECommandType::None);
 				return;
 			}
-			BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+			BlackboardComponent->SetValueAsVector(TargetLocationKey, AdjustedCommandData.TargetLocation);
 			BlackboardComponent->ClearValue(TargetActorKey);
 			break;
 
 		case ECommandType::Attack:
-			if (CommandData.TargetActor)
+			if (AdjustedCommandData.TargetActor)
 			{
-				BlackboardComponent->SetValueAsObject(TargetActorKey, CommandData.TargetActor);
-				BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetActor->GetActorLocation());
+				BlackboardComponent->SetValueAsObject(TargetActorKey, AdjustedCommandData.TargetActor);
+				BlackboardComponent->SetValueAsVector(TargetLocationKey, AdjustedCommandData.TargetActor->GetActorLocation());
 			}
 			else
 			{
-				BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+				BlackboardComponent->SetValueAsVector(TargetLocationKey, AdjustedCommandData.TargetLocation);
 				BlackboardComponent->ClearValue(TargetActorKey);
 			}
 			break;
@@ -209,7 +222,7 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 			break;
 
 		case ECommandType::Spread:
-			BlackboardComponent->SetValueAsVector(TargetLocationKey, CommandData.TargetLocation);
+			BlackboardComponent->SetValueAsVector(TargetLocationKey, AdjustedCommandData.TargetLocation);
 			BlackboardComponent->ClearValue(TargetActorKey);
 			break;
 
@@ -245,8 +258,15 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 	// 수동 이동 플래그 해제
 	bIsManualMoving = false;
 	
+	// [추가] 공중 유닛인 경우 목적지의 Z값을 가상 평면(하늘 NavMesh) 높이로 강제 보정합니다.
+	FVector FinalDest = Dest;
+	if (MyUnit && MyUnit->GetMovementType() == ENovaMovementType::Air)
+	{
+		FinalDest.Z = MyUnit->GetDefaultAirZ();
+	}
+
 	// 이동용 필터를 사용하여 유닛 간 뭉침 상황에서도 즉시 경로 생성 (공중/지상 모두 적용)
-	MoveToLocation(Dest, AcceptanceRadius, true, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
+	MoveToLocation(FinalDest, AcceptanceRadius, true, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
 }
 
 void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float AcceptanceRadius)
