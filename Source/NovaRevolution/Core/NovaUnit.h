@@ -232,9 +232,11 @@ protected:
 	// 매 프레임 위젯을 지면에 붙이는 함수 (공중 유닛 대응)
 	void UpdateSelectionWidgetPosition();
 	
-	// 색 변경
-	void UpdateSelectionColor();
+	// 색 변경 함수
+	void UpdateSelectionCircleColor();
 	
+	// 캡슐 크기에 맞춰 선택 위젯의 지름을 업데이트 하는 함수
+	void UpdateSelectionCircleSize();
 	
 protected:
 	// --- 안개에 의한 가시성 설정 변수 및 함수 ---

@@ -68,8 +68,13 @@ ANovaUnit::ANovaUnit()
 	// 선택 표시 위젯 컴포넌트
 	SelectionWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("SelectionWidget"));
 	SelectionWidget->SetupAttachment(RootComponent);
+
+	// 부모 캡슐의 스케일과 회전이 위젯을 찌그러뜨리지 못하게 차단 (의도에서 벗어난 모양 방지)
+	// SelectionWidget->SetDrawAtDesiredSize(true);
+	SelectionWidget->SetUsingAbsoluteScale(true);
+	SelectionWidget->SetUsingAbsoluteRotation(true);
+
 	SelectionWidget->SetWidgetSpace(EWidgetSpace::World); // 월드 공간에 배치
-	SelectionWidget->SetDrawAtDesiredSize(true);
 	SelectionWidget->SetRelativeRotation(FRotator(90.f, 0.f, 0.f)); // 바닥에 눕힘
 	SelectionWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // 충돌 끄기
 	SelectionWidget->SetVisibility(false); // 초기에는 숨김
@@ -157,22 +162,9 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 
 	// 2. 부품들 실제 소켓에 정렬 부착
 	InitializePartAttachments();
-	
-	// 캡슐 반지름에 맞춰 위젯 크기 동적 설정
-	if (GetCapsuleComponent() && SelectionWidget)
-	{
-		// 캡슐 반지름 가져오기 (스케일 포함)
-		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
-		
-		// 원의 지름 계산 (캡슐보다 약간 더 크게 1.2배 여유)
-		float Diameter = Radius * 2.0f * 1.2f;
-		
-		// DrawSize를 설정(지름 * 지름)
-		SelectionWidget->SetDrawSize(FVector2D(Diameter, Diameter));
-		
-		// DrawAtDesiredSize는 수동 설정 시 false
-		SelectionWidget->SetDrawAtDesiredSize(false);
-	}
+
+	// 위젯 크기 설정 함수 호출
+	UpdateSelectionCircleSize();
 }
 
 void ANovaUnit::BeginPlay()
@@ -200,6 +192,9 @@ void ANovaUnit::BeginPlay()
 	// 초기 Yaw 설정
 	LastYaw = GetActorRotation().Yaw;
 
+	// 모든 조립과 캡슐 크기 변경이 끝난 후 위젯 사이즈 갱신 함수 호출
+	UpdateSelectionCircleSize();
+	
 	// --- 랠리 포인트 이동 로직 추가 ---
 	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
 	if (!InitialRallyLocation.IsNearlyZero())
@@ -544,7 +539,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 		{
 			GetCharacterMovement()->SetMovementMode(MOVE_Flying);
 			GetCharacterMovement()->bCheatFlying = true; // 중력 영향 배제 보강
-			
+
 			// 공중 유닛은 평면 제약 해제 (고도 조절을 위함)
 			GetCharacterMovement()->bConstrainToPlane = false;
 
@@ -564,9 +559,9 @@ void ANovaUnit::InitializeAttributesFromParts()
 		}
 	}
 
-	NOVA_SCREEN(Log, "Unit Stats Initialized: %s | HP(%.f), Speed(%.f), Type(%s)", 
-		*UnitName, TotalHealth, TotalSpeed, 
-		MovementType == ENovaMovementType::Air ? TEXT("Air") : TEXT("Ground"));
+	NOVA_SCREEN(Log, "Unit Stats Initialized: %s | HP(%.f), Speed(%.f), Type(%s)",
+	            *UnitName, TotalHealth, TotalSpeed,
+	            MovementType == ENovaMovementType::Air ? TEXT("Air") : TEXT("Ground"));
 }
 
 
@@ -579,14 +574,14 @@ bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 
 	// 1. 수평 거리 체크 (XY 평면상 거리)
 	float DistSqXY = FVector::DistSquaredXY(MyLoc, TargetLoc);
-	
+
 	// 타겟의 충돌체 크기를 고려하여 판정 완화 (타겟의 루트 컴포넌트가 PrimitiveComponent인 경우)
 	float TargetRadius = 0.0f;
 	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
 	{
 		TargetRadius = Capsule->GetScaledCapsuleRadius();
 	}
-	
+
 	float AdjustedRange = Range + TargetRadius;
 	if (DistSqXY > FMath::Square(AdjustedRange))
 	{
@@ -615,7 +610,7 @@ void ANovaUnit::OnSelected()
 	// TODO: 팀원 B가 구현할 하이라이트/데칼 로직이 들어갈 자리
 	if (SelectionWidget)
 	{
-		UpdateSelectionColor();
+		UpdateSelectionCircleColor();
 		SelectionWidget->SetVisibility(true);
 		// 선택 즉시 위치를 한 번 잡아줌
 		UpdateSelectionWidgetPosition();
@@ -638,7 +633,7 @@ bool ANovaUnit::IsSelectable() const
 {
 	// 죽었거나 안개 속에 있으면 선택 불가
 	if (bIsDead || !bIsVisibleByFog) return false;
-	
+
 	// 로컬 플레이어 팀 확인
 	int32 LocalPlayerTeamID = -1;
 	if (auto* PC = GetWorld()->GetFirstPlayerController())
@@ -648,10 +643,10 @@ bool ANovaUnit::IsSelectable() const
 			LocalPlayerTeamID = PS->GetTeamID();
 		}
 	}
-	
+
 	// 아군이면 항상 선택 가능, 적군이면 시야 내에 있을 때만 선택 가능
 	if (TeamID == LocalPlayerTeamID) return true;
-	
+
 	return bIsVisibleByFog;
 }
 
@@ -659,12 +654,12 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 {
 	// 죽은 상태에서는 명령 수행 불가
 	if (bIsDead) return;
-	
+
 	// 공격 명령 하달시 타겟 유효성(지상/공중) 필터링
 	if (CommandData.CommandType == ECommandType::Attack && CommandData.TargetActor)
 	{
 		bool bCanAttackTarget = true;
-		
+
 		// 1. 공격 가능 대상 확인 (ASC 구현 여부)
 		if (CommandData.TargetActor->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()) == nullptr)
 		{
@@ -701,7 +696,8 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 
 		if (!bCanAttackTarget)
 		{
-			NOVA_LOG(Warning, "Unit %s cannot attack %s due to TargetType mismatch or invalid target.", *GetName(), *CommandData.TargetActor->GetName());
+			NOVA_LOG(Warning, "Unit %s cannot attack %s due to TargetType mismatch or invalid target.", *GetName(),
+			         *CommandData.TargetActor->GetName());
 			return; // 공격 불가능한 대상이면 명령 무시
 		}
 	}
@@ -880,7 +876,7 @@ void ANovaUnit::UpdateSelectionWidgetPosition()
 	}
 }
 
-void ANovaUnit::UpdateSelectionColor()
+void ANovaUnit::UpdateSelectionCircleColor()
 {
 	if (!SelectionWidget) return;
 
@@ -895,7 +891,7 @@ void ANovaUnit::UpdateSelectionColor()
 	FLinearColor TargetColor = FLinearColor::Red; // 기본 Red (적)
 	if (TeamID == LocalPlayerTeamID) TargetColor = FLinearColor::Green; // 내 유닛 Green
 	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow; // 중립, 아군 Yellow
-	
+
 	// 위젯 인스턴스에 접근하여 색상 전달
 	UUserWidget* WidgetObj = SelectionWidget->GetUserWidgetObject();
 	if (WidgetObj)
@@ -904,20 +900,39 @@ void ANovaUnit::UpdateSelectionColor()
 	}
 }
 
+void ANovaUnit::UpdateSelectionCircleSize()
+{
+	if (GetCapsuleComponent() && SelectionWidget)
+	{
+		// 스케일이 적용된 최종 반지름 값을 가져옴
+		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+
+		// 반지름의 2배(지름)에 약간의 여유(1.2배)를 줌
+		float Diameter = Radius * 2.0f * 1.2f;
+
+		// 위젯의 해상도(DrawSize)를 지름 크기로 설정
+		// SetUsingAbsoluteScale(true) 덕분에 이 수치가 곧 월드 크기가 됩니다.
+		SelectionWidget->SetDrawSize(FVector2D(Diameter, Diameter));
+
+		// 혹시 모르니 위젯 자체의 상대 스케일은 1,1,1로 고정
+		SelectionWidget->SetRelativeScale3D(FVector(1.f, 1.f, 1.f));
+	}
+}
+
 void ANovaUnit::SetFogVisibility(bool bVisible)
 {
 	if (bIsVisibleByFog == bVisible) return;
 	bIsVisibleByFog = bVisible;
-	
+
 	// 시각적 처리
 	SetActorHiddenInGame(!bVisible);
-	
+
 	// 마우스 클릭(Visibility)만 선택적으로 무시
 	if (GetCapsuleComponent())
 	{
 		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, bVisible ? ECR_Block : ECR_Ignore);
 	}
-	
+
 	// 선택된 상태에서 안개 속으로 사라졌을 때
 	if (!bVisible && bIsSelected)
 	{
@@ -927,7 +942,7 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 			NovaPC->NotifyTargetUnselectable(this);
 		}
 	}
-	
+
 	// 선택 표시 위젯이 켜져 있었다면 강제로 끄기
 	if (!bVisible && SelectionWidget)
 	{
