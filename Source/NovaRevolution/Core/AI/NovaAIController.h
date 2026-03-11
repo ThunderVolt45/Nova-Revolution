@@ -51,6 +51,9 @@ protected:
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
 
+	/** 이동 명령이 완료되었을 때 호출되는 콜백 */
+	virtual void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result) override;
+
 	/** 블랙보드 값이 변경될 때 호출될 콜백 함수 */
 	EBlackboardNotificationResult OnCommandTypeChanged(const UBlackboardComponent& InBlackboard, FBlackboard::FKey KeyID);
 

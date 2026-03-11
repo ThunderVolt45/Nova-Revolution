@@ -100,6 +100,18 @@ void ANovaAIController::OnUnPossess()
 	Super::OnUnPossess();
 }
 
+void ANovaAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
+{
+	Super::OnMoveCompleted(RequestID, Result);
+
+	// 이동이 완료되었을 때 (성공, 중단 등 상관없이 멈춘 상태) 장애물로 설정
+	// 이를 통해 공격이나 순찰 중 사거리 내에 도달하여 멈췄을 때도 장애물이 됩니다.
+	if (ANovaUnit* MyUnit = Cast<ANovaUnit>(GetPawn()))
+	{
+		MyUnit->SetNavigationObstacle(true);
+	}
+}
+
 EBlackboardNotificationResult ANovaAIController::OnCommandTypeChanged(const UBlackboardComponent& InBlackboard, FBlackboard::FKey KeyID)
 {
 	APawn* MyPawn = GetPawn();
@@ -136,16 +148,12 @@ EBlackboardNotificationResult ANovaAIController::OnCommandTypeChanged(const UBla
 	return EBlackboardNotificationResult::ContinueObserving;
 }
 
-#include "Core/AI/NovaNavigationFilter_Move.h"
-
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 {
 	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
 		APawn* MyPawn = GetPawn();
 		if (!MyPawn) return;
-
-		ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
 
 		// 새로운 명령 시 Stuck 상태 초기화
 		StuckTimer = 0.0f;
@@ -228,6 +236,12 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
 	ENovaMovementType MoveType = MyUnit ? MyUnit->GetMovementType() : ENovaMovementType::Ground;
 
+	// 이동 시작 시 장애물 상태 해제 (경로 탐색 방해 방지)
+	if (MyUnit)
+	{
+		MyUnit->SetNavigationObstacle(false);
+	}
+
 	// 이동 시작 시 타이머 초기화
 	StuckTimer = 0.0f;
 	LastStuckCheckLocation = MyPawn->GetActorLocation();
@@ -262,6 +276,12 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
 	ENovaMovementType MyMoveType = MyUnit ? MyUnit->GetMovementType() : ENovaMovementType::Ground;
+
+	// 이동 시작 시 장애물 상태 해제
+	if (MyUnit)
+	{
+		MyUnit->SetNavigationObstacle(false);
+	}
 
 	// 이동 시작 시 타이머 초기화
 	StuckTimer = 0.0f;
@@ -379,6 +399,12 @@ void ANovaAIController::UpdateManualMovement(float DeltaSeconds)
 	if (Distance <= ManualAcceptanceRadius)
 	{
 		bIsManualMoving = false;
+
+		// 목적지 도착 시 장애물 상태 활성화
+		if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
+		{
+			MyUnit->SetNavigationObstacle(true);
+		}
 		return;
 	}
 
