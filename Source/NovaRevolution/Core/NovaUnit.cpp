@@ -158,6 +158,12 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 	// 2. 부품들 실제 소켓에 정렬 부착
 	InitializePartAttachments();
 	
+	// 3. 에디터 프리뷰 환경에서만 미리 계산 반영 (런타임 이중 초기화 방지)
+	if (GetWorld() && !GetWorld()->IsGameWorld())
+	{
+		InitializeAttributesFromParts();
+	}
+
 	// 캡슐 반지름에 맞춰 위젯 크기 동적 설정
 	if (GetCapsuleComponent() && SelectionWidget)
 	{
@@ -487,6 +493,10 @@ void ANovaUnit::InitializeAttributesFromParts()
 	{
 		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
 		{
+			// 중요: 데이터 테이블로부터 스펙이 아직 로드되지 않았을 수 있으므로 강제 초기화 시도
+			// (OnConstruction이나 BeginPlay의 실행 순서 문제를 방지하기 위함)
+			Part->InitializePartSpec();
+
 			// 데이터 테이블 방식 (PartSpec) 참조
 			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
 
@@ -505,6 +515,25 @@ void ANovaUnit::InitializeAttributesFromParts()
 			if (Spec.PartType == ENovaPartType::Legs)
 			{
 				MovementType = Spec.MovementType;
+
+				// --- 캡슐 콜라이더 반경 설정 (Legs 전용) ---
+				if (Spec.CollisionRadius > 0.0f)
+				{
+					if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+					{
+						Capsule->SetCapsuleRadius(Spec.CollisionRadius);
+						
+						// 선택 표시 위젯의 크기도 캡슐 반경에 맞춰 조절 (기본 반경 50 기준)
+						if (SelectionWidget)
+						{
+							float ScaleFactor = Spec.CollisionRadius / 50.0f;
+							SelectionWidget->SetRelativeScale3D(FVector(ScaleFactor, ScaleFactor, 1.0f));
+						}
+
+						NOVA_LOG(Log, "Unit '%s' capsule radius updated from Legs: R=%.1f", 
+							*GetName(), Spec.CollisionRadius);
+					}
+				}
 			}
 			else if (Spec.PartType == ENovaPartType::Weapon)
 			{
