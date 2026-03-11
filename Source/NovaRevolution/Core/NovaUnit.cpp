@@ -535,16 +535,6 @@ void ANovaUnit::InitializeAttributesFromParts()
 							// 변경된 에이전트 설정을 네비게이션 시스템에 알림
 							MoveComp->UpdateNavAgent(*this);
 						}
-						
-						// 선택 표시 위젯의 크기도 캡슐 반경에 맞춰 조절 (기본 반경 50 기준)
-						if (SelectionWidget)
-						{
-							float ScaleFactor = Spec.CollisionRadius / 50.0f;
-							SelectionWidget->SetRelativeScale3D(FVector(ScaleFactor, ScaleFactor, 1.0f));
-						}
-
-						NOVA_LOG(Log, "Unit '%s' capsule radius updated from Legs: R=%.1f", 
-							*GetName(), Spec.CollisionRadius);
 					}
 				}
 			}
