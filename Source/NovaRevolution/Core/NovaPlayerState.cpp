@@ -23,6 +23,28 @@ ANovaPlayerState::ANovaPlayerState()
 void ANovaPlayerState::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	
+	// --- 1. GAS 초기화 (가장 먼저 수행) ---
+	if (AbilitySystemComponent)
+	{
+		// Owner: 자신(PlayerState), Avatar: 자신(PlayerState)
+		// 이제 PlayerState는 '사령관'으로서 어빌리티를 실행할 권한을 얻습니다.
+		AbilitySystemComponent->InitAbilityActorInfo(this, this);
+	}
+	
+	if (GetNetMode() != NM_Client && AbilitySystemComponent)
+	{
+		for (const auto& AbilityClass : SkillAbilities)
+		{
+			if (AbilityClass)
+			{
+				AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, INDEX_NONE, this));
+			}
+		}
+	}
+	
+	
 
 	if (AbilitySystemComponent && ResourceAttributeSet)
 	{
@@ -151,4 +173,14 @@ float ANovaPlayerState::GetWattLevel() const
 float ANovaPlayerState::GetSPLevel() const
 {
 	return ResourceAttributeSet ? ResourceAttributeSet->GetSPLevel() : 1.0f;
+}
+
+void ANovaPlayerState::ActivateSkillAbility_Implementation(FGameplayTag AbilityTag)
+{
+	if (AbilitySystemComponent)
+	{
+		// 입력받은 태그를 가진 어빌리티(사령관 스킬)를 찾아 실행을 시도합니다.
+		// 이 한 줄로 앞으로 추가될 모든 사령관 스킬이 공통으로 처리됩니다.
+		AbilitySystemComponent->TryActivateAbilitiesByTag(FGameplayTagContainer(AbilityTag));
+	}
 }
