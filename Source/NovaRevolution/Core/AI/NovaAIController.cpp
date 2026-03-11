@@ -39,14 +39,23 @@ void ANovaAIController::Tick(float DeltaTime)
 		UpdateManualMovement(DeltaTime);
 	}
 
+	bool bIsMoving = IsMoveInProgress();
+
 	// 이동 중일 때만 Stuck 감지 로직 실행
-	if (IsMoveInProgress())
+	if (bIsMoving)
 	{
 		UpdateStuckDetection(DeltaTime);
 	}
 	else
 	{
 		StuckTimer = 0.0f;
+	}
+
+	// [핵심] 유닛이 엔진 내비게이션을 통해 이동 중이 아닐 때만 장애물로 작동하게 함.
+	// 이를 통해 순찰 대기 중이거나 공격 사거리 내에서 제자리에 서서 공격할 때 자동으로 장애물이 됩니다.
+	if (ANovaUnit* MyUnit = Cast<ANovaUnit>(GetPawn()))
+	{
+		MyUnit->SetNavigationObstacle(!bIsMoving);
 	}
 }
 
@@ -98,18 +107,6 @@ void ANovaAIController::OnUnPossess()
 	}
 
 	Super::OnUnPossess();
-}
-
-void ANovaAIController::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
-{
-	Super::OnMoveCompleted(RequestID, Result);
-
-	// 이동이 완료되었을 때 (성공, 중단 등 상관없이 멈춘 상태) 장애물로 설정
-	// 이를 통해 공격이나 순찰 중 사거리 내에 도달하여 멈췄을 때도 장애물이 됩니다.
-	if (ANovaUnit* MyUnit = Cast<ANovaUnit>(GetPawn()))
-	{
-		MyUnit->SetNavigationObstacle(true);
-	}
 }
 
 EBlackboardNotificationResult ANovaAIController::OnCommandTypeChanged(const UBlackboardComponent& InBlackboard, FBlackboard::FKey KeyID)

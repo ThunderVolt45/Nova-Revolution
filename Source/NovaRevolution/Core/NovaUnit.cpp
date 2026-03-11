@@ -560,8 +560,12 @@ void ANovaUnit::InitializeAttributesFromParts()
 							// 네비게이션 시스템이 참조하는 에이전트 반경 업데이트
 							MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
 							
-							// 유닛 간 회피(RVO/Crowd) 시 고려할 반경 업데이트
+							// 유닛 간 회피 시 고려할 반경 업데이트 (Crowd Manager 사용)
 							MoveComp->AvoidanceConsiderationRadius = Spec.CollisionRadius;
+
+							// [수정] RVO 회피 명시적 비활성화 (Crowd Manager와 충돌하여 덜덜거림 유발 방지)
+							MoveComp->bUseRVOAvoidance = false;
+							MoveComp->AvoidanceWeight = 0.5f;
 
 							// 변경된 에이전트 설정을 네비게이션 시스템에 알림
 							MoveComp->UpdateNavAgent(*this);
@@ -1007,5 +1011,7 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 		{
 			NavModifier->Deactivate();
 		}
+		
+		NOVA_LOG(Warning, "NavModifier %hs", bIsObstacle ? "Activated" : "Deactivated");
 	}
 }
