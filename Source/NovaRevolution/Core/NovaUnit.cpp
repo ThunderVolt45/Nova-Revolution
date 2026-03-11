@@ -201,7 +201,7 @@ void ANovaUnit::Tick(float DeltaTime)
 			float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 			FVector CapsuleBottom = GetActorLocation() - FVector(0.f, 0.f, HalfHeight);
 
-			// 3. 사용자님 제안: 캡슐 반지름(Radius) + 추가 오프셋(예: 20.f)
+			// 3. 캡슐 반지름(Radius) + 추가 오프셋(예: 20.f)
 			float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
 			float TotalOffset = Radius + 20.0f; // 여기서 간격 조절 가능
 
@@ -275,12 +275,16 @@ void ANovaUnit::BeginPlay()
 	// 초기 Yaw 설정
 	LastYaw = GetActorRotation().Yaw;
 
-	// 모든 조립과 캡슐 크기 변경이 끝난 후 위젯 사이즈 갱신 함수 호출
+	// UI에 적용할 색상 저장
+	InitializeUIColors();
+	
+	// 위젯 사이즈 갱신
 	UpdateSelectionCircleTransform();
-	UpdateHealthBarTransform();
+	
 	// 초기 체력바 상태 설정
+	UpdateHealthBarTransform();
 	UpdateHealthBar();
-	UpdateHealthBarSize();
+	UpdateHealthBarLength();
 
 
 	// --- 랠리 포인트 이동 로직 추가 ---
@@ -721,7 +725,7 @@ UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
 void ANovaUnit::OnSelected()
 {
 	bIsSelected = true;
-	// TODO: 팀원 B가 구현할 하이라이트/데칼 로직이 들어갈 자리
+
 	if (SelectionWidget)
 	{
 		UpdateSelectionCircleColor();
@@ -984,30 +988,17 @@ void ANovaUnit::UpdateSelectionCircleColor()
 {
 	if (!SelectionWidget) return;
 
-	// 로컬 플레이어 팀 확인
-	int32 LocalPlayerTeamID = -1;
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (PC && PC->GetPlayerState<ANovaPlayerState>())
-	{
-		LocalPlayerTeamID = PC->GetPlayerState<ANovaPlayerState>()->GetTeamID();
-	}
-
-	FLinearColor TargetColor = FLinearColor::Red; // 기본 Red (적)
-	if (TeamID == LocalPlayerTeamID) TargetColor = FLinearColor::Green; // 내 유닛 Green
-	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow;
-	// 중립, 아군 Yellow
-
 	// 위젯 인스턴스에 접근하여 색상 전달
 	// 1. 본체 위젯 색상 변경
 	if (SelectionWidget && SelectionWidget->GetUserWidgetObject())
 	{
-		SelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(TargetColor);
+		SelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(CachedUIColor);
 	}
 
 	// 2. 바닥 투영 원 색상 변경 (추가)
 	if (GroundSelectionWidget && GroundSelectionWidget->GetUserWidgetObject())
 	{
-		GroundSelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(TargetColor);
+		GroundSelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(CachedUIColor);
 	}
 
 	// 3. 수직 안내선 색상 변경 (추가)
@@ -1018,7 +1009,7 @@ void ANovaUnit::UpdateSelectionCircleColor()
 		if (DynMat)
 		{
 			// 재질에서 만든 파라미터 이름(예: TeamColor)에 맞춰 색상을 전달합니다.
-			DynMat->SetVectorParameterValue(TEXT("TeamColor"), TargetColor);
+			DynMat->SetVectorParameterValue(TEXT("TeamColor"), CachedUIColor);
 		}
 	}
 }
@@ -1117,23 +1108,8 @@ void ANovaUnit::UpdateHealthBar()
 
 		// 체력 퍼센트 적용
 		HealthBar->SetPercent(HPPercent);
-
-		// 팀 색상 적용
-		int32 LocalPlayerTeamID = -1;
-		if (auto* PC = GetWorld()->GetFirstPlayerController())
-		{
-			if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
-			{
-				// TeamID 받아오기
-				LocalPlayerTeamID = PS->GetTeamID();
-			}
-		}
-		FLinearColor TargetColor = FLinearColor::Red; // 적
-		if (TeamID == LocalPlayerTeamID) TargetColor = FLinearColor::Green; // 아군
-		else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow; // 중립
-
 		// 색상 부여
-		HealthBar->SetFillColorAndOpacity(TargetColor);
+		HealthBar->SetFillColorAndOpacity(CachedUIColor);
 	}
 }
 
@@ -1164,24 +1140,41 @@ void ANovaUnit::UpdateHealthBarTransform()
 	}
 }
 
-void ANovaUnit::UpdateHealthBarSize()
+void ANovaUnit::UpdateHealthBarLength()
 {
 	if (!HealthBarWidget || !AttributeSet) return;
-	
+
 	// 최대 체력 가져오기
 	float MaxHP = AttributeSet->GetMaxHealth();
-	
+
 	// 로그 스케일 가로 길이 계산
 	float LogHPVal = FMath::Loge(FMath::Max(1.0f, MaxHP / 100.0f));
-	
+
 	// 가로 길이 계산 : 기본값 + (최대 체력 * 비례 계수)
 	float TargetWidth = MinHealthBarWidth + (LogHPVal * HealthBarLogScaleFactor);
-	
+
 	// 최소/최대 범위 제한 (Clamp)
 	TargetWidth = FMath::Clamp(TargetWidth, MinHealthBarWidth, MaxHealthBarWidth);
-	
+
 	// 위젯 컴포넌트에 적용 (세로 길이는 고정)
 	HealthBarWidget->SetDrawSize(FVector2D(TargetWidth, HealthBarHeight));
+}
+
+void ANovaUnit::InitializeUIColors()
+{
+	int32 LocalPlayerTeamID = -1;
+	if (auto* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
+		{
+			LocalPlayerTeamID = PS->GetTeamID();
+		}
+	}
+
+	// 색상 결정 및 캐싱
+	CachedUIColor = FLinearColor::Red; // 적군
+	if (TeamID == LocalPlayerTeamID) CachedUIColor = FLinearColor::Green; // 아군
+	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) CachedUIColor = FLinearColor::Yellow; // 중립
 }
 
 void ANovaUnit::SetFogVisibility(bool bVisible)
