@@ -142,7 +142,8 @@ void ANovaUnit::Tick(float DeltaTime)
 
 	if (bIsDead) return;
 
-	// 1. 공중 유닛 고도 조절
+	// 1. 공중 유닛 고도 조절 (가상 평면 NavMesh 사용을 위해 주석 처리)
+	/*
 	if (MovementType == ENovaMovementType::Air)
 	{
 		FVector CurrentLocation = GetActorLocation();
@@ -175,6 +176,7 @@ void ANovaUnit::Tick(float DeltaTime)
 			SetActorLocation(FVector(CurrentLocation.X, CurrentLocation.Y, NewZ));
 		}
 	}
+	*/
 
 	// 2. 다리(Legs) 부품 애니메이션 데이터 전달
 	if (LegsPartComponent)
@@ -637,6 +639,18 @@ void ANovaUnit::InitializeAttributesFromParts()
 							// 네비게이션 시스템이 참조하는 에이전트 반경 업데이트
 							MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
 							
+							// 공중/지상 유닛에 따라 사용할 NavMesh(Supported Agent) 분리
+							if (MovementType == ENovaMovementType::Air)
+							{
+								MoveComp->NavAgentProps.bCanWalk = false;
+								MoveComp->NavAgentProps.bCanFly = true;
+							}
+							else
+							{
+								MoveComp->NavAgentProps.bCanWalk = true;
+								MoveComp->NavAgentProps.bCanFly = false;
+							}
+
 							// 유닛 간 회피 시 고려할 반경 업데이트 (Crowd Manager 사용)
 							MoveComp->AvoidanceConsiderationRadius = Spec.CollisionRadius;
 
@@ -682,6 +696,9 @@ void ANovaUnit::InitializeAttributesFromParts()
 	{
 		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
 		GetCharacterMovement()->MaxFlySpeed = TotalSpeed;
+		
+		// AI 이동 시 가속도를 무시하고 즉각적인 방향 전환과 최고 속도 도달을 허용 (빠릿빠릿한 조작감의 핵심)
+		GetCharacterMovement()->bRequestedMoveUseAcceleration = false;
 
 		// 공중 유닛 설정
 		if (MovementType == ENovaMovementType::Air)
@@ -689,13 +706,28 @@ void ANovaUnit::InitializeAttributesFromParts()
 			GetCharacterMovement()->SetMovementMode(MOVE_Flying);
 			GetCharacterMovement()->bCheatFlying = true; // 중력 영향 배제 보강
 
-			// 공중 유닛은 평면 제약 해제 (고도 조절을 위함)
-			GetCharacterMovement()->bConstrainToPlane = false;
+			// 비행 시 굼뜨게 움직이는 현상 방지: 마찰력을 걷기 수준으로 올림
+			GetCharacterMovement()->MaxAcceleration = TotalSpeed * 10.0f; // 더 강력한 가속도
+			GetCharacterMovement()->BrakingDecelerationFlying = TotalSpeed * 10.0f; // 즉각적인 제동
+			GetCharacterMovement()->BrakingFrictionFactor = 2.0f;
+			GetCharacterMovement()->FallingLateralFriction = 8.0f; // 공중 미끄러짐 방지
+
+			// 가상 평면 NavMesh를 타기 위해 평면 제약을 켭니다.
+			GetCharacterMovement()->bConstrainToPlane = true;
+			GetCharacterMovement()->bSnapToPlaneAtStart = true;
+
+			// 생성 위치를 하늘(Z = DefaultAirZ)로 고정
+			FVector CurrentLoc = GetActorLocation();
+			SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ));
 		}
 		else
 		{
 			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 			GetCharacterMovement()->bConstrainToPlane = true;
+			
+			// 지상 유닛 가속도 보정
+			GetCharacterMovement()->MaxAcceleration = TotalSpeed * 10.0f;
+			GetCharacterMovement()->BrakingDecelerationWalking = TotalSpeed * 10.0f;
 		}
 	}
 
@@ -1238,9 +1270,6 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 
 void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 {
-	// 공중 유닛은 지상 내비게이션에 영향을 주지 않음
-	if (MovementType == ENovaMovementType::Air) return;
-
 	// 상태 변화가 있을 때만 실행하여 불필요한 부하 방지
 	if (bIsNavigationObstacle == bIsObstacle) return;
 	bIsNavigationObstacle = bIsObstacle;

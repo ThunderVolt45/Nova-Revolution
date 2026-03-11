@@ -231,7 +231,6 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 	if (!MyPawn) return;
 
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
-	ENovaMovementType MoveType = MyUnit ? MyUnit->GetMovementType() : ENovaMovementType::Ground;
 
 	// 이동 시작 시 장애물 상태 해제 (경로 탐색 방해 방지)
 	if (MyUnit)
@@ -243,24 +242,10 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 	StuckTimer = 0.0f;
 	LastStuckCheckLocation = MyPawn->GetActorLocation();
 
-	// 1. 공중 유닛: 수동 이동 설정
-	if (MoveType == ENovaMovementType::Air)
-	{
-		// 이전에 엔진 경로 추종이 활성화되어 있었다면 한 번만 중단
-		if (GetMoveStatus() != EPathFollowingStatus::Idle)
-		{
-			StopMovement();
-		}
-
-		bIsManualMoving = true;
-		ManualMoveGoal = Dest;
-		ManualMoveTargetActor = nullptr;
-		ManualAcceptanceRadius = AcceptanceRadius;
-		return;
-	}
-
-	// 2. 지상 유닛: 이동용 필터를 사용하여 유닛 간 뭉침 상황에서도 즉시 경로 생성
+	// 수동 이동 플래그 해제
 	bIsManualMoving = false;
+	
+	// 이동용 필터를 사용하여 유닛 간 뭉침 상황에서도 즉시 경로 생성 (공중/지상 모두 적용)
 	MoveToLocation(Dest, AcceptanceRadius, true, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
 }
 
@@ -272,7 +257,6 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 	if (!MyPawn) return;
 
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
-	ENovaMovementType MyMoveType = MyUnit ? MyUnit->GetMovementType() : ENovaMovementType::Ground;
 
 	// 이동 시작 시 장애물 상태 해제
 	if (MyUnit)
@@ -288,25 +272,11 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 	ANovaUnit* TargetUnit = Cast<ANovaUnit>(TargetActor);
 	bool bIsTargetAir = TargetUnit && (TargetUnit->GetMovementType() == ENovaMovementType::Air);
 
-	// 1. 공중 유닛: 수동 추적 설정
-	if (MyMoveType == ENovaMovementType::Air)
-	{
-		if (GetMoveStatus() != EPathFollowingStatus::Idle)
-		{
-			StopMovement();
-		}
-
-		bIsManualMoving = true;
-		ManualMoveTargetActor = TargetActor;
-		ManualAcceptanceRadius = AcceptanceRadius;
-		return;
-	}
-
-	// 2. 지상 유닛 처리
+	// 수동 이동 해제
 	bIsManualMoving = false;
 
 	// 지상 유닛이 공중 타겟을 쫓는 경우: 타겟의 수평 위치 기반 NavMesh 지점으로 이동
-	if (bIsTargetAir)
+	if (MyUnit && MyUnit->GetMovementType() == ENovaMovementType::Ground && bIsTargetAir)
 	{
 		FVector TargetLoc = TargetActor->GetActorLocation();
 		UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
@@ -321,7 +291,7 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 		}
 	}
 
-	// 일반적인 지상 타겟 추적 시에도 필터 적용 및 목적지 투영 활성화
+	// 일반적인 타겟 추적 시 필터 적용 (공중 유닛도 엔진 이동 사용)
 	MoveToActor(TargetActor, AcceptanceRadius, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
 }
 
