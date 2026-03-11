@@ -522,6 +522,19 @@ void ANovaUnit::InitializeAttributesFromParts()
 					if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 					{
 						Capsule->SetCapsuleRadius(Spec.CollisionRadius);
+
+						// --- 네비게이션 및 이동 컴포넌트 데이터 동기화 ---
+						if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+						{
+							// 네비게이션 시스템이 참조하는 에이전트 반경 업데이트
+							MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
+							
+							// 유닛 간 회피(RVO/Crowd) 시 고려할 반경 업데이트
+							MoveComp->AvoidanceConsiderationRadius = Spec.CollisionRadius;
+
+							// 변경된 에이전트 설정을 네비게이션 시스템에 알림
+							MoveComp->UpdateNavAgent(*this);
+						}
 						
 						// 선택 표시 위젯의 크기도 캡슐 반경에 맞춰 조절 (기본 반경 50 기준)
 						if (SelectionWidget)
