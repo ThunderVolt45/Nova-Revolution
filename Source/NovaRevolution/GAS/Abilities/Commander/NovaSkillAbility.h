@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GAS/Abilities/NovaGameplayAbility.h"
-#include "NovaCommanderAbility.generated.h"
+#include "NovaSkillAbility.generated.h"
 
 /**
  * UNovaCommanderAbility
@@ -13,12 +13,12 @@
  */
 
 UCLASS()
-class NOVAREVOLUTION_API UNovaCommanderAbility : public UNovaGameplayAbility
+class NOVAREVOLUTION_API UNovaSkillAbility : public UNovaGameplayAbility
 {
 	GENERATED_BODY()
 	
 public:
-	UNovaCommanderAbility();
+	UNovaSkillAbility();
 
 protected:
 	/** 어빌리티를 실행하는 플레이어의 메인 기지(ANovaBase)를 반환합니다. */

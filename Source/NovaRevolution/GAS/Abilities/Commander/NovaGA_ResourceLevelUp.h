@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GAS/Abilities/Commander/NovaCommanderAbility.h"
+#include "GAS/Abilities/Commander/NovaSkillAbility.h"
 #include "NovaGA_ResourceLevelUp.generated.h"
 
 /**
@@ -11,7 +11,7 @@
  * 사령관의 자원(Watt/SP) 생산 레벨을 올리고 재생 GE를 갱신하는 스킬 어빌리티입니다.
  */
 UCLASS()
-class NOVAREVOLUTION_API UNovaGA_ResourceLevelUp : public UNovaCommanderAbility
+class NOVAREVOLUTION_API UNovaGA_ResourceLevelUp : public UNovaSkillAbility
 {
 	GENERATED_BODY()
 

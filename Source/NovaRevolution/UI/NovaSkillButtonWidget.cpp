@@ -3,14 +3,14 @@
 
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "UI/NovaCommanderSkillButtonWidget.h"
+#include "UI/NovaSkillButtonWidget.h"
 
 #include "Components/Button.h"
 #include "Components/Image.h"
 #include "Core/NovaInterfaces.h"
 #include "GameFramework/PlayerState.h"
 
-void UNovaCommanderSkillButtonWidget::OnButtonClicked()
+void UNovaSkillButtonWidget::OnButtonClicked()
 {
 	// 1. 설정된 태그가 유효하지 않으면 실행하지 않습니다.
 	if (!ActionAbilityTag.IsValid())
@@ -37,7 +37,7 @@ void UNovaCommanderSkillButtonWidget::OnButtonClicked()
 	}
 }
 
-void UNovaCommanderSkillButtonWidget::NativePreConstruct()
+void UNovaSkillButtonWidget::NativePreConstruct()
 {
 	Super::NativePreConstruct();
 	
@@ -49,7 +49,7 @@ void UNovaCommanderSkillButtonWidget::NativePreConstruct()
 	}
 }
 
-void UNovaCommanderSkillButtonWidget::NativeConstruct()
+void UNovaSkillButtonWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
 	
@@ -58,7 +58,7 @@ void UNovaCommanderSkillButtonWidget::NativeConstruct()
 	{
 		// 2. 버튼의 OnClicked 델리게이트에 우리가 만든 함수를 '동적 바인딩'합니다.
 		// 이 코드가 '전선'을 연결하는 역할을 합니다!
-		CommanderSkillButton->OnClicked.AddDynamic(this, &UNovaCommanderSkillButtonWidget::OnButtonClicked);
+		CommanderSkillButton->OnClicked.AddDynamic(this, &UNovaSkillButtonWidget::OnButtonClicked);
 	}
 }
 

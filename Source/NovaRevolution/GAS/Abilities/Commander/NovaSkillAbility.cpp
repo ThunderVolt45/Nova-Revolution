@@ -1,19 +1,19 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "GAS/Abilities/Commander/NovaCommanderAbility.h"
+#include "GAS/Abilities/Commander/NovaSkillAbility.h"
 #include "Core/NovaPlayerState.h"
 #include "Core/NovaBase.h"
 #include "AbilitySystemComponent.h"
 
 
-UNovaCommanderAbility::UNovaCommanderAbility()
+UNovaSkillAbility::UNovaSkillAbility()
 {
 	// 사령관 스킬은 기본적으로 서버에서 실행되며 클라이언트에 통보되는 방식을 따릅니다.
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
 }
 
-ANovaBase* UNovaCommanderAbility::GetPlayerBase() const
+ANovaBase* UNovaSkillAbility::GetPlayerBase() const
 {
 	// 어빌리티의 AvatarActor는 PlayerState입니다.
 	if (ANovaPlayerState* PS = Cast<ANovaPlayerState>(GetAvatarActorFromActorInfo()))
@@ -23,7 +23,7 @@ ANovaBase* UNovaCommanderAbility::GetPlayerBase() const
 	return nullptr;
 }
 
-bool UNovaCommanderAbility::CheckCommanderResources(float WattCost, float SPCost) const
+bool UNovaSkillAbility::CheckCommanderResources(float WattCost, float SPCost) const
 {
 	if (ANovaPlayerState* PS = Cast<ANovaPlayerState>(GetAvatarActorFromActorInfo()))
 	{
@@ -33,7 +33,7 @@ bool UNovaCommanderAbility::CheckCommanderResources(float WattCost, float SPCost
 	return false;
 }
 
-bool UNovaCommanderAbility::K2_CheckAndNotifyResources(float WattCost, float SPCost)
+bool UNovaSkillAbility::K2_CheckAndNotifyResources(float WattCost, float SPCost)
 {
 	if (CheckCommanderResources(WattCost, SPCost))
 	{

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
 #include "Blueprint/UserWidget.h"
-#include "NovaCommanderSkillButtonWidget.generated.h"
+#include "NovaSkillButtonWidget.generated.h"
 
 /**
  * UNovaCommanderSkillButtonWidget
@@ -13,7 +13,7 @@
  * 이 클래스를 상속받아 WBP_CommanderSkillButton을 제작합니다.
  */
 UCLASS()
-class NOVAREVOLUTION_API UNovaCommanderSkillButtonWidget : public UUserWidget
+class NOVAREVOLUTION_API UNovaSkillButtonWidget : public UUserWidget
 {
 	GENERATED_BODY()
 	
