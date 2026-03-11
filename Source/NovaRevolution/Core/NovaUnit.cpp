@@ -165,6 +165,28 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 
 	// 위젯 크기 설정 함수 호출
 	UpdateSelectionCircleSize();
+	
+	// 3. 에디터 프리뷰 환경에서만 미리 계산 반영 (런타임 이중 초기화 방지)
+	if (GetWorld() && !GetWorld()->IsGameWorld())
+	{
+		InitializeAttributesFromParts();
+	}
+
+	// 캡슐 반지름에 맞춰 위젯 크기 동적 설정
+	if (GetCapsuleComponent() && SelectionWidget)
+	{
+		// 캡슐 반지름 가져오기 (스케일 포함)
+		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+		
+		// 원의 지름 계산 (캡슐보다 약간 더 크게 1.2배 여유)
+		float Diameter = Radius * 2.0f * 1.2f;
+		
+		// DrawSize를 설정(지름 * 지름)
+		SelectionWidget->SetDrawSize(FVector2D(Diameter, Diameter));
+		
+		// DrawAtDesiredSize는 수동 설정 시 false
+		SelectionWidget->SetDrawAtDesiredSize(false);
+	}
 }
 
 void ANovaUnit::BeginPlay()
@@ -482,6 +504,10 @@ void ANovaUnit::InitializeAttributesFromParts()
 	{
 		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
 		{
+			// 중요: 데이터 테이블로부터 스펙이 아직 로드되지 않았을 수 있으므로 강제 초기화 시도
+			// (OnConstruction이나 BeginPlay의 실행 순서 문제를 방지하기 위함)
+			Part->InitializePartSpec();
+
 			// 데이터 테이블 방식 (PartSpec) 참조
 			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
 
@@ -500,6 +526,28 @@ void ANovaUnit::InitializeAttributesFromParts()
 			if (Spec.PartType == ENovaPartType::Legs)
 			{
 				MovementType = Spec.MovementType;
+
+				// --- 캡슐 콜라이더 반경 설정 (Legs 전용) ---
+				if (Spec.CollisionRadius > 0.0f)
+				{
+					if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+					{
+						Capsule->SetCapsuleRadius(Spec.CollisionRadius);
+
+						// --- 네비게이션 및 이동 컴포넌트 데이터 동기화 ---
+						if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+						{
+							// 네비게이션 시스템이 참조하는 에이전트 반경 업데이트
+							MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
+							
+							// 유닛 간 회피(RVO/Crowd) 시 고려할 반경 업데이트
+							MoveComp->AvoidanceConsiderationRadius = Spec.CollisionRadius;
+
+							// 변경된 에이전트 설정을 네비게이션 시스템에 알림
+							MoveComp->UpdateNavAgent(*this);
+						}
+					}
+				}
 			}
 			else if (Spec.PartType == ENovaPartType::Weapon)
 			{

@@ -70,11 +70,11 @@ public:
 	/** 조준 각도를 부드럽게 업데이트하고 ABP로 전달합니다. */
 	void UpdateAiming(float DeltaTime);
 
-protected:
-	virtual void BeginPlay() override;
-
 	// 데이터 테이블에서 스펙을 불러오는 함수
 	void InitializePartSpec();
+
+protected:
+	virtual void BeginPlay() override;
 
 protected:
 	// 부품 식별 ID (데이터 테이블의 Row Name과 일치해야 함)
