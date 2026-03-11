@@ -156,6 +156,9 @@ public:
 	// 생성된 유닛 자동 부대 편입 (public?)
 	void OnUnitProduced(AActor* Unit, int32 SlotIndex);
 
+	// 대상이 죽거나(파괴되거나) 안개 속으로 숨겨졌을 때 호출되는 알림 함수
+	void NotifyTargetUnselectable(AActor* SelectedTargets);
+
 protected:
 	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
