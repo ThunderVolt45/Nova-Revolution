@@ -110,7 +110,11 @@ public:
 	// 스플래시 범위
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats")
 	float SplashRange = 0.0f;
-
+	
+	// 캡슐 콜라이더 반경 (Legs 부품에서 사용)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Stats", meta = (EditCondition = "PartType == ENovaPartType::Legs"))
+	float CollisionRadius = 0.0f;
+	
 	/** 발사체 유도 여부 (Weapon 부품에서 사용) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Combat")
 	bool bHomingProjectile = true;
