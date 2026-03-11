@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GAS/Abilities/Commander/NovaSkillAbility.h"
+#include "GAS/Abilities/Skill/NovaSkillAbility.h"
 #include "NovaGA_ResourceLevelUp.generated.h"
 
 /**

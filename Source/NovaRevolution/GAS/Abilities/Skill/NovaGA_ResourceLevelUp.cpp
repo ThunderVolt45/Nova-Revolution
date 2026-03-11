@@ -1,6 +1,6 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "GAS/Abilities/Commander/NovaGA_ResourceLevelUp.h"
+#include "GAS/Abilities/Skill/NovaGA_ResourceLevelUp.h"
 #include "AbilitySystemComponent.h"
 #include "NovaRevolution.h"
 #include "Core/NovaPlayerState.h"

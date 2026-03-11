@@ -1,7 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "GAS/Abilities/Commander/NovaSkillAbility.h"
+#include "GAS/Abilities/Skill/NovaSkillAbility.h"
 #include "Core/NovaPlayerState.h"
 #include "Core/NovaBase.h"
 #include "AbilitySystemComponent.h"
