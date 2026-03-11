@@ -25,15 +25,15 @@ void UNovaSkillButtonWidget::OnButtonClicked()
 		return;
 	}
 
-	// 3. PlayerState가 사령관 인터페이스(INovaCommanderInterface)를 구현하고 있는지 확인합니다.
-	if (PS->GetClass()->ImplementsInterface(UNovaCommanderInterface::StaticClass()))
+	// 3. PlayerState가 스킬 인터페이스(INovaSkillInterface)를 구현하고 있는지 확인합니다.
+	if (PS->GetClass()->ImplementsInterface(UNovaSkillInterface::StaticClass()))
 	{
 		/**
 		 * 4. 인터페이스 함수를 호출하여 사령관에게 스킬 실행을 요청합니다.
 		 * BlueprintNativeEvent로 선언된 인터페이스 함수를 C++에서 호출할 때는
 		 * IInterfaceName::Execute_FunctionName(대상, 인자...) 형식을 사용합니다.
 		 */
-		INovaCommanderInterface::Execute_ActivateCommanderAbility(PS, ActionAbilityTag);
+		INovaSkillInterface::Execute_ActivateSkillAbility(PS, ActionAbilityTag);
 	}
 }
 
@@ -54,11 +54,11 @@ void UNovaSkillButtonWidget::NativeConstruct()
 	Super::NativeConstruct();
 	
 	// 1. SkillButton 컴포넌트가 유효한지 확인합니다 (BindWidget이 잘 되었는지).
-	if (CommanderSkillButton)
+	if (SkillButton)
 	{
 		// 2. 버튼의 OnClicked 델리게이트에 우리가 만든 함수를 '동적 바인딩'합니다.
 		// 이 코드가 '전선'을 연결하는 역할을 합니다!
-		CommanderSkillButton->OnClicked.AddDynamic(this, &UNovaSkillButtonWidget::OnButtonClicked);
+		SkillButton->OnClicked.AddDynamic(this, &UNovaSkillButtonWidget::OnButtonClicked);
 	}
 }
 

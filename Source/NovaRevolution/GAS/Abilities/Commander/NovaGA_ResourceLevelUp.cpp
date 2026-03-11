@@ -47,8 +47,8 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
     }
 
     // 2. 자원 체크 (Watt 500, SP 20)
-    // 부모 클래스(UNovaCommanderAbility)의 기능을 활용합니다.
-    if (!CheckCommanderResources(500.0f, 20.0f))
+    // 부모 클래스(UNovaSkillAbility)의 기능을 활용합니다.
+    if (!CheckResources(500.0f, 20.0f))
     {
         NOVA_SCREEN(Warning, "Insufficient Resources! Need 500 Watt, 20 SP.");
         

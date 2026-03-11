@@ -179,7 +179,7 @@ public:
  * 사령관 스킬 시스템 인터페이스 : 단축키 입력과 UI상 스킬버튼 입력에 대해 동일하게 발동 <CommandInterface와 헷갈리지 않게 주의>
  */
 UINTERFACE(MinimalAPI, BlueprintType)
-class UNovaCommanderInterface : public UInterface
+class UNovaSkillInterface : public UInterface
 {
 	GENERATED_BODY()
 };
@@ -187,7 +187,7 @@ class UNovaCommanderInterface : public UInterface
 /**
  * 사령관(PlayerState)이 구현하여 UI나 입력으로부터 스킬 실행 요청을 받는 인터페이스 <CommandInterface와 헷갈리지 않게 주의>
  */
-class NOVAREVOLUTION_API INovaCommanderInterface
+class NOVAREVOLUTION_API INovaSkillInterface
 {
 	GENERATED_BODY()
 
@@ -196,6 +196,6 @@ public:
 	 * 특정 태그에 해당하는 사령관 스킬(어빌리티) 실행을 요청합니다.
 	 * BlueprintNativeEvent를 사용하여 C++과 블루프린트 모두에서 구현/호출 가능하게 합니다.
 	 */
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Commander")
-	void ActivateCommanderAbility(FGameplayTag AbilityTag);
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Skill")
+	void ActivateSkillAbility(FGameplayTag AbilityTag);
 };

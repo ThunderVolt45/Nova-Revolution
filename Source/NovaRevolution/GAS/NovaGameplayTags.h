@@ -57,7 +57,7 @@ namespace NovaGameplayTags
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Attack);
 	
 	// 사령관 스킬
-	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Commander_ResourceLevelUp);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Skill_ResourceLevelUp);
 	
 	// --- 게임플레이 큐 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Rifle_Fire);

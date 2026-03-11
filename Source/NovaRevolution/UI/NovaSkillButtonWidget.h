@@ -41,7 +41,7 @@ protected:
 	 * 블루프린트 위젯(WBP)에 이름이 정확히 'SkillButton'인 Button 컴포넌트가 있어야 합니다.
 	 */
 	UPROPERTY(meta = (BindWidget))
-	class UButton* CommanderSkillButton;
+	class UButton* SkillButton;
 
 protected:
 	/**

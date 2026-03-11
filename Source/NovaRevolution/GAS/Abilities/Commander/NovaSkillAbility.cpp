@@ -23,7 +23,7 @@ ANovaBase* UNovaSkillAbility::GetPlayerBase() const
 	return nullptr;
 }
 
-bool UNovaSkillAbility::CheckCommanderResources(float WattCost, float SPCost) const
+bool UNovaSkillAbility::CheckResources(float WattCost, float SPCost) const
 {
 	if (ANovaPlayerState* PS = Cast<ANovaPlayerState>(GetAvatarActorFromActorInfo()))
 	{
@@ -35,7 +35,7 @@ bool UNovaSkillAbility::CheckCommanderResources(float WattCost, float SPCost) co
 
 bool UNovaSkillAbility::K2_CheckAndNotifyResources(float WattCost, float SPCost)
 {
-	if (CheckCommanderResources(WattCost, SPCost))
+	if (CheckResources(WattCost, SPCost))
 	{
 		return true;
 	}

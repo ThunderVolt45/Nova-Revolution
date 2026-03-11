@@ -35,7 +35,7 @@ void ANovaPlayerState::BeginPlay()
 	
 	if (GetNetMode() != NM_Client && AbilitySystemComponent)
 	{
-		for (const auto& AbilityClass : CommanderAbilities)
+		for (const auto& AbilityClass : SkillAbilities)
 		{
 			if (AbilityClass)
 			{
@@ -175,7 +175,7 @@ float ANovaPlayerState::GetSPLevel() const
 	return ResourceAttributeSet ? ResourceAttributeSet->GetSPLevel() : 1.0f;
 }
 
-void ANovaPlayerState::ActivateCommanderAbility_Implementation(FGameplayTag AbilityTag)
+void ANovaPlayerState::ActivateSkillAbility_Implementation(FGameplayTag AbilityTag)
 {
 	if (AbilitySystemComponent)
 	{

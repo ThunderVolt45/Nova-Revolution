@@ -17,7 +17,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FNovaOnBaseChangedSignature, class A
  * GAS의 AbilitySystemComponent를 소유합니다.
  */
 UCLASS()
-class NOVAREVOLUTION_API ANovaPlayerState : public APlayerState, public IAbilitySystemInterface, public INovaResourceInterface, public INovaTeamInterface, public INovaCommanderInterface
+class NOVAREVOLUTION_API ANovaPlayerState : public APlayerState, public IAbilitySystemInterface, public INovaResourceInterface, public INovaTeamInterface, public INovaSkillInterface
 {
 	GENERATED_BODY()
 
@@ -73,8 +73,8 @@ public:
 	virtual FNovaOnResourceChangedSignature& GetOnWattLevelChangedDelegate() override { return OnWattLevelChanged; }
 	virtual FNovaOnResourceChangedSignature& GetOnSPLevelChangedDelegate() override { return OnSPLevelChanged; }
 
-	// INovaCommanderInterface 구현: 특정 태그의 사령관 스킬 실행 
-	virtual void ActivateCommanderAbility_Implementation(FGameplayTag AbilityTag) override;
+	// INovaSkillInterface 구현: 특정 태그의 사령관 스킬 실행 
+	virtual void ActivateSkillAbility_Implementation(FGameplayTag AbilityTag) override;
 	
 	/** 플레이어의 메인 기지(Base)를 등록합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
@@ -131,5 +131,5 @@ protected:
 	
 	// 테스트 및 초기 부여용 어빌리티 리스트
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|GAS")
-	TArray<TSubclassOf<class UGameplayAbility>> CommanderAbilities;
+	TArray<TSubclassOf<class UGameplayAbility>> SkillAbilities;
 };
