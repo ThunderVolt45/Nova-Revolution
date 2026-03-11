@@ -51,6 +51,8 @@ namespace NovaGameplayTags
 	
 	// --- GE 관련 식별 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen); 
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen_Watt);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen_SP);
 	
 	// --- 어빌리티 태그 ---
 	// 유닛

@@ -25,17 +25,45 @@ void UNovaResourceComponent::BeginPlay()
 		
 		// 자원 회복 GE 적용 (RTS 방식의 지속 회복)
 		UAbilitySystemComponent* ASC = OwnerPlayerState->GetAbilitySystemComponent();
-		if (ASC && RegenGameplayEffectClass)
+		// if (ASC && RegenGameplayEffectClass)
+		// {
+		// 	FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
+		// 	EffectContext.AddSourceObject(this);
+		//
+		// 	FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(RegenGameplayEffectClass, 1.0f, EffectContext);
+		// 	if (SpecHandle.IsValid())
+		// 	{
+		// 		RegenEffectHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+		// 	}
+		// }
+		
+		if (ASC)
 		{
 			FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
 			EffectContext.AddSourceObject(this);
 
-			FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(RegenGameplayEffectClass, 1.0f, EffectContext);
-			if (SpecHandle.IsValid())
+			// 1. Watt 자원 회복 GE 적용
+			if (WattRegenGEClass)
 			{
-				RegenEffectHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+				FGameplayEffectSpecHandle WattSpec = ASC->MakeOutgoingSpec(WattRegenGEClass, 1.0f, EffectContext);
+				if (WattSpec.IsValid())
+				{
+					WattRegenHandle = ASC->ApplyGameplayEffectSpecToSelf(*WattSpec.Data.Get());
+				}
+			}
+
+			// 2. SP 자원 회복 GE 적용
+			if (SPRegenGEClass)
+			{
+				FGameplayEffectSpecHandle SPSpec = ASC->MakeOutgoingSpec(SPRegenGEClass, 1.0f, EffectContext);
+				if (SPSpec.IsValid())
+				{
+					SPRegenHandle = ASC->ApplyGameplayEffectSpecToSelf(*SPSpec.Data.Get());
+				}
 			}
 		}
+		
+		
 	}
 }
 
@@ -99,14 +127,28 @@ void UNovaResourceComponent::UpdatePopulation(float DeltaPopulation, float Delta
 
 void UNovaResourceComponent::StopResourceRegen()
 {
-	if (RegenEffectHandle.IsValid())
+	// if (RegenEffectHandle.IsValid())
+	// {
+	// 	UAbilitySystemComponent* ASC = OwnerPlayerState ? OwnerPlayerState->GetAbilitySystemComponent() : nullptr;
+	// 	if (ASC)
+	// 	{
+	// 		ASC->RemoveActiveGameplayEffect(RegenEffectHandle);
+	// 		RegenEffectHandle.Invalidate();
+	// 		NOVA_LOG(Log, "Resource regeneration stopped for PlayerState: %s", *OwnerPlayerState->GetName());
+	// 	}
+	// }
+	
+	UAbilitySystemComponent* ASC = OwnerPlayerState ? OwnerPlayerState->GetAbilitySystemComponent() : nullptr;
+	if (ASC)
 	{
-		UAbilitySystemComponent* ASC = OwnerPlayerState ? OwnerPlayerState->GetAbilitySystemComponent() : nullptr;
-		if (ASC)
+		if (WattRegenHandle.IsValid())
 		{
-			ASC->RemoveActiveGameplayEffect(RegenEffectHandle);
-			RegenEffectHandle.Invalidate();
-			NOVA_LOG(Log, "Resource regeneration stopped for PlayerState: %s", *OwnerPlayerState->GetName());
+			ASC->RemoveActiveGameplayEffect(WattRegenHandle);
+		}
+		if (SPRegenHandle.IsValid())
+		{
+			ASC->RemoveActiveGameplayEffect(SPRegenHandle);
 		}
 	}
+	
 }

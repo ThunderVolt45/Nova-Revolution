@@ -45,6 +45,8 @@ namespace NovaGameplayTags
 	
 	// --- GE 관련 식별 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen, "Effect.Resource.Regen");
+	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_Watt, "Effect.Resource.Regen.Watt");
+	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_SP, "Effect.Resource.Regen.SP");
 	
 	// --- 어빌리티 태그 ---
 	// 유닛
