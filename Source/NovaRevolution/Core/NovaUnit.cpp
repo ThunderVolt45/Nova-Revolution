@@ -17,6 +17,7 @@
 #include "GAS/NovaAttributeSet.h"
 #include "GAS/Abilities/NovaGameplayAbility.h"
 #include "Player/NovaPlayerController.h"
+#include "Engine/OverlapResult.h"
 
 #include "NavModifierComponent.h"
 #include "NovaNavArea_Unit.h"
@@ -203,6 +204,48 @@ void ANovaUnit::Tick(float DeltaTime)
 	// 3. 몸통(Body) 및 무기 회전 로직 실행
 	UpdateBodyRotation(DeltaTime);
 	UpdateWeaponAiming(DeltaTime);
+
+	// 4. 완벽히 겹쳤을 때 이동 불가가 되는 현상 방지 (Anti-Overlap)
+	// 두 유닛이 겹쳐서 물리적으로 데드락에 빠지는 것을 막기 위해 미세하게 밀어냅니다.
+	if (!bIsDead && GetCapsuleComponent())
+	{
+		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+		TArray<FOverlapResult> Overlaps;
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(this);
+
+		if (GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(Radius * 0.8f), Params))
+		{
+			for (const FOverlapResult& Overlap : Overlaps)
+			{
+				if (ANovaUnit* OtherUnit = Cast<ANovaUnit>(Overlap.GetActor()))
+				{
+					if (!OtherUnit->IsDead())
+					{
+						FVector MyLoc = GetActorLocation();
+						FVector OtherLoc = OtherUnit->GetActorLocation();
+						FVector Diff = MyLoc - OtherLoc;
+						Diff.Z = 0.0f; // 수평 방향으로만 밀어냄
+						
+						float Dist = Diff.Size();
+						
+						// 거의 완전히 겹쳤을 경우 랜덤한 방향으로 튕겨냄
+						if (Dist < 0.1f)
+						{
+							FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
+							// bSweep=false로 설정하여 충돌을 무시하고 강제로 밀어냅니다.
+							AddActorWorldOffset(RandomDir * 2.0f, false);
+						}
+						// 충돌 반경의 80% 이내로 깊숙이 파고든 경우 밖으로 밀어냄
+						else
+						{
+							AddActorWorldOffset((Diff / Dist) * 1.0f, false);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// 선택된 상태일 때만 실시간으로 바닥 위치 추적 (선택됨, 죽지않음, widget존재)
 	if (bIsSelected && !bIsDead)
