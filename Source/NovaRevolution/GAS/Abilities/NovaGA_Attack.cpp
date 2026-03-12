@@ -7,6 +7,7 @@
 #include "Core/NovaProjectile.h"
 #include "GAS/NovaAttributeSet.h"
 #include "NovaRevolution.h"
+#include "Core/NovaObjectPoolSubsystem.h"
 #include "GAS/NovaGameplayTags.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -116,25 +117,38 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 			// 4. 발사체 생성 (Projectile 방식)
 			if (ProjectileClass)
 			{
-				FActorSpawnParameters SpawnParams;
-				SpawnParams.Owner = Unit;
-				SpawnParams.Instigator = Unit;
-				SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-				SpawnParams.bNoFail = true; // 무조건 생성 보장
-
 				// 타겟을 향한 회전값 계산
 				FRotator SpawnRotation = (Target->GetActorLocation() - MuzzleLocation).Rotation();
 
-				NOVA_LOG(Log, "GA_Attack: Attempting to spawn Projectile '%s' at %s", *ProjectileClass->GetName(), *MuzzleLocation.ToString());
-				
-				if (ANovaProjectile* Projectile = GetWorld()->SpawnActor<ANovaProjectile>(ProjectileClass, MuzzleLocation, SpawnRotation, SpawnParams))
+				ANovaProjectile* Projectile = nullptr;
+
+				// 오브젝트 풀 서브시스템 사용
+				if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 				{
+					Projectile = Cast<ANovaProjectile>(PoolSubsystem->SpawnFromPoolAtLocation(ProjectileClass, MuzzleLocation, SpawnRotation));
+				}
+				else
+				{
+					FActorSpawnParameters SpawnParams;
+					SpawnParams.Owner = Unit;
+					SpawnParams.Instigator = Unit;
+					SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+					SpawnParams.bNoFail = true;
+					Projectile = GetWorld()->SpawnActor<ANovaProjectile>(ProjectileClass, MuzzleLocation, SpawnRotation, SpawnParams);
+				}
+
+				if (Projectile)
+				{
+					// 스폰 파라미터 수동 설정 (풀링 사용 시 필요)
+					Projectile->SetOwner(Unit);
+					Projectile->SetInstigator(Unit);
+
 					// [수정] 루트 컴포넌트(SphereComponent 등)를 가져와 이동 무시 설정
 					if (UPrimitiveComponent* RootPrim = Cast<UPrimitiveComponent>(Projectile->GetRootComponent()))
 					{
 						// 발사자(유닛) 무시
 						RootPrim->IgnoreActorWhenMoving(Unit, true);
-						
+
 						// 유닛에 부착된 모든 부품(무기, 몸통 등) 무시
 						TArray<AActor*> AttachedActors;
 						Unit->GetAttachedActors(AttachedActors, true);
@@ -148,7 +162,7 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 					bool bIsHoming = WeaponPart->GetPartSpec().bHomingProjectile;
 
 					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius, Target, Target->GetActorLocation(), bIsHoming);
-					NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully! (Homing: %s)", bIsHoming ? TEXT("True") : TEXT("False"));
+					// NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully! (Homing: %s)", bIsHoming ? TEXT("True") : TEXT("False"));
 				}
 				else
 				{
