@@ -88,11 +88,11 @@ protected:
 
 	/** 조기 도착(Early Arrival) 판정을 위한 목표 지점 인접 거리 (이 거리 내에서 아군에 막히면 도착으로 간주) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
-	float EarlyArrivalDistance = 600.0f;
+	float EarlyArrivalDistance = 500.f;
 
 	/** Stuck 상태에서 우회 기동 시 옆으로 이동할 목표 지점까지의 거리 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
-	float BypassDistance = 300.0f;
+	float BypassDistance = 250.f;
 
 private:
 	/** Stuck 감지용 누적 타이머 */
