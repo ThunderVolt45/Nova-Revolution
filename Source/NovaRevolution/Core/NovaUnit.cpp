@@ -634,6 +634,7 @@ void ANovaUnit::ConstructUnitParts()
 
 			if (CurrentLegsPart)
 			{
+				CurrentLegsPart->SetOwner(this);
 				CurrentLegsPart->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
 				CurrentLegsPart->SetPartDataTable(PartDataTable);
 			}
@@ -642,6 +643,7 @@ void ANovaUnit::ConstructUnitParts()
 		// 클래스 변경 여부와 상관없이 오프셋은 항상 업데이트 (에디터 실시간 반영용)
 		if (CurrentLegsPart)
 		{
+			CurrentLegsPart->SetOwner(this);
 			CurrentLegsPart->SetActorRelativeLocation(LegsOffset);
 		}
 	}
@@ -680,6 +682,7 @@ void ANovaUnit::ConstructUnitParts()
 
 			if (CurrentBodyPart && CurrentLegsPart)
 			{
+				CurrentBodyPart->SetOwner(this);
 				UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh();
 				if (LegsMesh)
 				{
@@ -741,6 +744,7 @@ void ANovaUnit::ConstructUnitParts()
 
 						if (NewWeapon)
 						{
+							NewWeapon->SetOwner(this);
 							NewWeapon->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 							NewWeapon->SetPartDataTable(PartDataTable);
 							CurrentWeaponParts.Add(NewWeapon);
@@ -748,7 +752,8 @@ void ANovaUnit::ConstructUnitParts()
 					}
 					else
 					{
-						// 이미 있다면 부착 상태만 확인
+						// 이미 있다면 부착 상태 및 오너 확인
+						CurrentWeaponParts[i]->SetOwner(this);
 						CurrentWeaponParts[i]->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 					}
 				}
