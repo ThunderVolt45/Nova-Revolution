@@ -214,7 +214,8 @@ void ANovaUnit::Tick(float DeltaTime)
 		Params.AddIgnoredActor(this);
 
 		// 아군 길막힘 방지를 위해 반경을 조금 더 넓게(1.1f) 잡습니다.
-		if (GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(Radius * 1.1f), Params))
+		if (GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn,
+		                                      FCollisionShape::MakeSphere(Radius * 1.1f), Params))
 		{
 			for (const FOverlapResult& Overlap : Overlaps)
 			{
@@ -226,34 +227,35 @@ void ANovaUnit::Tick(float DeltaTime)
 						FVector OtherLoc = OtherUnit->GetActorLocation();
 						FVector Diff = MyLoc - OtherLoc;
 						Diff.Z = 0.0f; // 수평 방향으로만 밀어냄
-						
+
 						float Dist = Diff.Size();
-						
+
 						// 거의 완전히 겹쳤을 경우 랜덤한 방향으로 튕겨냄 (기존 Anti-Overlap)
 						if (Dist < 0.1f)
 						{
-							FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
+							FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).
+								GetSafeNormal();
 							AddActorWorldOffset(RandomDir * 2.0f, false);
 							continue; // 이미 밀어냈으므로 다음 유닛 검사
 						}
-						
+
 						// 충돌 반경의 80% 이내로 깊숙이 파고든 경우 밖으로 밀어냄 (기존 Anti-Overlap)
 						if (Dist < Radius * 0.8f)
 						{
 							FVector PushDir = Diff / Dist;
-							
+
 							// 이동 중일 때 정면 충돌 데드락 방지 (우측 통행 유도)
 							FVector Velocity = GetVelocity();
 							Velocity.Z = 0.0f;
-							
+
 							if (Velocity.SizeSquared() > 100.0f) // 속도가 일정 이상일 때만 적용
 							{
 								FVector MyForward = Velocity.GetSafeNormal();
 								FVector MyRight = FVector::CrossProduct(FVector::UpVector, MyForward);
-								
+
 								// 상대방이 내 기준으로 어느 쪽에 있는지 판별 (-PushDir은 상대를 향하는 방향)
 								float DotRight = FVector::DotProduct(MyRight, -PushDir);
-								
+
 								FVector TangentDir;
 								// 상대가 내 오른쪽에 있거나 정면에 가까울 때 -> 내 오른쪽으로 회피 (우측 통행)
 								if (DotRight > -0.1f)
@@ -283,9 +285,9 @@ void ANovaUnit::Tick(float DeltaTime)
 							}
 
 							// 상대 유닛이 Idle, Stop, Attack, Patrol 중일 때 상대를 밀어냅니다.
-							if (OtherCommand == ECommandType::None || 
-								OtherCommand == ECommandType::Stop || 
-								OtherCommand == ECommandType::Attack || 
+							if (OtherCommand == ECommandType::None ||
+								OtherCommand == ECommandType::Stop ||
+								OtherCommand == ECommandType::Attack ||
 								OtherCommand == ECommandType::Patrol)
 							{
 								// 상대를 밀어낼 방향 (-Diff는 OtherUnit이 나에게서 멀어지는 방향)
@@ -319,7 +321,7 @@ void ANovaUnit::Tick(float DeltaTime)
 			float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 			FVector CapsuleBottom = GetActorLocation() - FVector(0.f, 0.f, HalfHeight);
 
-			// 3. 사용자님 제안: 캡슐 반지름(Radius) + 추가 오프셋(예: 20.f)
+			// 3. 캡슐 반지름(Radius) + 추가 오프셋(예: 20.f)
 			float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
 			float TotalOffset = Radius + 20.0f; // 여기서 간격 조절 가능
 
@@ -355,9 +357,9 @@ void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
 				}
 
 				// 대상이 비켜줄 수 있는 상태인지 확인
-				if (HitCommand == ECommandType::None || 
-					HitCommand == ECommandType::Stop || 
-					HitCommand == ECommandType::Attack || 
+				if (HitCommand == ECommandType::None ||
+					HitCommand == ECommandType::Stop ||
+					HitCommand == ECommandType::Attack ||
 					HitCommand == ECommandType::Patrol)
 				{
 					// 부딪힌 유닛도 같은 방향으로 밀어냄
@@ -430,13 +432,26 @@ void ANovaUnit::BeginPlay()
 	// 초기 Yaw 설정
 	LastYaw = GetActorRotation().Yaw;
 
-	// 모든 조립과 캡슐 크기 변경이 끝난 후 위젯 사이즈 갱신 함수 호출
-	UpdateSelectionCircleTransform();
-	UpdateHealthBarTransform();
-	// 초기 체력바 상태 설정
-	UpdateHealthBar();
-	UpdateHealthBarSize();
+	// UI에 적용할 색상 저장
+	InitializeUIColors();
 
+	// 위젯 사이즈 갱신
+	UpdateSelectionCircleTransform();
+
+	// 초기 체력바 상태 설정
+	UpdateHealthBarTransform();
+	UpdateHealthBar();
+	UpdateHealthBarLength();
+
+	// [추가] 플레이어 컨트롤러의 델리게이트 바인딩 및 초기 상태 동기화
+	if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		// 1. 초기 상태 동기화 (현재 PC의 설정값 가져오기)
+		SetHealthBarVisibilityOption(PC->GetShowHealthBars());
+
+		// 2. 이후 변경 사항 수신을 위해 바인딩
+		PC->OnShowHealthBarsChanged.AddDynamic(this, &ANovaUnit::SetHealthBarVisibilityOption);
+	}
 
 	// --- 랠리 포인트 이동 로직 추가 ---
 	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
@@ -761,7 +776,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 							// 캡슐 반경의 80% 정도로 장애물 크기 설정 (유닛 간 최소 틈새 확보)
 							float ModifierRadius = Spec.CollisionRadius * 0.8f;
 							float ModifierHeight = Capsule->GetUnscaledCapsuleHalfHeight();
-							
+
 							// FailsafeExtent는 박스 형태의 Half-Extent를 의미함
 							NavModifier->FailsafeExtent = FVector(ModifierRadius, ModifierRadius, ModifierHeight);
 						}
@@ -771,7 +786,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 						{
 							// 네비게이션 시스템이 참조하는 에이전트 반경 업데이트
 							MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
-							
+
 							// 공중/지상 유닛에 따라 사용할 NavMesh(Supported Agent) 분리
 							if (MovementType == ENovaMovementType::Air)
 							{
@@ -829,7 +844,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	{
 		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
 		GetCharacterMovement()->MaxFlySpeed = TotalSpeed;
-		
+
 		// AI 이동 시 가속도를 무시하고 즉각적인 방향 전환과 최고 속도 도달을 허용 (빠릿빠릿한 조작감의 핵심)
 		GetCharacterMovement()->bRequestedMoveUseAcceleration = false;
 
@@ -857,7 +872,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 		{
 			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 			GetCharacterMovement()->bConstrainToPlane = true;
-			
+
 			// 지상 유닛 가속도 보정
 			GetCharacterMovement()->MaxAcceleration = TotalSpeed * 10.0f;
 			GetCharacterMovement()->BrakingDecelerationWalking = TotalSpeed * 10.0f;
@@ -904,7 +919,7 @@ UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
 void ANovaUnit::OnSelected()
 {
 	bIsSelected = true;
-	// TODO: 팀원 B가 구현할 하이라이트/데칼 로직이 들어갈 자리
+
 	if (SelectionWidget)
 	{
 		UpdateSelectionCircleColor();
@@ -1170,30 +1185,17 @@ void ANovaUnit::UpdateSelectionCircleColor()
 {
 	if (!SelectionWidget) return;
 
-	// 로컬 플레이어 팀 확인
-	int32 LocalPlayerTeamID = -1;
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (PC && PC->GetPlayerState<ANovaPlayerState>())
-	{
-		LocalPlayerTeamID = PC->GetPlayerState<ANovaPlayerState>()->GetTeamID();
-	}
-
-	FLinearColor TargetColor = FLinearColor::Red; // 기본 Red (적)
-	if (TeamID == LocalPlayerTeamID) TargetColor = FLinearColor::Green; // 내 유닛 Green
-	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow;
-	// 중립, 아군 Yellow
-
 	// 위젯 인스턴스에 접근하여 색상 전달
 	// 1. 본체 위젯 색상 변경
 	if (SelectionWidget && SelectionWidget->GetUserWidgetObject())
 	{
-		SelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(TargetColor);
+		SelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(CachedUIColor);
 	}
 
 	// 2. 바닥 투영 원 색상 변경 (추가)
 	if (GroundSelectionWidget && GroundSelectionWidget->GetUserWidgetObject())
 	{
-		GroundSelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(TargetColor);
+		GroundSelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(CachedUIColor);
 	}
 
 	// 3. 수직 안내선 색상 변경 (추가)
@@ -1204,7 +1206,7 @@ void ANovaUnit::UpdateSelectionCircleColor()
 		if (DynMat)
 		{
 			// 재질에서 만든 파라미터 이름(예: TeamColor)에 맞춰 색상을 전달합니다.
-			DynMat->SetVectorParameterValue(TEXT("TeamColor"), TargetColor);
+			DynMat->SetVectorParameterValue(TEXT("TeamColor"), CachedUIColor);
 		}
 	}
 }
@@ -1303,23 +1305,8 @@ void ANovaUnit::UpdateHealthBar()
 
 		// 체력 퍼센트 적용
 		HealthBar->SetPercent(HPPercent);
-
-		// 팀 색상 적용
-		int32 LocalPlayerTeamID = -1;
-		if (auto* PC = GetWorld()->GetFirstPlayerController())
-		{
-			if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
-			{
-				// TeamID 받아오기
-				LocalPlayerTeamID = PS->GetTeamID();
-			}
-		}
-		FLinearColor TargetColor = FLinearColor::Red; // 적
-		if (TeamID == LocalPlayerTeamID) TargetColor = FLinearColor::Green; // 아군
-		else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) TargetColor = FLinearColor::Yellow; // 중립
-
 		// 색상 부여
-		HealthBar->SetFillColorAndOpacity(TargetColor);
+		HealthBar->SetFillColorAndOpacity(CachedUIColor);
 	}
 }
 
@@ -1350,24 +1337,41 @@ void ANovaUnit::UpdateHealthBarTransform()
 	}
 }
 
-void ANovaUnit::UpdateHealthBarSize()
+void ANovaUnit::UpdateHealthBarLength()
 {
 	if (!HealthBarWidget || !AttributeSet) return;
-	
+
 	// 최대 체력 가져오기
 	float MaxHP = AttributeSet->GetMaxHealth();
-	
+
 	// 로그 스케일 가로 길이 계산
 	float LogHPVal = FMath::Loge(FMath::Max(1.0f, MaxHP / 100.0f));
-	
+
 	// 가로 길이 계산 : 기본값 + (최대 체력 * 비례 계수)
 	float TargetWidth = MinHealthBarWidth + (LogHPVal * HealthBarLogScaleFactor);
-	
+
 	// 최소/최대 범위 제한 (Clamp)
 	TargetWidth = FMath::Clamp(TargetWidth, MinHealthBarWidth, MaxHealthBarWidth);
-	
+
 	// 위젯 컴포넌트에 적용 (세로 길이는 고정)
 	HealthBarWidget->SetDrawSize(FVector2D(TargetWidth, HealthBarHeight));
+}
+
+void ANovaUnit::InitializeUIColors()
+{
+	int32 LocalPlayerTeamID = -1;
+	if (auto* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
+		{
+			LocalPlayerTeamID = PS->GetTeamID();
+		}
+	}
+
+	// 색상 결정 및 캐싱
+	CachedUIColor = FLinearColor::Red; // 적군
+	if (TeamID == LocalPlayerTeamID) CachedUIColor = FLinearColor::Green; // 아군
+	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) CachedUIColor = FLinearColor::Yellow; // 중립
 }
 
 void ANovaUnit::SetFogVisibility(bool bVisible)
@@ -1382,6 +1386,12 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 	if (GetCapsuleComponent())
 	{
 		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, bVisible ? ECR_Block : ECR_Ignore);
+	}
+
+	// 체력바 위젯도 안개 가시성에 따라 숨김/표시
+	if (HealthBarWidget)
+	{
+		HealthBarWidget->SetVisibility(bVisible && bHealthBarOptionEnabled);
 	}
 
 	// 선택된 상태에서 안개 속으로 사라졌을 때
@@ -1401,6 +1411,17 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 	}
 }
 
+void ANovaUnit::SetHealthBarVisibilityOption(bool bEnable)
+{
+	bHealthBarOptionEnabled = bEnable;
+
+	// 현재 안개에 의해 보이고 있다면, 옵션 값에 따라 체력바 갱신
+	if (HealthBarWidget && bIsVisibleByFog)
+	{
+		HealthBarWidget->SetVisibility(bEnable);
+	}
+}
+
 void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 {
 	// 상태 변화가 있을 때만 실행하여 불필요한 부하 방지
@@ -1410,8 +1431,10 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 	if (NavModifier)
 	{
 		// 장애물 상태에 따라 영역 클래스 설정 (UnitArea: 고비용, Default: 일반)
-		TSubclassOf<UNavArea> NewAreaClass = bIsObstacle ? UNovaNavArea_Unit::StaticClass() : UNavArea_Default::StaticClass();
-		
+		TSubclassOf<UNavArea> NewAreaClass = bIsObstacle
+			                                     ? UNovaNavArea_Unit::StaticClass()
+			                                     : UNavArea_Default::StaticClass();
+
 		// 영역 클래스 설정 및 활성화/비활성화 처리
 		NavModifier->SetAreaClass(NewAreaClass);
 
@@ -1424,7 +1447,7 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 		{
 			NavModifier->Deactivate();
 		}
-		
+
 		NOVA_LOG(Warning, "NavModifier %hs", bIsObstacle ? "Activated" : "Deactivated");
 	}
 }

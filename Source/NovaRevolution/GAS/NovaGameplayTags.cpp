@@ -38,7 +38,7 @@ namespace NovaGameplayTags
 
 	// 추가 단축키
 	UE_DEFINE_GAMEPLAY_TAG(Input_Camera_Reset, "Input.Camera.Reset"); // Home
-
+	UE_DEFINE_GAMEPLAY_TAG(Input_Toggle_HealthBar, "Input.Toggle.HealthBar");
 	// 자원 관련 데이터
 	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_Watt, "Data.Resource.Watt");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_SP, "Data.Resource.SP");

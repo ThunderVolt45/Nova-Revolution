@@ -8,6 +8,8 @@
 #include "GameFramework/PlayerController.h"
 #include "NovaPlayerController.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShowHealthBarsChanged, bool, bShow);
+
 struct FInputActionValue;
 class UNovaInputConfig;
 class UInputMappingContext;
@@ -62,6 +64,9 @@ protected:
 
 	// Alt 모드 여부 (스킬 즉시 사용 명령)
 	bool bIsAltDown = false;
+
+	// 현재 체력바 표시 여부 (기본값 : true)
+	bool bShowHealthBars = true;
 
 	// 엣지 스크롤링 활성화 여부
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
@@ -137,6 +142,9 @@ protected:
 	 */
 	void HandleFocusAndSelection(const TArray<AActor*>& TargetActors, int32 FocusID);
 
+	// 체력바 토글 입력 처리 함수
+	void ToggleHealthBar(FGameplayTag InputTag);
+
 private:
 	// 마우스 커서 아래에 무엇이 있는지 감지하는 헬퍼 함수
 	void GetCursorHitResult(FHitResult& OutHitResult);
@@ -153,12 +161,20 @@ private:
 	float DoubleClickThreshold = 0.3f;
 
 public:
-	// 생성된 유닛 자동 부대 편입 (public?)
+	// 생성된 유닛 자동 부대 편입
 	void OnUnitProduced(AActor* Unit, int32 SlotIndex);
 
 	// 대상이 죽거나(파괴되거나) 안개 속으로 숨겨졌을 때 호출되는 알림 함수
 	void NotifyTargetUnselectable(AActor* SelectedTargets);
-
+	
+	// 델리게이트 인스턴스
+	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")
+	FOnShowHealthBarsChanged OnShowHealthBarsChanged;
+	
+	// 현재 체력바 표시 옵션 Getter(유닛/기지 초기화용)
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
+	bool GetShowHealthBars() const { return bShowHealthBars; }
+	
 protected:
 	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
