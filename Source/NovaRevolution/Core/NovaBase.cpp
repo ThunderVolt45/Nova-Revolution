@@ -70,11 +70,21 @@ void ANovaBase::BeginPlay()
 
 	// 색상 캐싱
 	InitializeUIColors();
-	
+
 	// 초기 UI 트랜스폼 및 데이터 설정
 	UpdateSelectionCircleTransform();
 	UpdateHealthBarLength();
 	UpdateHealthBar();
+
+	// [추가] 플레이어 컨트롤러의 델리게이트 바인딩 및 초기 상태 동기화
+	if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		// 1. 초기 상태 동기화
+		SetHealthBarVisibilityOption(PC->GetShowHealthBars());
+
+		// 2. 델리게이트 바인딩
+		PC->OnShowHealthBarsChanged.AddDynamic(this, &ANovaBase::SetHealthBarVisibilityOption);
+	}
 
 	// 랠리 포인트 초기값 설정 (기지 앞쪽 500 유닛 지점 예시)
 	RallyPoint = GetActorLocation() + GetActorForwardVector() * 500.0f;
@@ -83,7 +93,7 @@ void ANovaBase::BeginPlay()
 	{
 		AbilitySystemComponent->InitAbilityActorInfo(this, this);
 		AttributeSet->SetSight(1200.f);
-		
+
 		AttributeSet->SetMaxHealth(20000.f);
 		AttributeSet->SetHealth(20000.f);
 
@@ -117,12 +127,12 @@ void ANovaBase::Tick(float DeltaTime)
 void ANovaBase::SetTeamID(int32 NewTeamID)
 {
 	TeamID = NewTeamID;
-	
+
 	// 팀 ID가 설정되었으므로, 이에 맞춰 UI 색상을 다시 계산하고 업데이트
 	InitializeUIColors();
 	UpdateHealthBar(); // 체력바 색상 즉시 갱신
 	if (bIsSelected) UpdateSelectionCircleColor(); // 선택 중이라면 원 색상도 갱신
-	
+
 	// 해당 팀의 PlayerState를 찾아 자신을 등록
 	UWorld* World = GetWorld();
 	if (!World) return;
@@ -308,7 +318,7 @@ void ANovaBase::OnHealthChanged(const FOnAttributeChangeData& Data)
 	{
 		DestroyBase();
 	}
-	
+
 	// 실시간 업데이트 호출
 	UpdateHealthBar();
 }
@@ -405,34 +415,34 @@ void ANovaBase::SetFogVisibility(bool bVisible)
 	// 상태가 같으면 return
 	if (bIsVisibleByFog == bVisible) return;
 	bIsVisibleByFog = bVisible;
-	
+
 	// 시각적 처리 (건물 메시 숨김)
 	SetActorHiddenInGame(!bVisible);
-	
+
 	// 마우스 클릭(Visibility)만 선택적으로 무시
 	if (BaseCollision)
 	{
 		BaseCollision->SetCollisionResponseToChannel(ECC_Visibility, bVisible ? ECR_Block : ECR_Ignore);
 	}
-	
+
 	// 체력바 위젯 숨김/표시
 	if (HealthBarWidget)
 	{
 		HealthBarWidget->SetVisibility(bVisible && bHealthBarOptionEnabled);
 	}
-	
+
 	// 선택된 상태에서 안개 속으로 사라졌을 때 처리
 	if (!bVisible && bIsSelected)
 	{
 		OnDeselected();
-		
+
 		// 로컬 플레이어 컨트롤러를 찾아 선택 해제 알림
 		if (auto* NovaPC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
 		{
 			NovaPC->NotifyTargetUnselectable(this);
 		}
 	}
-	
+
 	// 선택 표시 위젯 강제 끄기
 	if (!bVisible && SelectionWidget)
 	{
@@ -443,7 +453,7 @@ void ANovaBase::SetFogVisibility(bool bVisible)
 void ANovaBase::SetHealthBarVisibilityOption(bool bEnable)
 {
 	bHealthBarOptionEnabled = bEnable;
-	
+
 	// 현재 안개에 의해 보이고 있다면, 옵션 값에 따라 체력바 갱신
 	if (HealthBarWidget && bIsVisibleByFog)
 	{

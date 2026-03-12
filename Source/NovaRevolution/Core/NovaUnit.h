@@ -316,6 +316,7 @@ public:
 	void SetFogVisibility(bool bVisible);
 	
 	// 체력바 표시 옵션 설정 함수
+	UFUNCTION() // Dynamic Delegate 바인딩을 위해 UFUNCTION추가
 	void SetHealthBarVisibilityOption(bool bEnable);
 
 	/** 유닛이 NavMesh 상에서 장애물로 작동할지 여부를 설정합니다. */

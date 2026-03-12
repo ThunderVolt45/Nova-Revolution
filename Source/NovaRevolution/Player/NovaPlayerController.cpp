@@ -827,26 +827,10 @@ void ANovaPlayerController::ToggleHealthBar(FGameplayTag InputTag)
 	// 상태 토글
 	bShowHealthBars = !bShowHealthBars;
 
-	// 1. 모든 유닛 순회 및 설정 적용
-	TArray<AActor*> FoundUnits;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANovaUnit::StaticClass(), FoundUnits);
-	for (AActor* Actor : FoundUnits)
+	// 체력바 Toggle방법을 델리게이트 BroadCast로 리팩토링
+	if (OnShowHealthBarsChanged.IsBound())
 	{
-		if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
-		{
-			Unit->SetHealthBarVisibilityOption(bShowHealthBars);
-		}
-	}
-	
-	// 2. 모든 기지 순회 및 설정 적용
-	TArray<AActor*> FoundBases;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANovaBase::StaticClass(), FoundBases);
-	for (AActor* Actor : FoundBases)
-	{
-		if (ANovaBase* Base = Cast<ANovaBase>(Actor))
-		{
-			Base->SetHealthBarVisibilityOption(bShowHealthBars);
-		}
+		OnShowHealthBarsChanged.Broadcast(bShowHealthBars);
 	}
 }
 

@@ -153,5 +153,6 @@ public:
 	void SetFogVisibility(bool bVisible);
 	
 	// 체력바 표시 옵션 설정 함수
+	UFUNCTION()
 	void SetHealthBarVisibilityOption(bool bEnable);
 };

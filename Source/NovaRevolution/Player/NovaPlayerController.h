@@ -8,6 +8,8 @@
 #include "GameFramework/PlayerController.h"
 #include "NovaPlayerController.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShowHealthBarsChanged, bool, bShow);
+
 struct FInputActionValue;
 class UNovaInputConfig;
 class UInputMappingContext;
@@ -164,9 +166,15 @@ public:
 
 	// 대상이 죽거나(파괴되거나) 안개 속으로 숨겨졌을 때 호출되는 알림 함수
 	void NotifyTargetUnselectable(AActor* SelectedTargets);
-
+	
+	// 델리게이트 인스턴스
+	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")
+	FOnShowHealthBarsChanged OnShowHealthBarsChanged;
+	
+	// 현재 체력바 표시 옵션 Getter(유닛/기지 초기화용)
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
 	bool GetShowHealthBars() const { return bShowHealthBars; }
-
+	
 protected:
 	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
