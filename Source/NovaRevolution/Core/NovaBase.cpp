@@ -83,6 +83,10 @@ void ANovaBase::BeginPlay()
 	{
 		AbilitySystemComponent->InitAbilityActorInfo(this, this);
 		AttributeSet->SetSight(1200.f);
+		
+		AttributeSet->SetMaxHealth(20000.f);
+		AttributeSet->SetHealth(20000.f);
+
 		// 체력 변경 콜백 등록
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
 		                      .AddUObject(this, &ANovaBase::OnHealthChanged);

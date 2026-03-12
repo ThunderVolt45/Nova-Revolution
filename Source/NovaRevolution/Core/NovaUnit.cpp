@@ -17,10 +17,31 @@
 #include "GAS/NovaAttributeSet.h"
 #include "GAS/Abilities/NovaGameplayAbility.h"
 #include "Player/NovaPlayerController.h"
+#include "Engine/OverlapResult.h"
+
+#include "NavModifierComponent.h"
+#include "NovaNavArea_Unit.h"
+#include "AI/Navigation/NavigationDataResolution.h"
+#include "NavAreas/NavArea_Default.h"
 
 ANovaUnit::ANovaUnit()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	// 내비게이션 설정: 캡슐 기하구조가 직접 NavMesh를 파내지 않게 함 (이동 방해 방지)
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCanEverAffectNavigation(false);
+	}
+
+	// NavModifier 생성: 장애물 상태일 때만 특정 영역(고비용)을 생성하도록 설정
+	NavModifier = CreateDefaultSubobject<UNavModifierComponent>(TEXT("NavModifier"));
+	if (NavModifier)
+	{
+		NavModifier->SetAreaClass(UNovaNavArea_Unit::StaticClass());
+		NavModifier->bAutoActivate = false; // 기본적으로는 비활성화 (이동 우선)
+		NavModifier->NavMeshResolution = ENavigationDataResolution::High;
+	}
 
 	// AI 설정: 스폰 시 자동으로 전용 AI 컨트롤러 생성 및 빙의
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
@@ -122,7 +143,8 @@ void ANovaUnit::Tick(float DeltaTime)
 
 	if (bIsDead) return;
 
-	// 1. 공중 유닛 고도 조절
+	// 1. 공중 유닛 고도 조절 (가상 평면 NavMesh 사용을 위해 주석 처리)
+	/*
 	if (MovementType == ENovaMovementType::Air)
 	{
 		FVector CurrentLocation = GetActorLocation();
@@ -155,6 +177,7 @@ void ANovaUnit::Tick(float DeltaTime)
 			SetActorLocation(FVector(CurrentLocation.X, CurrentLocation.Y, NewZ));
 		}
 	}
+	*/
 
 	// 2. 다리(Legs) 부품 애니메이션 데이터 전달
 	if (LegsPartComponent)
@@ -181,6 +204,101 @@ void ANovaUnit::Tick(float DeltaTime)
 	// 3. 몸통(Body) 및 무기 회전 로직 실행
 	UpdateBodyRotation(DeltaTime);
 	UpdateWeaponAiming(DeltaTime);
+
+	// 4. 완벽히 겹쳤을 때 이동 불가가 되는 현상 방지 (Anti-Overlap) 및 아군 길막힘 방지 밀어내기
+	if (!bIsDead && GetCapsuleComponent())
+	{
+		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+		TArray<FOverlapResult> Overlaps;
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(this);
+
+		// 아군 길막힘 방지를 위해 반경을 조금 더 넓게(1.1f) 잡습니다.
+		if (GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(Radius * 1.1f), Params))
+		{
+			for (const FOverlapResult& Overlap : Overlaps)
+			{
+				if (ANovaUnit* OtherUnit = Cast<ANovaUnit>(Overlap.GetActor()))
+				{
+					if (!OtherUnit->IsDead())
+					{
+						FVector MyLoc = GetActorLocation();
+						FVector OtherLoc = OtherUnit->GetActorLocation();
+						FVector Diff = MyLoc - OtherLoc;
+						Diff.Z = 0.0f; // 수평 방향으로만 밀어냄
+						
+						float Dist = Diff.Size();
+						
+						// 거의 완전히 겹쳤을 경우 랜덤한 방향으로 튕겨냄 (기존 Anti-Overlap)
+						if (Dist < 0.1f)
+						{
+							FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
+							AddActorWorldOffset(RandomDir * 2.0f, false);
+							continue; // 이미 밀어냈으므로 다음 유닛 검사
+						}
+						
+						// 충돌 반경의 80% 이내로 깊숙이 파고든 경우 밖으로 밀어냄 (기존 Anti-Overlap)
+						if (Dist < Radius * 0.8f)
+						{
+							FVector PushDir = Diff / Dist;
+							
+							// 이동 중일 때 정면 충돌 데드락 방지 (우측 통행 유도)
+							FVector Velocity = GetVelocity();
+							Velocity.Z = 0.0f;
+							
+							if (Velocity.SizeSquared() > 100.0f) // 속도가 일정 이상일 때만 적용
+							{
+								FVector MyForward = Velocity.GetSafeNormal();
+								FVector MyRight = FVector::CrossProduct(FVector::UpVector, MyForward);
+								
+								// 상대방이 내 기준으로 어느 쪽에 있는지 판별 (-PushDir은 상대를 향하는 방향)
+								float DotRight = FVector::DotProduct(MyRight, -PushDir);
+								
+								FVector TangentDir;
+								// 상대가 내 오른쪽에 있거나 정면에 가까울 때 -> 내 오른쪽으로 회피 (우측 통행)
+								if (DotRight > -0.1f)
+								{
+									TangentDir = MyRight;
+								}
+								// 상대가 내 왼쪽에 확실히 치우쳐 있을 때 -> 내 왼쪽으로 회피
+								else
+								{
+									TangentDir = -MyRight;
+								}
+
+								// 바깥으로 밀어내는 힘과 횡방향(옆으로 비껴가는) 힘을 혼합
+								PushDir = (PushDir * 0.6f + TangentDir * 0.4f).GetSafeNormal();
+							}
+
+							AddActorWorldOffset(PushDir * 1.5f, false);
+						}
+
+						// --- 아군 길막힘 방지 밀어내기 로직 ---
+						if (GetTeamID() == OtherUnit->GetTeamID())
+						{
+							ECommandType OtherCommand = ECommandType::None;
+							if (ANovaAIController* OtherAI = Cast<ANovaAIController>(OtherUnit->GetController()))
+							{
+								OtherCommand = OtherAI->GetCurrentCommand();
+							}
+
+							// 상대 유닛이 Idle, Stop, Attack, Patrol 중일 때 상대를 밀어냅니다.
+							if (OtherCommand == ECommandType::None || 
+								OtherCommand == ECommandType::Stop || 
+								OtherCommand == ECommandType::Attack || 
+								OtherCommand == ECommandType::Patrol)
+							{
+								// 상대를 밀어낼 방향 (-Diff는 OtherUnit이 나에게서 멀어지는 방향)
+								FVector PushDir = -Diff.GetSafeNormal();
+								// 연쇄 밀어내기 호출
+								OtherUnit->PushUnit(PushDir, 2.0f, 0);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 
 	// 선택된 상태일 때만 실시간으로 바닥 위치 추적 (선택됨, 죽지않음, widget존재)
 	if (bIsSelected && !bIsDead)
@@ -209,6 +327,43 @@ void ANovaUnit::Tick(float DeltaTime)
 			FVector FinalAnchorLoc = CapsuleBottom + (ScreenDownDir * TotalOffset);
 
 			HealthBarWidget->SetWorldLocation(FinalAnchorLoc);
+		}
+	}
+}
+
+void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
+{
+	// 최대 연쇄 밀림 횟수 제한 (무한 루프 및 프레임 드랍 방지)
+	if (Depth > 4 || bIsDead) return;
+
+	FHitResult Hit;
+	// 스윕(Sweep)을 켜서 다른 유닛/지형과 부딪히는지 확인하며 이동
+	AddActorWorldOffset(PushDir * PushAmount, true, &Hit);
+
+	// 다른 무언가에 부딪혀서 이동이 막혔다면 연쇄 밀어내기 시도
+	if (Hit.bBlockingHit)
+	{
+		if (ANovaUnit* HitUnit = Cast<ANovaUnit>(Hit.GetActor()))
+		{
+			// 부딪힌 대상이 같은 팀 유닛인지 확인
+			if (HitUnit->GetTeamID() == GetTeamID())
+			{
+				ECommandType HitCommand = ECommandType::None;
+				if (ANovaAIController* HitAI = Cast<ANovaAIController>(HitUnit->GetController()))
+				{
+					HitCommand = HitAI->GetCurrentCommand();
+				}
+
+				// 대상이 비켜줄 수 있는 상태인지 확인
+				if (HitCommand == ECommandType::None || 
+					HitCommand == ECommandType::Stop || 
+					HitCommand == ECommandType::Attack || 
+					HitCommand == ECommandType::Patrol)
+				{
+					// 부딪힌 유닛도 같은 방향으로 밀어냄
+					HitUnit->PushUnit(PushDir, PushAmount, Depth + 1);
+				}
+			}
 		}
 	}
 }
@@ -609,14 +764,41 @@ void ANovaUnit::InitializeAttributesFromParts()
 					{
 						Capsule->SetCapsuleRadius(Spec.CollisionRadius);
 
+						// --- 네비게이션 장애물 크기 동기화 ---
+						if (NavModifier)
+						{
+							// 캡슐 반경의 80% 정도로 장애물 크기 설정 (유닛 간 최소 틈새 확보)
+							float ModifierRadius = Spec.CollisionRadius * 0.8f;
+							float ModifierHeight = Capsule->GetUnscaledCapsuleHalfHeight();
+							
+							// FailsafeExtent는 박스 형태의 Half-Extent를 의미함
+							NavModifier->FailsafeExtent = FVector(ModifierRadius, ModifierRadius, ModifierHeight);
+						}
+
 						// --- 네비게이션 및 이동 컴포넌트 데이터 동기화 ---
 						if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 						{
 							// 네비게이션 시스템이 참조하는 에이전트 반경 업데이트
 							MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
+							
+							// 공중/지상 유닛에 따라 사용할 NavMesh(Supported Agent) 분리
+							if (MovementType == ENovaMovementType::Air)
+							{
+								MoveComp->NavAgentProps.bCanWalk = false;
+								MoveComp->NavAgentProps.bCanFly = true;
+							}
+							else
+							{
+								MoveComp->NavAgentProps.bCanWalk = true;
+								MoveComp->NavAgentProps.bCanFly = false;
+							}
 
-							// 유닛 간 회피(RVO/Crowd) 시 고려할 반경 업데이트
+							// 유닛 간 회피 시 고려할 반경 업데이트 (Crowd Manager 사용)
 							MoveComp->AvoidanceConsiderationRadius = Spec.CollisionRadius;
+
+							// [수정] RVO 회피 명시적 비활성화 (Crowd Manager와 충돌하여 덜덜거림 유발 방지)
+							MoveComp->bUseRVOAvoidance = false;
+							MoveComp->AvoidanceWeight = 0.5f;
 
 							// 변경된 에이전트 설정을 네비게이션 시스템에 알림
 							MoveComp->UpdateNavAgent(*this);
@@ -656,6 +838,9 @@ void ANovaUnit::InitializeAttributesFromParts()
 	{
 		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
 		GetCharacterMovement()->MaxFlySpeed = TotalSpeed;
+		
+		// AI 이동 시 가속도를 무시하고 즉각적인 방향 전환과 최고 속도 도달을 허용 (빠릿빠릿한 조작감의 핵심)
+		GetCharacterMovement()->bRequestedMoveUseAcceleration = false;
 
 		// 공중 유닛 설정
 		if (MovementType == ENovaMovementType::Air)
@@ -663,22 +848,28 @@ void ANovaUnit::InitializeAttributesFromParts()
 			GetCharacterMovement()->SetMovementMode(MOVE_Flying);
 			GetCharacterMovement()->bCheatFlying = true; // 중력 영향 배제 보강
 
-			// 공중 유닛은 평면 제약 해제 (고도 조절을 위함)
-			GetCharacterMovement()->bConstrainToPlane = false;
+			// 비행 시 굼뜨게 움직이는 현상 방지: 마찰력을 걷기 수준으로 올림
+			GetCharacterMovement()->MaxAcceleration = TotalSpeed * 10.0f; // 더 강력한 가속도
+			GetCharacterMovement()->BrakingDecelerationFlying = TotalSpeed * 10.0f; // 즉각적인 제동
+			GetCharacterMovement()->BrakingFrictionFactor = 2.0f;
+			GetCharacterMovement()->FallingLateralFriction = 8.0f; // 공중 미끄러짐 방지
 
-			// if (AAIController* AIC = Cast<AAIController>(GetController()))
-			// {
-			// 	if (UPathFollowingComponent* PPathFollowing = AIC->GetPathFollowingComponent())
-			// 	{
-			// 		// 공중 유닛은 장애물 회피를 위해 NavMesh를 타지 않도록 설정
-			// 		// (프로젝트 상황에 따라 하단의 코드가 필요할 수 있음)
-			// 	}
-			// }
+			// 가상 평면 NavMesh를 타기 위해 평면 제약을 켭니다.
+			GetCharacterMovement()->bConstrainToPlane = true;
+			GetCharacterMovement()->bSnapToPlaneAtStart = true;
+
+			// 생성 위치를 하늘(Z = DefaultAirZ)로 고정
+			FVector CurrentLoc = GetActorLocation();
+			SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ));
 		}
 		else
 		{
 			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 			GetCharacterMovement()->bConstrainToPlane = true;
+			
+			// 지상 유닛 가속도 보정
+			GetCharacterMovement()->MaxAcceleration = TotalSpeed * 10.0f;
+			GetCharacterMovement()->BrakingDecelerationWalking = TotalSpeed * 10.0f;
 		}
 	}
 
@@ -710,14 +901,6 @@ bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 	{
 		return false; // 수평 거리가 사거리를 벗어남
 	}
-
-	// 2. 수직 거리 체크 (Z축 차이)
-	// 공중 유닛과 지상 유닛 간의 교전을 위해 수직 허용 오차를 넉넉히 둡니다 (예: 1500.f)
-	// float VerticalDist = FMath::Abs(MyLoc.Z - TargetLoc.Z);
-	// if (VerticalDist > 1500.0f)
-	// {
-	// 	return false; // 고도 차이가 너무 커서 사격 불능
-	// }
 
 	return true;
 }
@@ -909,6 +1092,9 @@ void ANovaUnit::Die()
 	{
 		AIC->OnPawnDeath();
 	}
+
+	// 내비게이션 장애물 해제 (죽은 유닛은 길을 막지 않음)
+	SetNavigationObstacle(false);
 
 	// 충돌 비활성화 및 소멸 처리 (필요에 따라 래그돌 또는 파편화 연출 추가 가능)
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -1227,5 +1413,33 @@ void ANovaUnit::SetHealthBarVisibilityOption(bool bEnable)
 	if (HealthBarWidget && bIsVisibleByFog)
 	{
 		HealthBarWidget->SetVisibility(bEnable);
+	}
+}
+
+void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
+{
+	// 상태 변화가 있을 때만 실행하여 불필요한 부하 방지
+	if (bIsNavigationObstacle == bIsObstacle) return;
+	bIsNavigationObstacle = bIsObstacle;
+
+	if (NavModifier)
+	{
+		// 장애물 상태에 따라 영역 클래스 설정 (UnitArea: 고비용, Default: 일반)
+		TSubclassOf<UNavArea> NewAreaClass = bIsObstacle ? UNovaNavArea_Unit::StaticClass() : UNavArea_Default::StaticClass();
+		
+		// 영역 클래스 설정 및 활성화/비활성화 처리
+		NavModifier->SetAreaClass(NewAreaClass);
+
+		// 유닛이 멈췄을 때만 Modifier를 활성화하여 고비용 영역을 생성
+		if (bIsObstacle)
+		{
+			NavModifier->Activate(true);
+		}
+		else
+		{
+			NavModifier->Deactivate();
+		}
+		
+		NOVA_LOG(Warning, "NavModifier %hs", bIsObstacle ? "Activated" : "Deactivated");
 	}
 }
