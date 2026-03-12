@@ -52,6 +52,9 @@ public:
 	// 사망 처리 함수
 	virtual void Die();
 
+	/** 연쇄적으로 유닛을 밀어내는 함수 */
+	void PushUnit(FVector PushDir, float PushAmount, int32 Depth = 0);
+
 public:
 	/** 팩토리로부터 조립 설계도를 전달받아 멤버 변수 초기화 */
 	void SetAssemblyData(const FNovaUnitAssemblyData& Data);
@@ -84,6 +87,9 @@ public:
 
 	/** 무기 부품 컴포넌트들을 반환합니다. */
 	const TArray<TObjectPtr<UChildActorComponent>>& GetWeaponPartComponents() const { return WeaponPartComponents; }
+
+	/** 공중 유닛의 고정 목표 Z 고도를 반환합니다. */
+	float GetDefaultAirZ() const { return DefaultAirZ; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -285,12 +291,21 @@ protected:
 	void UpdateHealthBarSize();
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit", meta = (AllowPrivateAccess = "true"))
+	class UNavModifierComponent* NavModifier;
+
 	// --- 안개에 의한 가시성 설정 변수 및 함수 ---
 	// 안개에 의해 보이고 있는지 여부
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
 	bool bIsVisibleByFog = true;
 
+	/** 현재 내비게이션 장애물로 설정되어 있는지 여부 */
+	bool bIsNavigationObstacle = false;
+	
 public:
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
+
+	/** 유닛이 NavMesh 상에서 장애물로 작동할지 여부를 설정합니다. */
+	void SetNavigationObstacle(bool bIsObstacle);
 };

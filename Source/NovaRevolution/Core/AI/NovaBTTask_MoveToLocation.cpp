@@ -3,6 +3,7 @@
 #include "Core/AI/NovaBTTask_MoveToLocation.h"
 
 #include "NavigationSystem.h"
+#include "NovaRevolution.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/AI/NovaAIController.h"
 #include "Core/NovaUnit.h"
@@ -78,6 +79,8 @@ void UNovaBTTask_MoveToLocation::TickTask(UBehaviorTreeComponent& OwnerComp, uin
 			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
 			BB->ClearValue(TargetLocationKey.SelectedKeyName);
 		}
+		
 		FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+		NOVA_LOG(Warning, "FinishLatentTask MoveToLocation");
 	}
 }
