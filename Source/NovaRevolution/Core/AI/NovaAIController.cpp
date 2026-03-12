@@ -433,6 +433,15 @@ void ANovaAIController::UpdateStuckDetection(float DeltaTime)
 	}
 }
 
+ECommandType ANovaAIController::GetCurrentCommand() const
+{
+	if (BlackboardComponent)
+	{
+		return static_cast<ECommandType>(BlackboardComponent->GetValueAsEnum(CommandTypeKey));
+	}
+	return ECommandType::None;
+}
+
 void ANovaAIController::HandleStuckStatus()
 {
 	APawn* MyPawn = GetPawn();

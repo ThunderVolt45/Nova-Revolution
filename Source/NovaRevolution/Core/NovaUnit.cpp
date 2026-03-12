@@ -205,8 +205,7 @@ void ANovaUnit::Tick(float DeltaTime)
 	UpdateBodyRotation(DeltaTime);
 	UpdateWeaponAiming(DeltaTime);
 
-	// 4. 완벽히 겹쳤을 때 이동 불가가 되는 현상 방지 (Anti-Overlap)
-	// 두 유닛이 겹쳐서 물리적으로 데드락에 빠지는 것을 막기 위해 미세하게 밀어냅니다.
+	// 4. 완벽히 겹쳤을 때 이동 불가가 되는 현상 방지 (Anti-Overlap) 및 아군 길막힘 방지 밀어내기
 	if (!bIsDead && GetCapsuleComponent())
 	{
 		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
@@ -214,7 +213,8 @@ void ANovaUnit::Tick(float DeltaTime)
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(this);
 
-		if (GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(Radius * 0.8f), Params))
+		// 아군 길막힘 방지를 위해 반경을 조금 더 넓게(1.1f) 잡습니다.
+		if (GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(Radius * 1.1f), Params))
 		{
 			for (const FOverlapResult& Overlap : Overlaps)
 			{
@@ -229,17 +229,70 @@ void ANovaUnit::Tick(float DeltaTime)
 						
 						float Dist = Diff.Size();
 						
-						// 거의 완전히 겹쳤을 경우 랜덤한 방향으로 튕겨냄
+						// 거의 완전히 겹쳤을 경우 랜덤한 방향으로 튕겨냄 (기존 Anti-Overlap)
 						if (Dist < 0.1f)
 						{
 							FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
-							// bSweep=false로 설정하여 충돌을 무시하고 강제로 밀어냅니다.
 							AddActorWorldOffset(RandomDir * 2.0f, false);
+							continue; // 이미 밀어냈으므로 다음 유닛 검사
 						}
-						// 충돌 반경의 80% 이내로 깊숙이 파고든 경우 밖으로 밀어냄
-						else
+						
+						// 충돌 반경의 80% 이내로 깊숙이 파고든 경우 밖으로 밀어냄 (기존 Anti-Overlap)
+						if (Dist < Radius * 0.8f)
 						{
-							AddActorWorldOffset((Diff / Dist) * 1.0f, false);
+							FVector PushDir = Diff / Dist;
+							
+							// 이동 중일 때 정면 충돌 데드락 방지 (우측 통행 유도)
+							FVector Velocity = GetVelocity();
+							Velocity.Z = 0.0f;
+							
+							if (Velocity.SizeSquared() > 100.0f) // 속도가 일정 이상일 때만 적용
+							{
+								FVector MyForward = Velocity.GetSafeNormal();
+								FVector MyRight = FVector::CrossProduct(FVector::UpVector, MyForward);
+								
+								// 상대방이 내 기준으로 어느 쪽에 있는지 판별 (-PushDir은 상대를 향하는 방향)
+								float DotRight = FVector::DotProduct(MyRight, -PushDir);
+								
+								FVector TangentDir;
+								// 상대가 내 오른쪽에 있거나 정면에 가까울 때 -> 내 오른쪽으로 회피 (우측 통행)
+								if (DotRight > -0.1f)
+								{
+									TangentDir = MyRight;
+								}
+								// 상대가 내 왼쪽에 확실히 치우쳐 있을 때 -> 내 왼쪽으로 회피
+								else
+								{
+									TangentDir = -MyRight;
+								}
+
+								// 바깥으로 밀어내는 힘과 횡방향(옆으로 비껴가는) 힘을 혼합
+								PushDir = (PushDir * 0.6f + TangentDir * 0.4f).GetSafeNormal();
+							}
+
+							AddActorWorldOffset(PushDir * 1.5f, false);
+						}
+
+						// --- 아군 길막힘 방지 밀어내기 로직 ---
+						if (GetTeamID() == OtherUnit->GetTeamID())
+						{
+							ECommandType OtherCommand = ECommandType::None;
+							if (ANovaAIController* OtherAI = Cast<ANovaAIController>(OtherUnit->GetController()))
+							{
+								OtherCommand = OtherAI->GetCurrentCommand();
+							}
+
+							// 상대 유닛이 Idle, Stop, Attack, Patrol 중일 때 상대를 밀어냅니다.
+							if (OtherCommand == ECommandType::None || 
+								OtherCommand == ECommandType::Stop || 
+								OtherCommand == ECommandType::Attack || 
+								OtherCommand == ECommandType::Patrol)
+							{
+								// 상대를 밀어낼 방향 (-Diff는 OtherUnit이 나에게서 멀어지는 방향)
+								FVector PushDir = -Diff.GetSafeNormal();
+								// 연쇄 밀어내기 호출
+								OtherUnit->PushUnit(PushDir, 2.0f, 0);
+							}
 						}
 					}
 				}
@@ -274,6 +327,43 @@ void ANovaUnit::Tick(float DeltaTime)
 			FVector FinalAnchorLoc = CapsuleBottom + (ScreenDownDir * TotalOffset);
 
 			HealthBarWidget->SetWorldLocation(FinalAnchorLoc);
+		}
+	}
+}
+
+void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
+{
+	// 최대 연쇄 밀림 횟수 제한 (무한 루프 및 프레임 드랍 방지)
+	if (Depth > 4 || bIsDead) return;
+
+	FHitResult Hit;
+	// 스윕(Sweep)을 켜서 다른 유닛/지형과 부딪히는지 확인하며 이동
+	AddActorWorldOffset(PushDir * PushAmount, true, &Hit);
+
+	// 다른 무언가에 부딪혀서 이동이 막혔다면 연쇄 밀어내기 시도
+	if (Hit.bBlockingHit)
+	{
+		if (ANovaUnit* HitUnit = Cast<ANovaUnit>(Hit.GetActor()))
+		{
+			// 부딪힌 대상이 같은 팀 유닛인지 확인
+			if (HitUnit->GetTeamID() == GetTeamID())
+			{
+				ECommandType HitCommand = ECommandType::None;
+				if (ANovaAIController* HitAI = Cast<ANovaAIController>(HitUnit->GetController()))
+				{
+					HitCommand = HitAI->GetCurrentCommand();
+				}
+
+				// 대상이 비켜줄 수 있는 상태인지 확인
+				if (HitCommand == ECommandType::None || 
+					HitCommand == ECommandType::Stop || 
+					HitCommand == ECommandType::Attack || 
+					HitCommand == ECommandType::Patrol)
+				{
+					// 부딪힌 유닛도 같은 방향으로 밀어냄
+					HitUnit->PushUnit(PushDir, PushAmount, Depth + 1);
+				}
+			}
 		}
 	}
 }

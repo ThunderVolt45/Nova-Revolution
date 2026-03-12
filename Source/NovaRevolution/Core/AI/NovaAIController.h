@@ -27,6 +27,9 @@ public:
 
 	// --- INovaCommandInterface 구현 ---
 	virtual void IssueCommand(const FCommandData& CommandData) override;
+	
+	/** 현재 명령 상태 반환 */
+	ECommandType GetCurrentCommand() const;
 
 	/** 유닛 타입에 맞춰 최적화된 이동 명령 (위치 기반) */
 	void MoveToLocationOptimized(const FVector& Dest, float AcceptanceRadius = 50.f);

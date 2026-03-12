@@ -52,6 +52,9 @@ public:
 	// 사망 처리 함수
 	virtual void Die();
 
+	/** 연쇄적으로 유닛을 밀어내는 함수 */
+	void PushUnit(FVector PushDir, float PushAmount, int32 Depth = 0);
+
 public:
 	/** 팩토리로부터 조립 설계도를 전달받아 멤버 변수 초기화 */
 	void SetAssemblyData(const FNovaUnitAssemblyData& Data);
