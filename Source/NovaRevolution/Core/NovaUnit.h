@@ -92,6 +92,9 @@ public:
 	/** 현재 장착된 무기 부품들을 반환합니다. */
 	const TArray<TObjectPtr<ANovaPart>>& GetWeaponParts() const { return CurrentWeaponParts; }
 
+	/** 무기 부착 소켓 이름 목록을 반환합니다. */
+	const TArray<FName>& GetWeaponSocketNames() const { return WeaponSocketNames; }
+
 	/** 공중 유닛의 고정 목표 Z 고도를 반환합니다. */
 	float GetDefaultAirZ() const { return DefaultAirZ; }
 

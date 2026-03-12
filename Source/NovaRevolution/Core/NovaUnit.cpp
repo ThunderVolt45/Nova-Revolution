@@ -898,11 +898,11 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitSplashRange(TotalSplashRange);
 
 	// 디버깅: 속도가 0일 경우 테스트를 위해 최소 속도 부여
-	if (TotalSpeed <= 0.0f)
-	{
-		NOVA_SCREEN(Error, "Unit Speed is 0! Forcing speed to 300 for testing.");
-		TotalSpeed = 300.0f;
-	}
+	// if (TotalSpeed <= 0.0f)
+	// {
+	// 	NOVA_SCREEN(Error, "Unit Speed is 0! Forcing speed to 300 for testing.");
+	// 	TotalSpeed = 300.0f;
+	// }
 
 	// 최대 이동 속도 설정 반영
 	if (GetCharacterMovement())
@@ -944,9 +944,9 @@ void ANovaUnit::InitializeAttributesFromParts()
 		}
 	}
 
-	NOVA_SCREEN(Log, "Unit Stats Initialized: %s | HP(%.f), Speed(%.f), Type(%s)",
-	            *UnitName, TotalHealth, TotalSpeed,
-	            MovementType == ENovaMovementType::Air ? TEXT("Air") : TEXT("Ground"));
+	// NOVA_SCREEN(Log, "Unit Stats Initialized: %s | HP(%.f), Speed(%.f), Type(%s)",
+	//             *UnitName, TotalHealth, TotalSpeed,
+	//             MovementType == ENovaMovementType::Air ? TEXT("Air") : TEXT("Ground"));
 }
 
 
