@@ -18,6 +18,8 @@
 #include "GAS/Abilities/NovaGameplayAbility.h"
 #include "Player/NovaPlayerController.h"
 #include "Engine/OverlapResult.h"
+#include "Core/NovaObjectPoolSubsystem.h"
+#include "BrainComponent.h"
 
 #include "NavModifierComponent.h"
 #include "NovaNavArea_Unit.h"
@@ -1120,8 +1122,19 @@ void ANovaUnit::Die()
 		}
 	}
 
-	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (오브젝트 풀링 적용?)
-	// Destroy();
+	// 2초 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
+	FTimerHandle ReturnToPoolTimer;
+	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
+	{
+		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
+		{
+			PoolSubsystem->ReturnToPool(this);
+		}
+		else
+		{
+			Destroy();
+		}
+	}, 2.0f, false);
 }
 
 void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
@@ -1136,6 +1149,9 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 void ANovaUnit::InitializeAbilitiesFromParts()
 {
 	if (!AbilitySystemComponent) return;
+
+	// 기존 부여된 모든 어빌리티 제거 (풀링 재사용 시 중복 방지)
+	AbilitySystemComponent->ClearAllAbilities();
 
 	// 중복 제거를 위한 Set 사용
 	TSet<TSubclassOf<class UNovaGameplayAbility>> UniqueAbilities;
@@ -1450,4 +1466,123 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 
 		NOVA_LOG(Warning, "NavModifier %hs", bIsObstacle ? "Activated" : "Deactivated");
 	}
+}
+
+void ANovaUnit::OnSpawnFromPool_Implementation()
+{
+	bIsDead = false;
+
+	// 1. [중요] 풀에서 부활한 경우, 새로 주입된 조립 데이터에 맞춰 부품 재조립 및 초기화 수행
+	if (IsActorInitialized())
+	{
+		ConstructUnitParts();
+		InitializePartAttachments();
+		InitializeAttributesFromParts();
+		
+		// ASC 상태 초기화 (InitAbilityActorInfo를 통해 새로운 데이터에 맞게 갱신)
+		if (AbilitySystemComponent)
+		{
+			AbilitySystemComponent->InitAbilityActorInfo(this, this);
+			InitializeAbilitiesFromParts();
+		}
+
+		// UI 및 캐싱 데이터 초기화
+		InitializeUIColors();
+		UpdateSelectionCircleTransform();
+		UpdateHealthBarTransform();
+		UpdateHealthBarLength();
+	}
+
+	// 2. 체력 및 스탯 원상복구 (재조립 이후 최종 MaxHealth 기준으로 채움)
+	if (AttributeSet)
+	{
+		AttributeSet->SetHealth(AttributeSet->GetMaxHealth());
+	}
+
+	// 3. 물리/충돌/이동 복구
+	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
+	{
+		Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	}
+	
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->SetMovementMode(MovementType == ENovaMovementType::Air ? MOVE_Flying : MOVE_Walking);
+	}
+
+	// 4. 모든 부품 상태 부활
+	TArray<AActor*> PartActors;
+	if (LegsPartComponent) PartActors.Add(LegsPartComponent->GetChildActor());
+	if (BodyPartComponent) PartActors.Add(BodyPartComponent->GetChildActor());
+	for (auto WeaponComp : WeaponPartComponents)
+	{
+		if (WeaponComp) PartActors.Add(WeaponComp->GetChildActor());
+	}
+
+	for (AActor* Actor : PartActors)
+	{
+		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		{
+			Part->SetIsDead(false);
+			
+			if (Part->GetPartSpec().PartType == ENovaPartType::Weapon)
+			{
+				Part->SetTargetPitch(0.0f);
+			}
+		}
+	}
+
+	// 5. AI 컨트롤러 및 비헤이비어 트리 재시작
+	if (ANovaAIController* AIC = Cast<ANovaAIController>(GetController()))
+	{
+		if (UBlackboardComponent* BB = AIC->GetBlackboardComponent())
+		{
+			BB->SetValueAsEnum(FName("CommandType"), (uint8)ECommandType::None);
+			BB->ClearValue(FName("TargetActor"));
+			BB->ClearValue(FName("TargetLocation"));
+		}
+		
+		AIC->RestartLogic(); // Reset() 대신 RestartLogic() 호출 유도
+	}
+
+	// 6. UI 초기화 및 랠리 포인트 이동
+	UpdateHealthBar();
+	SetFogVisibility(true);
+
+	if (!InitialRallyLocation.IsNearlyZero())
+	{
+		FCommandData MoveCmd;
+		MoveCmd.CommandType = ECommandType::Move;
+		MoveCmd.TargetLocation = InitialRallyLocation;
+		IssueCommand(MoveCmd);
+	}
+
+	NOVA_LOG(Log, "Unit %s Re-initialized from Pool with new assembly.", *GetName());
+}
+
+void ANovaUnit::OnReturnToPool_Implementation()
+{
+	// 1. 선택 해제
+	if (bIsSelected)
+	{
+		OnDeselected();
+	}
+
+	// 2. 이동 및 AI 정지
+	if (ANovaAIController* AIC = Cast<ANovaAIController>(GetController()))
+	{
+		AIC->StopMovementOptimized();
+		if (UBrainComponent* Brain = AIC->GetBrainComponent())
+		{
+			Brain->StopLogic("ReturnToPool");
+		}
+	}
+
+	// 3. UI 숨김 (HealthBar 등)
+	if (HealthBarWidget)
+	{
+		HealthBarWidget->SetVisibility(false);
+	}
+
+	NOVA_LOG(Log, "Unit %s Returned to Pool.", *GetName());
 }

@@ -22,7 +22,7 @@ struct FOnAttributeChangeData;
  */
 UCLASS()
 class NOVAREVOLUTION_API ANovaUnit : public ACharacter, public IAbilitySystemInterface, public INovaSelectableInterface,
-                                     public INovaCommandInterface, public INovaTeamInterface
+                                     public INovaCommandInterface, public INovaTeamInterface, public INovaObjectPoolable
 {
 	GENERATED_BODY()
 
@@ -48,6 +48,10 @@ public:
 
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
+
+	// --- INovaObjectPoolable ---
+	virtual void OnSpawnFromPool_Implementation() override;
+	virtual void OnReturnToPool_Implementation() override;
 
 	// 사망 처리 함수
 	virtual void Die();

@@ -577,3 +577,11 @@ void ANovaAIController::OnPawnDeath()
 
 	StopMovementOptimized();
 }
+
+void ANovaAIController::RestartLogic()
+{
+	if (BehaviorTreeComponent)
+	{
+		BehaviorTreeComponent->RestartLogic();
+	}
+}

@@ -113,6 +113,18 @@ void ANovaPart::SetIsDead(bool bDead)
 		if (UNovaAnimInstance* AnimInst = Cast<UNovaAnimInstance>(SkeletalMesh->GetAnimInstance()))
 		{
 			AnimInst->bIsDead = bDead;
+			if (!bDead)
+			{
+				// 유닛이 부활할 때 애니메이션 인스턴스의 상태를 강제로 초기화
+				AnimInst->MovementSpeed = 0.0f;
+				AnimInst->RotationRate = 0.0f;
+				
+				// 몽타주가 재생 중이었다면 정지시킵니다
+				AnimInst->Montage_Stop(0.0f);
+
+				// AnimGraph의 스테이트 머신이 Death 상태에서 빠져나오지 못하는 문제를 방지하기 위해 완전히 리셋
+				SkeletalMesh->InitAnim(true);
+			}
 		}
 	}
 }
