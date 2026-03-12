@@ -16,6 +16,8 @@ void UNovaGA_WattLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 {
     if (!CommitAbility(Handle, ActorInfo, ActivationInfo))
     {
+        NOVA_SCREEN(Error, "WattLevelUp: Ability Commit Failed!");
+        
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
@@ -25,6 +27,8 @@ void UNovaGA_WattLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 
     if (!ASC || !PS)
     {
+        NOVA_SCREEN(Error, "WattLevelUp: Internal Error - ASC or PS is NULL!");
+        
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
@@ -38,10 +42,11 @@ void UNovaGA_WattLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handl
         return;
     }
 
-    // 2. 자원 체크 및 소모 (Watt 500, SP 20 - 수치는 기획에 따라 조정)
-    if (!CheckResources(500.0f, 20.0f))
+    // 2. 자원 체크 및 소모 (자원 소모량 임의지정)
+    if (!CheckResources(300.0f, 40.0f))
     {
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
+        NOVA_SCREEN(Warning, "Resource Is Not Enough!");
         return;
     }
 
@@ -49,8 +54,8 @@ void UNovaGA_WattLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handl
     FGameplayEffectSpecHandle CostSpec = ASC->MakeOutgoingSpec(ModifyResourceGEClass, 1.0f, ASC->MakeEffectContext());
     if (CostSpec.IsValid())
     {
-        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_Watt, -500.0f);
-        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_SP, -20.0f);
+        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_Watt, -300.0f);
+        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_SP, -40.0f);
         ASC->ApplyGameplayEffectSpecToSelf(*CostSpec.Data.Get());
     }
 
