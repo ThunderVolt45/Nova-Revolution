@@ -54,6 +54,8 @@ namespace NovaGameplayTags
 	
 	// 사령관 스킬
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp, "Ability.Skill.ResourceLevelUp");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp_Watt, "Ability.Skill.ResourceLevelUp.Watt");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp_SP, "Ability.Skill.ResourceLevelUp.SP");
 	
 	// --- 게임플레이 큐 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rifle_Fire, "GameplayCue.Weapon.Rifle.Fire");
