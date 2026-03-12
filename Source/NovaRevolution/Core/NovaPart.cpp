@@ -26,6 +26,29 @@ ANovaPart::ANovaPart()
 	StaticMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
+void ANovaPart::OnSpawnFromPool_Implementation()
+{
+	// 부활 시 애니메이션 상태 초기화
+	SetIsDead(false);
+	CurrentPitch = 0.0f;
+	TargetPitch = 0.0f;
+}
+
+void ANovaPart::OnReturnToPool_Implementation()
+{
+	// 풀로 돌아갈 때 부착 해제 및 상태 리셋
+	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+	
+	// 애니메이션 중지 등
+	if (SkeletalMesh)
+	{
+		if (UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance())
+		{
+			AnimInst->Montage_Stop(0.0f);
+		}
+	}
+}
+
 void ANovaPart::UpdateAiming(float DeltaTime)
 {
 	// 1. 목표 각도로 부드럽게 보간 (FInterpTo)

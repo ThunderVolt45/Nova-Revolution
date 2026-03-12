@@ -6,18 +6,23 @@
 #include "GameFramework/Actor.h"
 #include "Core/NovaPartData.h"
 #include "GameplayTagContainer.h"
+#include "Core/NovaInterfaces.h"
 #include "NovaPart.generated.h"
 
 /**
  * Nova Revolution의 유닛 부품(Legs, Body, Weapon 등)의 베이스 클래스
  */
 UCLASS()
-class NOVAREVOLUTION_API ANovaPart : public AActor
+class NOVAREVOLUTION_API ANovaPart : public AActor, public INovaObjectPoolable
 {
 	GENERATED_BODY()
 	
 public:	
 	ANovaPart();
+
+	// --- INovaObjectPoolable ---
+	virtual void OnSpawnFromPool_Implementation() override;
+	virtual void OnReturnToPool_Implementation() override;
 
 	/** 부품 정보 설정을 위한 함수 (주로 ANovaUnit에서 호출) */
 	void SetPartID(const FName& InID) { PartID = InID; }

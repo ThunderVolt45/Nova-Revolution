@@ -63,15 +63,6 @@ ANovaUnit::ANovaUnit()
 
 	AttributeSet = CreateDefaultSubobject<UNovaAttributeSet>(TEXT("AttributeSet"));
 
-	// --- 차일드 액터 컴포넌트 초기화 (런타임 생성용) ---
-	// Legs(다리)는 캡슐(Root)에 직접 부착
-	LegsPartComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("LegsPartComponent"));
-	LegsPartComponent->SetupAttachment(GetRootComponent());
-
-	// Body(몸통)는 다리의 소켓에 부착될 준비 (BeginPlay에서 처리)
-	BodyPartComponent = CreateDefaultSubobject<UChildActorComponent>(TEXT("BodyPartComponent"));
-	BodyPartComponent->SetupAttachment(LegsPartComponent);
-
 	// 기본 팀 ID 설정
 	TeamID = NovaTeam::None;
 
@@ -182,25 +173,19 @@ void ANovaUnit::Tick(float DeltaTime)
 	*/
 
 	// 2. 다리(Legs) 부품 애니메이션 데이터 전달
-	if (LegsPartComponent)
+	if (CurrentLegsPart)
 	{
-		if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
-		{
-			// 이동 속도 전달
-			float CurrentSpeed = GetVelocity().Size();
-			LegsActor->SetMovementSpeed(CurrentSpeed);
+		// 이동 속도 전달
+		float CurrentSpeed = GetVelocity().Size();
+		CurrentLegsPart->SetMovementSpeed(CurrentSpeed);
 
-			// 회전 속도 계산 및 전달
-			float CurrentYaw = GetActorRotation().Yaw;
-			float YawDelta = FMath::FindDeltaAngleDegrees(LastYaw, CurrentYaw);
-			float RotationRate = YawDelta / DeltaTime; // 초당 회전 각도
+		// 회전 속도 계산 및 전달
+		float CurrentYaw = GetActorRotation().Yaw;
+		float YawDelta = FMath::FindDeltaAngleDegrees(LastYaw, CurrentYaw);
+		float RotationRate = YawDelta / DeltaTime; // 초당 회전 각도
 
-			LegsActor->SetRotationRate(RotationRate);
-			LastYaw = CurrentYaw;
-
-			// --- 실시간 속도 확인용 ---
-			// NOVA_SCREEN(Log,"Unit: %s | Current Speed: %.2f", *GetName(), CurrentSpeed);
-		}
+		CurrentLegsPart->SetRotationRate(RotationRate);
+		LastYaw = CurrentYaw;
 	}
 
 	// 3. 몸통(Body) 및 무기 회전 로직 실행
@@ -485,19 +470,17 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 
 void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 {
-	// 1. 몸통 컴포넌트가 없으면 중단합니다.
-	if (!BodyPartComponent)
+	// 1. 몸통 파츠가 없으면 중단합니다.
+	if (!CurrentBodyPart)
 	{
-		NOVA_LOG(Log, "UpdateBodyRotation: BodyPartComponent is nullptr, UpdateBodyRotation Is Canceled");
 		return;
 	}
 
 	// 현재 몸통의 세계 회전값
-	FRotator CurrentRotation = BodyPartComponent->GetComponentRotation();
+	FRotator CurrentRotation = CurrentBodyPart->GetActorRotation();
 	FRotator TargetRotation;
 
 	// 1. [최적화] 블랙보드 조회 대신 캐싱된 CurrentTarget만 확인합니다.
-	// IsValid를 통해 타겟이 죽거나 사라졌는지도 동시에 체크합니다.
 	if (IsValid(CurrentTarget))
 	{
 		// 타겟 방향 계산
@@ -506,7 +489,7 @@ void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 	}
 	else
 	{
-		// 2. [기능 개선] 타겟이 없으면 유닛의 현재 정면(다리/뿌리 방향)으로 회전합니다.
+		// 2. 타겟이 없으면 유닛의 현재 정면(다리/뿌리 방향)으로 회전합니다.
 		TargetRotation = GetActorRotation();
 	}
 
@@ -525,7 +508,7 @@ void ANovaUnit::UpdateBodyRotation(float DeltaTime)
 	);
 
 	// 계산된 회전값 적용
-	BodyPartComponent->SetWorldRotation(NewRotation);
+	CurrentBodyPart->SetActorRotation(NewRotation);
 }
 
 void ANovaUnit::UpdateWeaponAiming(float DeltaTime)
@@ -533,9 +516,9 @@ void ANovaUnit::UpdateWeaponAiming(float DeltaTime)
 	// 1. 타겟이 유효하지 않으면 모든 무기를 정면(0도)으로 복귀시킵니다.
 	if (!IsValid(CurrentTarget))
 	{
-		for (auto WeaponComp : WeaponPartComponents)
+		for (ANovaPart* WeaponPart : CurrentWeaponParts)
 		{
-			if (ANovaPart* WeaponPart = Cast<ANovaPart>(WeaponComp->GetChildActor()))
+			if (WeaponPart)
 			{
 				WeaponPart->SetTargetPitch(0.0f);
 				WeaponPart->UpdateAiming(DeltaTime);
@@ -545,22 +528,22 @@ void ANovaUnit::UpdateWeaponAiming(float DeltaTime)
 	}
 
 	// 2. 각 무기 부품별로 타겟을 향한 각도를 계산합니다.
-	for (auto WeaponComp : WeaponPartComponents)
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
 	{
-		if (ANovaPart* WeaponPart = Cast<ANovaPart>(WeaponComp->GetChildActor()))
+		if (WeaponPart)
 		{
 			// 무기의 월드 위치와 타겟 위치 사이의 방향 벡터 계산
-			FVector WeaponLocation = WeaponComp->GetComponentLocation();
+			FVector WeaponLocation = WeaponPart->GetActorLocation();
 			FVector TargetLocation = CurrentTarget->GetActorLocation();
 			FVector Direction = TargetLocation - WeaponLocation;
 
 			// 방향 벡터를 회전값으로 변환하여 Pitch 추출
 			FRotator LookAtRot = Direction.Rotation();
 
-			// 조준 각도 전달 (필요 시 -45 ~ 45도 등으로 제한 가능)
+			// 조준 각도 전달
 			WeaponPart->SetTargetPitch(LookAtRot.Pitch);
 
-			// 무기 내부의 업데이트 로직 실행 (ABP 값 전달 포함)
+			// 무기 내부의 업데이트 로직 실행
 			WeaponPart->UpdateAiming(DeltaTime);
 		}
 	}
@@ -624,87 +607,190 @@ void ANovaUnit::UnPossessed()
 
 void ANovaUnit::ConstructUnitParts()
 {
-	// 다리와 몸통 부품 할당
+	UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
+
+	// 1. 다리(Legs) 할당
 	if (LegsPartClass)
 	{
-		LegsPartComponent->SetChildActorClass(LegsPartClass);
-		if (LegsPartComponent->GetChildActor() == nullptr)
+		// 클래스가 바뀌었거나 아직 없는 경우
+		if (!CurrentLegsPart || CurrentLegsPart->GetClass() != LegsPartClass)
 		{
-			LegsPartComponent->CreateChildActor();
+			if (CurrentLegsPart)
+			{
+				if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentLegsPart);
+				else CurrentLegsPart->Destroy();
+			}
+			
+			if (PoolSubsystem)
+			{
+				CurrentLegsPart = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(LegsPartClass, GetActorTransform()));
+			}
+			else
+			{
+				FActorSpawnParameters Params;
+				Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				CurrentLegsPart = GetWorld()->SpawnActor<ANovaPart>(LegsPartClass, Params);
+			}
+
+			if (CurrentLegsPart)
+			{
+				CurrentLegsPart->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+				CurrentLegsPart->SetPartDataTable(PartDataTable);
+			}
+		}
+
+		// 클래스 변경 여부와 상관없이 오프셋은 항상 업데이트 (에디터 실시간 반영용)
+		if (CurrentLegsPart)
+		{
+			CurrentLegsPart->SetActorRelativeLocation(LegsOffset);
+		}
+	}
+	else
+	{
+		// 클래스가 None인 경우 기존 부품 제거
+		if (CurrentLegsPart)
+		{
+			if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentLegsPart);
+			else CurrentLegsPart->Destroy();
+			CurrentLegsPart = nullptr;
 		}
 	}
 
+	// 2. 몸통(Body) 할당
 	if (BodyPartClass)
 	{
-		BodyPartComponent->SetChildActorClass(BodyPartClass);
-		if (BodyPartComponent->GetChildActor() == nullptr)
+		if (!CurrentBodyPart || CurrentBodyPart->GetClass() != BodyPartClass)
 		{
-			BodyPartComponent->CreateChildActor();
+			if (CurrentBodyPart)
+			{
+				if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentBodyPart);
+				else CurrentBodyPart->Destroy();
+			}
+
+			if (PoolSubsystem)
+			{
+				CurrentBodyPart = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(BodyPartClass, GetActorTransform()));
+			}
+			else
+			{
+				FActorSpawnParameters Params;
+				Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				CurrentBodyPart = GetWorld()->SpawnActor<ANovaPart>(BodyPartClass, Params);
+			}
+
+			if (CurrentBodyPart && CurrentLegsPart)
+			{
+				UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh();
+				if (LegsMesh)
+				{
+					CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
+					CurrentBodyPart->SetPartDataTable(PartDataTable);
+				}
+			}
+		}
+	}
+	else
+	{
+		if (CurrentBodyPart)
+		{
+			if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentBodyPart);
+			else CurrentBodyPart->Destroy();
+			CurrentBodyPart = nullptr;
 		}
 	}
 
-	// 기존에 동적으로 생성된 무기 컴포넌트들 제거 (중복 생성 방지)
-	for (UChildActorComponent* Comp : WeaponPartComponents)
+	// 3. 무기(Weapons) 할당
+	// 기존 무기들 중 클래스가 다른 것들은 풀로 반환 또는 파괴
+	for (int32 i = CurrentWeaponParts.Num() - 1; i >= 0; --i)
 	{
-		if (Comp) Comp->DestroyComponent();
-	}
-	WeaponPartComponents.Empty();
-
-	// 무기(Weapons) 할당 및 컴포넌트 생성
-	if (WeaponPartClass && BodyPartComponent)
-	{
-		if (ANovaPart* BodyActor = Cast<ANovaPart>(BodyPartComponent->GetChildActor()))
+		if (!CurrentWeaponParts[i] || CurrentWeaponParts[i]->GetClass() != WeaponPartClass)
 		{
-			if (UPrimitiveComponent* BodyMesh = BodyActor->GetMainMesh())
+			if (CurrentWeaponParts[i])
 			{
-				for (int32 i = 0; i < WeaponSocketNames.Num(); ++i)
-				{
-					const FName& SocketName = WeaponSocketNames[i];
-					if (BodyMesh->DoesSocketExist(SocketName))
-					{
-						FName CompName = FName(*FString::Printf(TEXT("WeaponPartComponent_%d"), i));
-						UChildActorComponent* WeaponComp = NewObject<UChildActorComponent>(this, CompName);
-						if (WeaponComp)
-						{
-							WeaponComp->CreationMethod = EComponentCreationMethod::Instance;
-							WeaponComp->RegisterComponent();
-							WeaponComp->SetChildActorClass(WeaponPartClass);
-							WeaponComp->CreateChildActor(); // 명시적으로 자식 액터 생성 호출
-							WeaponComp->AttachToComponent(
-								BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+				if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentWeaponParts[i]);
+				else CurrentWeaponParts[i]->Destroy();
+			}
+			CurrentWeaponParts.RemoveAt(i);
+		}
+	}
 
-							WeaponPartComponents.Add(WeaponComp);
+	if (WeaponPartClass && CurrentBodyPart)
+	{
+		UPrimitiveComponent* BodyMesh = CurrentBodyPart->GetMainMesh();
+		if (BodyMesh)
+		{
+			for (int32 i = 0; i < WeaponSocketNames.Num(); ++i)
+			{
+				const FName& SocketName = WeaponSocketNames[i];
+				if (BodyMesh->DoesSocketExist(SocketName))
+				{
+					// 기존에 이 소켓에 붙어있는 무기가 있는지 확인 (인덱스 기반)
+					if (!CurrentWeaponParts.IsValidIndex(i))
+					{
+						ANovaPart* NewWeapon = nullptr;
+						if (PoolSubsystem)
+						{
+							NewWeapon = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(WeaponPartClass, GetActorTransform()));
+						}
+						else
+						{
+							FActorSpawnParameters Params;
+							Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+							NewWeapon = GetWorld()->SpawnActor<ANovaPart>(WeaponPartClass, Params);
+						}
+
+						if (NewWeapon)
+						{
+							NewWeapon->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+							NewWeapon->SetPartDataTable(PartDataTable);
+							CurrentWeaponParts.Add(NewWeapon);
 						}
 					}
 					else
 					{
-						NOVA_LOG(Warning, "Weapon Socket '%s' does not exist on Body Mesh of %s",
-						         *SocketName.ToString(), *GetName());
+						// 이미 있다면 부착 상태만 확인
+						CurrentWeaponParts[i]->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 					}
 				}
 			}
+			
+			// 남는 무기들 반환
+			while (CurrentWeaponParts.Num() > WeaponSocketNames.Num())
+			{
+				ANovaPart* ExtraWeapon = CurrentWeaponParts.Pop();
+				if (ExtraWeapon)
+				{
+					if (PoolSubsystem) PoolSubsystem->ReturnToPool(ExtraWeapon);
+					else ExtraWeapon->Destroy();
+				}
+			}
 		}
-		else
+	}
+	else if (!WeaponPartClass)
+	{
+		// 무기 클래스가 None이면 모든 무기 제거
+		for (ANovaPart* WeaponPart : CurrentWeaponParts)
 		{
-			NOVA_LOG(Warning, "ConstructUnitParts: BodyActor is NULL even after CreateChildActor!");
+			if (WeaponPart)
+			{
+				if (PoolSubsystem) PoolSubsystem->ReturnToPool(WeaponPart);
+				else WeaponPart->Destroy();
+			}
 		}
+		CurrentWeaponParts.Empty();
 	}
 }
 
 void ANovaUnit::InitializePartAttachments()
 {
-	// 1. 다리(Legs) 내에서 몸통(Body)이 붙을 소켓을 찾음
-	if (ANovaPart* LegsActor = Cast<ANovaPart>(LegsPartComponent->GetChildActor()))
+	// ConstructUnitParts에서 이미 부착 로직을 수행하므로 여기서는 보강만 하거나 비워둡니다.
+	if (CurrentLegsPart && CurrentBodyPart)
 	{
-		if (UPrimitiveComponent* LegsMesh = LegsActor->GetMainMesh())
+		if (UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh())
 		{
-			// 몸통을 지정된 소켓에 부착
-			BodyPartComponent->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
-			                                     BodyTargetSocketName);
+			CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
 		}
 	}
-
-	// 2. 무기 부품들은 ConstructUnitParts에서 이미 몸통의 소켓에 부착되었으므로 추가 로직 불필요
 }
 
 void ANovaUnit::InitializeAttributesFromParts()
@@ -723,30 +809,22 @@ void ANovaUnit::InitializeAttributesFromParts()
 	float TotalSplashRange = 0.0f;
 
 	// 수집할 모든 부품 액터들을 리스트업
-	TArray<AActor*> PartActors;
-	PartActors.Add(LegsPartComponent->GetChildActor());
-	PartActors.Add(BodyPartComponent->GetChildActor());
+	TArray<ANovaPart*> PartActors;
+	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
+	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
 
-	// 무기 부품은 여러 개가 붙을 수 있지만 모두 같은 종류를 붙일 예정이므로 스펙은 첫 번째 것 하나만 반영함
-	for (auto WeaponComp : WeaponPartComponents)
+	// 무기 부품 스펙 반영
+	if (CurrentWeaponParts.Num() > 0)
 	{
-		if (AActor* WeaponActor = WeaponComp->GetChildActor())
-		{
-			PartActors.Add(WeaponActor);
-			break; // 첫 번째 무기만 추가하고 중단
-		}
+		PartActors.Add(CurrentWeaponParts[0]);
 	}
 
 	// 각 부품에서 스탯 수집
-	for (AActor* Actor : PartActors)
+	for (ANovaPart* Part : PartActors)
 	{
-		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		if (Part)
 		{
-			// 중요: 데이터 테이블로부터 스펙이 아직 로드되지 않았을 수 있으므로 강제 초기화 시도
-			// (OnConstruction이나 BeginPlay의 실행 순서 문제를 방지하기 위함)
 			Part->InitializePartSpec();
-
-			// 데이터 테이블 방식 (PartSpec) 참조
 			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
 
 			TotalWatt += Spec.Watt;
@@ -760,36 +838,23 @@ void ANovaUnit::InitializeAttributesFromParts()
 			TotalMinRange += Spec.MinRange;
 			TotalSplashRange += Spec.SplashRange;
 
-			// --- 신규 타입 정보 추출 ---
 			if (Spec.PartType == ENovaPartType::Legs)
 			{
 				MovementType = Spec.MovementType;
-
-				// --- 캡슐 콜라이더 반경 설정 (Legs 전용) ---
 				if (Spec.CollisionRadius > 0.0f)
 				{
 					if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 					{
 						Capsule->SetCapsuleRadius(Spec.CollisionRadius);
-
-						// --- 네비게이션 장애물 크기 동기화 ---
 						if (NavModifier)
 						{
-							// 캡슐 반경의 80% 정도로 장애물 크기 설정 (유닛 간 최소 틈새 확보)
 							float ModifierRadius = Spec.CollisionRadius * 0.8f;
 							float ModifierHeight = Capsule->GetUnscaledCapsuleHalfHeight();
-
-							// FailsafeExtent는 박스 형태의 Half-Extent를 의미함
 							NavModifier->FailsafeExtent = FVector(ModifierRadius, ModifierRadius, ModifierHeight);
 						}
-
-						// --- 네비게이션 및 이동 컴포넌트 데이터 동기화 ---
 						if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 						{
-							// 네비게이션 시스템이 참조하는 에이전트 반경 업데이트
 							MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
-
-							// 공중/지상 유닛에 따라 사용할 NavMesh(Supported Agent) 분리
 							if (MovementType == ENovaMovementType::Air)
 							{
 								MoveComp->NavAgentProps.bCanWalk = false;
@@ -800,15 +865,8 @@ void ANovaUnit::InitializeAttributesFromParts()
 								MoveComp->NavAgentProps.bCanWalk = true;
 								MoveComp->NavAgentProps.bCanFly = false;
 							}
-
-							// 유닛 간 회피 시 고려할 반경 업데이트 (Crowd Manager 사용)
 							MoveComp->AvoidanceConsiderationRadius = Spec.CollisionRadius;
-
-							// [수정] RVO 회피 명시적 비활성화 (Crowd Manager와 충돌하여 덜덜거림 유발 방지)
 							MoveComp->bUseRVOAvoidance = false;
-							MoveComp->AvoidanceWeight = 0.5f;
-
-							// 변경된 에이전트 설정을 네비게이션 시스템에 알림
 							MoveComp->UpdateNavAgent(*this);
 						}
 					}
@@ -1032,11 +1090,11 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
 	if (CommandData.CommandType == ECommandType::Attack)
 	{
-		for (auto WeaponComp : WeaponPartComponents)
+		for (ANovaPart* WeaponPart : CurrentWeaponParts)
 		{
-			if (ANovaPart* WeaponActor = Cast<ANovaPart>(WeaponComp->GetChildActor()))
+			if (WeaponPart)
 			{
-				WeaponActor->PlayAttackAnimation();
+				WeaponPart->PlayAttackAnimation();
 			}
 		}
 	}
@@ -1109,14 +1167,17 @@ void ANovaUnit::Die()
 	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
 
 	// 모든 부품에 사망 상태 전달
-	TArray<AActor*> PartActors;
-	PartActors.Add(LegsPartComponent->GetChildActor());
-	PartActors.Add(BodyPartComponent->GetChildActor());
-	for (auto WeaponComp : WeaponPartComponents) PartActors.Add(WeaponComp->GetChildActor());
-
-	for (AActor* Actor : PartActors)
+	TArray<ANovaPart*> PartActors;
+	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
+	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
 	{
-		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		if (WeaponPart) PartActors.Add(WeaponPart);
+	}
+
+	for (ANovaPart* Part : PartActors)
+	{
+		if (Part)
 		{
 			Part->SetIsDead(true);
 		}
@@ -1157,24 +1218,20 @@ void ANovaUnit::InitializeAbilitiesFromParts()
 	TSet<TSubclassOf<class UNovaGameplayAbility>> UniqueAbilities;
 
 	// 수집할 모든 부품 액터 리스트업
-	TArray<AActor*> PartActors;
-	if (LegsPartComponent) PartActors.Add(LegsPartComponent->GetChildActor());
-	if (BodyPartComponent) PartActors.Add(BodyPartComponent->GetChildActor());
+	TArray<ANovaPart*> PartActors;
+	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
+	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
 
 	// 무기는 여러 소켓에 붙어있을 수 있지만 모두 같은 무기만 붙으므로 무기 중 하나의 어빌리티만 등록한다.
-	for (auto WeaponComp : WeaponPartComponents)
+	if (CurrentWeaponParts.Num() > 0)
 	{
-		if (WeaponComp)
-		{
-			PartActors.Add(WeaponComp->GetChildActor());
-			break;
-		}
+		PartActors.Add(CurrentWeaponParts[0]);
 	}
 
 	// 각 부품에서 어빌리티 클래스 추출
-	for (AActor* Actor : PartActors)
+	for (ANovaPart* Part : PartActors)
 	{
-		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		if (Part)
 		{
 			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
 			for (auto AbilityClass : Spec.AbilityClasses)
@@ -1529,17 +1586,17 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	}
 
 	// 4. 모든 부품 상태 부활
-	TArray<AActor*> PartActors;
-	if (LegsPartComponent) PartActors.Add(LegsPartComponent->GetChildActor());
-	if (BodyPartComponent) PartActors.Add(BodyPartComponent->GetChildActor());
-	for (auto WeaponComp : WeaponPartComponents)
+	TArray<ANovaPart*> PartActors;
+	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
+	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
 	{
-		if (WeaponComp) PartActors.Add(WeaponComp->GetChildActor());
+		if (WeaponPart) PartActors.Add(WeaponPart);
 	}
 
-	for (AActor* Actor : PartActors)
+	for (ANovaPart* Part : PartActors)
 	{
-		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
+		if (Part)
 		{
 			Part->SetIsDead(false);
 
@@ -1623,7 +1680,27 @@ void ANovaUnit::OnReturnToPool_Implementation()
 	// 다음 사용 시 SetFogVisibility가 정상 작동하도록 초기값(true)으로 리셋
 	bIsVisibleByFog = true;
 
-	// 5. 조립 데이터 초기화 (이전 생의 데이터를 들고 있지 않게 함)
+	// 5. 조립 데이터 및 파츠 액터 초기화 (풀로 반환)
+	UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
+	if (PoolSubsystem)
+	{
+		if (CurrentLegsPart)
+		{
+			PoolSubsystem->ReturnToPool(CurrentLegsPart);
+			CurrentLegsPart = nullptr;
+		}
+		if (CurrentBodyPart)
+		{
+			PoolSubsystem->ReturnToPool(CurrentBodyPart);
+			CurrentBodyPart = nullptr;
+		}
+		for (ANovaPart* WeaponPart : CurrentWeaponParts)
+		{
+			if (WeaponPart) PoolSubsystem->ReturnToPool(WeaponPart);
+		}
+		CurrentWeaponParts.Empty();
+	}
+
 	LegsPartClass = nullptr;
 	BodyPartClass = nullptr;
 	WeaponPartClass = nullptr;
