@@ -266,6 +266,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|UI")
 	float HealthBarLogScaleFactor = 40.0f;
 
+	// 플레이어 옵션에 의한 체력바 표시 여부 (기본값: true)
+	bool bHealthBarOptionEnabled = true;
+	
 	// TeamID별 색 변경 함수
 	void UpdateSelectionCircleColor();
 
@@ -289,8 +292,7 @@ protected:
 	
 	// TeamID를 확인하여 UI 색상을 결정하는 함수
 	void InitializeUIColors();
-
-protected:
+	
 	// --- 안개에 의한 가시성 설정 변수 및 함수 ---
 	// 안개에 의해 보이고 있는지 여부
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
@@ -299,4 +301,7 @@ protected:
 public:
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
+	
+	// 체력바 표시 옵션 설정 함수
+	void SetHealthBarVisibilityOption(bool bEnable);
 };

@@ -14,6 +14,7 @@
 #include "Components/ProgressBar.h"
 #include "Components/WidgetComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Player/NovaPlayerController.h"
 
 ANovaBase::ANovaBase()
 {
@@ -81,7 +82,7 @@ void ANovaBase::BeginPlay()
 	if (AbilitySystemComponent)
 	{
 		AbilitySystemComponent->InitAbilityActorInfo(this, this);
-
+		AttributeSet->SetSight(1200.f);
 		// 체력 변경 콜백 등록
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
 		                      .AddUObject(this, &ANovaBase::OnHealthChanged);
@@ -393,4 +394,55 @@ void ANovaBase::InitializeUIColors()
 	CachedUIColor = FLinearColor::Red; // 적군
 	if (TeamID == LocalPlayerTeamID) CachedUIColor = FLinearColor::Green; // 아군
 	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) CachedUIColor = FLinearColor::Yellow; // 중립
+}
+
+void ANovaBase::SetFogVisibility(bool bVisible)
+{
+	// 상태가 같으면 return
+	if (bIsVisibleByFog == bVisible) return;
+	bIsVisibleByFog = bVisible;
+	
+	// 시각적 처리 (건물 메시 숨김)
+	SetActorHiddenInGame(!bVisible);
+	
+	// 마우스 클릭(Visibility)만 선택적으로 무시
+	if (BaseCollision)
+	{
+		BaseCollision->SetCollisionResponseToChannel(ECC_Visibility, bVisible ? ECR_Block : ECR_Ignore);
+	}
+	
+	// 체력바 위젯 숨김/표시
+	if (HealthBarWidget)
+	{
+		HealthBarWidget->SetVisibility(bVisible && bHealthBarOptionEnabled);
+	}
+	
+	// 선택된 상태에서 안개 속으로 사라졌을 때 처리
+	if (!bVisible && bIsSelected)
+	{
+		OnDeselected();
+		
+		// 로컬 플레이어 컨트롤러를 찾아 선택 해제 알림
+		if (auto* NovaPC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+		{
+			NovaPC->NotifyTargetUnselectable(this);
+		}
+	}
+	
+	// 선택 표시 위젯 강제 끄기
+	if (!bVisible && SelectionWidget)
+	{
+		SelectionWidget->SetVisibility(false);
+	}
+}
+
+void ANovaBase::SetHealthBarVisibilityOption(bool bEnable)
+{
+	bHealthBarOptionEnabled = bEnable;
+	
+	// 현재 안개에 의해 보이고 있다면, 옵션 값에 따라 체력바 갱신
+	if (HealthBarWidget && bIsVisibleByFog)
+	{
+		HealthBarWidget->SetVisibility(bEnable);
+	}
 }

@@ -14,6 +14,7 @@
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
+#include "Core/NovaUnit.h"
 #include "GameFramework/HUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/NovaHUD.h"
@@ -155,6 +156,12 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Ctrl)) bIsCtrlDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Alt)) bIsAltDown = true;
 
+	if (InputTag.MatchesTag(NovaGameplayTags::Input_Toggle_HealthBar))
+	{
+		ToggleHealthBar(InputTag);
+		return;
+	}
+	
 	// 명령 차단 로직 (아군 유닛이 아닐 때)
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Input"))))
 	{
@@ -163,7 +170,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			!InputTag.MatchesTag(NovaGameplayTags::Input_Camera_Reset))
 		{
 			int LocalTeamID = GetPlayerState<ANovaPlayerState>() ? GetPlayerState<ANovaPlayerState>()->GetTeamID() : -1;
-			
+
 			bool bContainsNonMyUnit = false;
 			for (AActor* Unit : SelectedUnits)
 			{
@@ -174,7 +181,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 					break;
 				}
 			}
-			
+
 			// 적군이 하나라도 선택되어 있다면 모든 명령 단축키 (A, S, H...) 무시
 			if (bContainsNonMyUnit)
 			{
@@ -229,7 +236,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 
 				// 3. 순수하게 내 유닛들만 선택된 경우에만 부대 지정 수행
 				ControlGroups[SlotIndex].Targets = SelectedUnits;
-				
+
 				// 유저가 직접 부대 지정 했다면 자동 편입 기능 false
 				ControlGroups[SlotIndex].bIsAutoAssignActive = false;
 
@@ -689,7 +696,7 @@ void ANovaPlayerController::PerformBoxSelection()
 					break;
 				}
 			}
-			
+
 			if (!bIsShiftDown || bAlreadyHasNonMyUnit) ClearSelection();
 			for (AActor* Unit : MyUnits)
 			{
@@ -735,7 +742,7 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 {
 	// 현재 로컬 플레이어의 팀 ID 가져오기
 	int32 LocalTeamID = GetPlayerState<ANovaPlayerState>() ? GetPlayerState<ANovaPlayerState>()->GetTeamID() : -1;
-	
+
 	for (AActor* Unit : SelectedUnits)
 	{
 		// 내 팀 유닛이 아니라면 명령 전송 무시
@@ -813,6 +820,34 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 	// 포커스 정보 갱신
 	LastFocusID = FocusID;
 	LastFocusTime = CurrentTime;
+}
+
+void ANovaPlayerController::ToggleHealthBar(FGameplayTag InputTag)
+{
+	// 상태 토글
+	bShowHealthBars = !bShowHealthBars;
+
+	// 1. 모든 유닛 순회 및 설정 적용
+	TArray<AActor*> FoundUnits;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANovaUnit::StaticClass(), FoundUnits);
+	for (AActor* Actor : FoundUnits)
+	{
+		if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+		{
+			Unit->SetHealthBarVisibilityOption(bShowHealthBars);
+		}
+	}
+	
+	// 2. 모든 기지 순회 및 설정 적용
+	TArray<AActor*> FoundBases;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANovaBase::StaticClass(), FoundBases);
+	for (AActor* Actor : FoundBases)
+	{
+		if (ANovaBase* Base = Cast<ANovaBase>(Actor))
+		{
+			Base->SetHealthBarVisibilityOption(bShowHealthBars);
+		}
+	}
 }
 
 void ANovaPlayerController::GetCursorHitResult(FHitResult& OutHitResult)

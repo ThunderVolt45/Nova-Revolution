@@ -141,4 +141,17 @@ protected:
 
 	// TeamID를 확인하여 UI 색상을 결정하는 함수
 	void InitializeUIColors();
+	
+	// 현재 안개에 의해 보이는 상태인지 여부
+	bool bIsVisibleByFog = true;
+	
+	// 플레이어 옵션에 의한 체력바 표시 여부 (기본값 : true)
+	bool bHealthBarOptionEnabled = true;
+	
+public:
+	// 안개 가시성 설정 함수
+	void SetFogVisibility(bool bVisible);
+	
+	// 체력바 표시 옵션 설정 함수
+	void SetHealthBarVisibilityOption(bool bEnable);
 };

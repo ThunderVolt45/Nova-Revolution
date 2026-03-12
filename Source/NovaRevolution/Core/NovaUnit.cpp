@@ -286,6 +286,11 @@ void ANovaUnit::BeginPlay()
 	UpdateHealthBar();
 	UpdateHealthBarLength();
 
+	// 초기 체력바 옵션 동기화
+	if (auto* NovaPC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		SetHealthBarVisibilityOption(NovaPC->GetShowHealthBars());
+	}
 
 	// --- 랠리 포인트 이동 로직 추가 ---
 	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
@@ -1191,6 +1196,12 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, bVisible ? ECR_Block : ECR_Ignore);
 	}
 
+	// 체력바 위젯도 안개 가시성에 따라 숨김/표시
+	if (HealthBarWidget)
+	{
+		HealthBarWidget->SetVisibility(bVisible && bHealthBarOptionEnabled);
+	}
+	
 	// 선택된 상태에서 안개 속으로 사라졌을 때
 	if (!bVisible && bIsSelected)
 	{
@@ -1205,5 +1216,16 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 	if (!bVisible && SelectionWidget)
 	{
 		SelectionWidget->SetVisibility(false);
+	}
+}
+
+void ANovaUnit::SetHealthBarVisibilityOption(bool bEnable)
+{
+	bHealthBarOptionEnabled = bEnable;
+	
+	// 현재 안개에 의해 보이고 있다면, 옵션 값에 따라 체력바 갱신
+	if (HealthBarWidget && bIsVisibleByFog)
+	{
+		HealthBarWidget->SetVisibility(bEnable);
 	}
 }
