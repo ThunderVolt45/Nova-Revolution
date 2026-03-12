@@ -30,15 +30,16 @@ public:
 	/**
 	 * 특정 클래스의 액터를 풀에서 꺼내거나 새로 생성합니다.
 	 * 클래스는 반드시 INovaObjectPoolable 인터페이스를 구현해야 합니다.
+	 * @param bAutoActivate 만약 false면 OnSpawnFromPool을 자동으로 호출하지 않습니다. (데이터 주입 후 직접 호출 필요 시 사용)
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Nova|ObjectPool", meta = (DeterminesOutputType = "Class"))
-	AActor* SpawnFromPool(TSubclassOf<AActor> Class, const FTransform& Transform);
+	AActor* SpawnFromPool(TSubclassOf<AActor> Class, const FTransform& Transform, bool bAutoActivate = true);
 
 	/**
 	 * 위치와 회전을 지정하여 풀에서 꺼내거나 생성합니다.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Nova|ObjectPool", meta = (DeterminesOutputType = "Class"))
-	AActor* SpawnFromPoolAtLocation(TSubclassOf<AActor> Class, FVector Location, FRotator Rotation = FRotator::ZeroRotator);
+	AActor* SpawnFromPoolAtLocation(TSubclassOf<AActor> Class, FVector Location, FRotator Rotation = FRotator::ZeroRotator, bool bAutoActivate = true);
 
 	/**
 	 * 액터를 풀로 반환합니다.

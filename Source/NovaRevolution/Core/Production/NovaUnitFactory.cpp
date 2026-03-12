@@ -145,16 +145,16 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
 
 	ANovaUnit* NewUnit = nullptr;
 	
-	// 1. 오브젝트 풀 서브시스템에서 유닛을 가져옵니다.
+	// 1. 오브젝트 풀 서브시스템에서 유닛을 가져옵니다. (자동 활성화를 끕니다)
 	if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 	{
-		NewUnit = Cast<ANovaUnit>(PoolSubsystem->SpawnFromPool(UnitClass, SpawnTransform));
+		NewUnit = Cast<ANovaUnit>(PoolSubsystem->SpawnFromPool(UnitClass, SpawnTransform, false));
 	}
 	else
 	{
 		// 풀이 없으면 기존 방식대로 스폰 (Fallback)
-		NewUnit = GetWorld()->SpawnActorDeferred<ANovaUnit>(UnitClass, SpawnTransform, nullptr, nullptr,
-		                                                               ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+		NewUnit = GetWorld()->SpawnActorDeferred<ANovaUnit>(UnitClass, SpawnTransform, 
+			nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
 	}
 
 	if (NewUnit)

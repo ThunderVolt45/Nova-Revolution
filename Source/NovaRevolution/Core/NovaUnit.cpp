@@ -1440,6 +1440,9 @@ void ANovaUnit::SetHealthBarVisibilityOption(bool bEnable)
 
 void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 {
+	// 죽은 유닛은 어떠한 경우에도 장애물이 될 수 없음
+	if (bIsDead && bIsObstacle) bIsObstacle = false;
+
 	// 상태 변화가 있을 때만 실행하여 불필요한 부하 방지
 	if (bIsNavigationObstacle == bIsObstacle) return;
 	bIsNavigationObstacle = bIsObstacle;
@@ -1454,7 +1457,6 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 		// 영역 클래스 설정 및 활성화/비활성화 처리
 		NavModifier->SetAreaClass(NewAreaClass);
 
-		// 유닛이 멈췄을 때만 Modifier를 활성화하여 고비용 영역을 생성
 		if (bIsObstacle)
 		{
 			NavModifier->Activate(true);
@@ -1464,7 +1466,10 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 			NavModifier->Deactivate();
 		}
 
-		NOVA_LOG(Warning, "NavModifier %hs", bIsObstacle ? "Activated" : "Deactivated");
+		// 즉시 NavMesh 반영을 유도
+		NavModifier->RefreshNavigationModifiers();
+
+		NOVA_LOG(Log, "Unit %s NavModifier %hs", *GetName(), bIsObstacle ? "Activated" : "Deactivated");
 	}
 }
 
@@ -1478,7 +1483,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		ConstructUnitParts();
 		InitializePartAttachments();
 		InitializeAttributesFromParts();
-		
+
 		// ASC 상태 초기화 (InitAbilityActorInfo를 통해 새로운 데이터에 맞게 갱신)
 		if (AbilitySystemComponent)
 		{
@@ -1504,10 +1509,23 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	{
 		Capsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	}
-	
+
 	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
 	{
+		// [수정] 이전 생의 이동 제약(Plane Constraint)을 완전히 초기화하여 고도 문제를 방지합니다.
+		MoveComp->bConstrainToPlane = false;
+		MoveComp->SetPlaneConstraintOrigin(FVector::ZeroVector);
+		MoveComp->StopMovementImmediately();
+
 		MoveComp->SetMovementMode(MovementType == ENovaMovementType::Air ? MOVE_Flying : MOVE_Walking);
+
+		// 지상 유닛인 경우 즉시 바닥으로 스냅되도록 유도 (공중 유닛이었을 경우 대비)
+		if (MovementType == ENovaMovementType::Ground)
+		{
+			MoveComp->bConstrainToPlane = true;
+			// 현재 스폰 위치(Z)를 기준으로 평면 제약 설정
+			MoveComp->SetPlaneConstraintOrigin(GetActorLocation());
+		}
 	}
 
 	// 4. 모든 부품 상태 부활
@@ -1524,7 +1542,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		if (ANovaPart* Part = Cast<ANovaPart>(Actor))
 		{
 			Part->SetIsDead(false);
-			
+
 			if (Part->GetPartSpec().PartType == ENovaPartType::Weapon)
 			{
 				Part->SetTargetPitch(0.0f);
@@ -1541,14 +1559,23 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 			BB->ClearValue(FName("TargetActor"));
 			BB->ClearValue(FName("TargetLocation"));
 		}
-		
-		AIC->RestartLogic(); // Reset() 대신 RestartLogic() 호출 유도
+
+		AIC->RestartLogic();
 	}
 
-	// 6. UI 초기화 및 랠리 포인트 이동
-	UpdateHealthBar();
-	SetFogVisibility(true);
+	// 6. UI 상태 최종 초기화
+	// [핵심] bIsVisibleByFog를 반대값으로 설정하여 SetFogVisibility(true)가 반드시 실행되도록 강제합니다.
+	bIsVisibleByFog = false; 
+	SetFogVisibility(true); 
 
+	if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		SetHealthBarVisibilityOption(PC->GetShowHealthBars());
+	}
+
+	UpdateHealthBar();
+
+	// 7. 랠리 포인트 이동
 	if (!InitialRallyLocation.IsNearlyZero())
 	{
 		FCommandData MoveCmd;
@@ -1578,11 +1605,28 @@ void ANovaUnit::OnReturnToPool_Implementation()
 		}
 	}
 
-	// 3. UI 숨김 (HealthBar 등)
+	// 3. 물리 및 이동 제약 초기화 (풀에 들어갈 때 상태 깨끗하게 비움)
+	SetNavigationObstacle(false);
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		MoveComp->StopMovementImmediately();
+		MoveComp->bConstrainToPlane = false;
+		MoveComp->SetPlaneConstraintOrigin(FVector::ZeroVector);
+	}
+
+	// 4. UI 숨김 및 상태 초기화
 	if (HealthBarWidget)
 	{
 		HealthBarWidget->SetVisibility(false);
 	}
+	
+	// 다음 사용 시 SetFogVisibility가 정상 작동하도록 초기값(true)으로 리셋
+	bIsVisibleByFog = true;
+
+	// 5. 조립 데이터 초기화 (이전 생의 데이터를 들고 있지 않게 함)
+	LegsPartClass = nullptr;
+	BodyPartClass = nullptr;
+	WeaponPartClass = nullptr;
 
 	NOVA_LOG(Log, "Unit %s Returned to Pool.", *GetName());
 }

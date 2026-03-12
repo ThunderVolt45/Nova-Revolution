@@ -11,7 +11,7 @@ void UNovaObjectPoolSubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
-AActor* UNovaObjectPoolSubsystem::SpawnFromPool(TSubclassOf<AActor> Class, const FTransform& Transform)
+AActor* UNovaObjectPoolSubsystem::SpawnFromPool(TSubclassOf<AActor> Class, const FTransform& Transform, bool bAutoActivate)
 {
 	if (!Class)
 	{
@@ -30,7 +30,7 @@ AActor* UNovaObjectPoolSubsystem::SpawnFromPool(TSubclassOf<AActor> Class, const
 	}
 
 	FNovaObjectPool& Pool = ObjectPools.FindOrAdd(Class);
-	
+
 	AActor* SpawnedActor = nullptr;
 
 	// 풀에 사용 가능한 액터가 있는지 확인 (유효성 검사 포함)
@@ -48,7 +48,7 @@ AActor* UNovaObjectPoolSubsystem::SpawnFromPool(TSubclassOf<AActor> Class, const
 	{
 		// 풀에 가용한 액터가 없으면 새로 생성
 		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 		SpawnedActor = World->SpawnActor<AActor>(Class, Transform, SpawnParams);
 	}
 	else
@@ -60,7 +60,7 @@ AActor* UNovaObjectPoolSubsystem::SpawnFromPool(TSubclassOf<AActor> Class, const
 		SpawnedActor->SetActorTickEnabled(true);
 	}
 
-	if (SpawnedActor)
+	if (SpawnedActor && bAutoActivate)
 	{
 		INovaObjectPoolable::Execute_OnSpawnFromPool(SpawnedActor);
 	}
@@ -68,9 +68,9 @@ AActor* UNovaObjectPoolSubsystem::SpawnFromPool(TSubclassOf<AActor> Class, const
 	return SpawnedActor;
 }
 
-AActor* UNovaObjectPoolSubsystem::SpawnFromPoolAtLocation(TSubclassOf<AActor> Class, FVector Location, FRotator Rotation)
+AActor* UNovaObjectPoolSubsystem::SpawnFromPoolAtLocation(TSubclassOf<AActor> Class, FVector Location, FRotator Rotation, bool bAutoActivate)
 {
-	return SpawnFromPool(Class, FTransform(Rotation, Location));
+	return SpawnFromPool(Class, FTransform(Rotation, Location), bAutoActivate);
 }
 
 void UNovaObjectPoolSubsystem::ReturnToPool(AActor* Actor)
