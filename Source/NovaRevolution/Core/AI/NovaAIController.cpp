@@ -12,6 +12,7 @@
 #include "NavigationSystem.h"
 #include "Components/CapsuleComponent.h"
 #include "NovaNavigationFilter_Move.h"
+#include "Engine/OverlapResult.h"
 
 const FName ANovaAIController::TargetLocationKey(TEXT("TargetLocation"));
 const FName ANovaAIController::TargetActorKey(TEXT("TargetActor"));
@@ -410,24 +411,23 @@ void ANovaAIController::UpdateStuckDetection(float DeltaTime)
 	APawn* MyPawn = GetPawn();
 	if (!MyPawn) return;
 
-	FVector CurrentLocation = MyPawn->GetActorLocation();
-	float DistanceMoved = FVector::Dist(CurrentLocation, LastStuckCheckLocation);
+	StuckTimer += DeltaTime;
 
-	// 일정 거리보다 적게 움직였는지 확인 (수평 거리 위주)
-	if (DistanceMoved < StuckDistanceThreshold)
+	// 지정된 시간(StuckTimeThreshold)마다 한 번씩 이동 거리를 검사합니다.
+	if (StuckTimer >= StuckTimeThreshold)
 	{
-		StuckTimer += DeltaTime;
-		
-		if (StuckTimer >= StuckTimeThreshold)
+		FVector CurrentLocation = MyPawn->GetActorLocation();
+		// Z축은 제외하고 평면상의 이동 거리만 확인
+		float DistanceMovedSq = FVector::DistSquaredXY(CurrentLocation, LastStuckCheckLocation);
+
+		// 정해진 시간 동안 임계값(StuckDistanceThreshold)만큼도 이동하지 못했다면 Stuck으로 간주
+		if (DistanceMovedSq < FMath::Square(StuckDistanceThreshold))
 		{
 			NOVA_LOG(Warning, "AIController: Stuck Detected for Pawn [%s]! Handling...", *MyPawn->GetName());
 			HandleStuckStatus();
-			StuckTimer = 0.0f; // 한 번 처리 후 타이머 초기화 (반복 방지)
 		}
-	}
-	else
-	{
-		// 유의미한 움직임이 있었다면 타이머 및 체크 위치 갱신
+
+		// 다음 주기를 위해 타이머와 위치를 초기화
 		StuckTimer = 0.0f;
 		LastStuckCheckLocation = CurrentLocation;
 	}
@@ -457,16 +457,17 @@ void ANovaAIController::HandleStuckStatus()
 	bool bIsDisposableCommand = (CurrentCommand == ECommandType::Move || CurrentCommand == ECommandType::Spread);
 
 	// 1. 목표 지점 점유 체크
-	// 목표 지점 근처(예: 500유닛 이내)에서만 점유 판정 수행 (멀리서 미리 멈추는 것 방지)
+	// 목표 지점 근처(예: 600유닛 이내)에서만 점유 판정 수행 (멀리서 미리 멈추는 것 방지)
 	float DistToGoalSq = FVector::DistSquared(CurrentLocation, GoalLocation);
-	bool bIsNearGoal = DistToGoalSq < FMath::Square(500.0f);
+	bool bIsNearGoal = DistToGoalSq < FMath::Square(EarlyArrivalDistance);
 
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(MyPawn);
 	if (TargetActor) QueryParams.AddIgnoredActor(TargetActor);
 
 	float CheckRadius = 50.0f;
-	if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
+	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
+	if (MyUnit)
 	{
 		if (UCapsuleComponent* Capsule = MyUnit->GetCapsuleComponent())
 		{
@@ -474,10 +475,34 @@ void ANovaAIController::HandleStuckStatus()
 		}
 	}
 
-	FHitResult Hit;
-	bool bIsGoalOccupied = bIsNearGoal && GetWorld()->SweepSingleByChannel(
-		Hit, GoalLocation, GoalLocation + FVector(0,0,10), 
-		FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(CheckRadius), QueryParams);
+	bool bIsGoalOccupied = false;
+
+	if (bIsNearGoal)
+	{
+		FHitResult Hit;
+		bIsGoalOccupied = GetWorld()->SweepSingleByChannel(
+			Hit, GoalLocation, GoalLocation + FVector(0,0,10), 
+			FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(CheckRadius), QueryParams);
+
+		// [개선] 목표 지점 자체가 막히지 않았더라도, 내가 아군에 가로막혀 목표에 다가가지 못하는 상태라면 조기 도착(Early Arrival)으로 간주
+		if (!bIsGoalOccupied && MyUnit)
+		{
+			TArray<FOverlapResult> Overlaps;
+			GetWorld()->OverlapMultiByChannel(Overlaps, CurrentLocation, FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(CheckRadius * 1.5f), QueryParams);
+			for (const FOverlapResult& Overlap : Overlaps)
+			{
+				if (ANovaUnit* OtherUnit = Cast<ANovaUnit>(Overlap.GetActor()))
+				{
+					if (OtherUnit->GetTeamID() == MyUnit->GetTeamID())
+					{
+						bIsGoalOccupied = true;
+						NOVA_LOG(Log, "AIController: Blocked by ally near goal. Considering goal occupied for [%s]", *MyPawn->GetName());
+						break;
+					}
+				}
+			}
+		}
+	}
 
 	// 2. 대응 로직 분기
 	if (bIsGoalOccupied)
@@ -491,7 +516,7 @@ void ANovaAIController::HandleStuckStatus()
 		}
 		else
 		{
-			// 순찰/공격 등은 멈추지 않고 주변에서 대기하며 기회를 봄
+			// 순찰/공격 등은 멈추지 않고 주변에서 대기하며 기회를 봄 (순찰의 경우 BTTask에서 즉시 목적지 반전됨)
 			NOVA_LOG(Log, "AIController: Goal occupied but persistent command [%d] remains. Waiting for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
 			StopMovementOptimized(); 
 		}
@@ -506,13 +531,14 @@ void ANovaAIController::HandleStuckStatus()
 	
 	if (FMath::RandBool()) BypassDirection *= -1.0f;
 
-	FVector DetourPoint = CurrentLocation + BypassDirection * 200.0f;
+	FVector DetourPoint = CurrentLocation + BypassDirection * BypassDistance;
 
 	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 	if (NavSys)
 	{
 		FNavLocation ProjectedLocation;
-		if (NavSys->ProjectPointToNavigation(DetourPoint, ProjectedLocation, FVector(300.f, 300.f, 300.f)))
+		// 투영 범위도 우회 거리에 비례하여 설정
+		if (NavSys->ProjectPointToNavigation(DetourPoint, ProjectedLocation, FVector(BypassDistance, BypassDistance, 300.f)))
 		{
 			// 일시적으로 우회 지점으로 이동
 			MoveToLocationOptimized(ProjectedLocation.Location, 50.0f);

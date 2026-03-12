@@ -82,9 +82,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
 	float StuckTimeThreshold = 1.0f;
 
-	/** Stuck 판단 기준 거리 (이 거리보다 적게 움직이면 멈춘 것으로 간주) */
+	/** Stuck 판단 기준 거리 (이 시간 동안 이 거리보다 적게 움직이면 멈춘 것으로 간주) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
-	float StuckDistanceThreshold = 5.0f;
+	float StuckDistanceThreshold = 50.0f;
+
+	/** 조기 도착(Early Arrival) 판정을 위한 목표 지점 인접 거리 (이 거리 내에서 아군에 막히면 도착으로 간주) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
+	float EarlyArrivalDistance = 600.0f;
+
+	/** Stuck 상태에서 우회 기동 시 옆으로 이동할 목표 지점까지의 거리 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
+	float BypassDistance = 300.0f;
 
 private:
 	/** Stuck 감지용 누적 타이머 */
