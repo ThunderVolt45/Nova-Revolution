@@ -8,6 +8,7 @@
 #include "Core/NovaPartData.h"
 #include "Kismet/GameplayStatics.h"
 #include "NovaRevolution.h"
+#include "Core/NovaObjectPoolSubsystem.h"
 #include "Core/NovaPart.h"
 #include "Player/NovaPlayerController.h"
 
@@ -138,20 +139,43 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
                                                          const FTransform& SpawnTransform, int32 TeamID,
                                                          const FVector& RallyPoint)
 {
-	// 실제 유닛 블루프린트 클래스 로드 (프로젝트 경로에 맞춰 수정 필요할 수 있음)
+	// 실제 유닛 블루프린트 클래스 로드
 	UClass* UnitClass = LoadClass<ANovaUnit>(nullptr, TEXT("/Game/_BP/Units/BP_NovaUnitBase.BP_NovaUnitBase_C"));
 	if (!UnitClass) UnitClass = ANovaUnit::StaticClass();
 
-	// 지연 스폰을 사용하여 BeginPlay 이전에 데이터 주입
-	ANovaUnit* NewUnit = GetWorld()->SpawnActorDeferred<ANovaUnit>(UnitClass, SpawnTransform, nullptr, nullptr,
-	                                                               ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+	ANovaUnit* NewUnit = nullptr;
+	
+	// 1. 오브젝트 풀 서브시스템에서 유닛을 가져옵니다. (자동 활성화를 끕니다)
+	if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
+	{
+		NewUnit = Cast<ANovaUnit>(PoolSubsystem->SpawnFromPool(UnitClass, SpawnTransform, false));
+	}
+	else
+	{
+		// 풀이 없으면 기존 방식대로 스폰 (Fallback)
+		NewUnit = GetWorld()->SpawnActorDeferred<ANovaUnit>(UnitClass, SpawnTransform, 
+			nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+	}
+
 	if (NewUnit)
 	{
+		// 2. 조립 데이터 및 정보 주입
 		NewUnit->SetAssemblyData(AssemblyData);
 		NewUnit->SetTeamID(TeamID);
 		NewUnit->SetInitialRallyLocation(RallyPoint);
 
-		UGameplayStatics::FinishSpawningActor(NewUnit, SpawnTransform);
+		// 3. 지연 스폰 또는 풀 부활 후의 마무리 작업 수행
+		// 만약 풀에서 나온 유닛이라면 이미 BeginPlay가 호출되었을 것이므로 FinishSpawningActor가 작동하지 않음
+		if (NewUnit->IsActorInitialized())
+		{
+			// 풀에서 나온 유닛은 강제로 재조립 및 스탯 초기화가 필요함
+			NewUnit->OnSpawnFromPool_Implementation();
+		}
+		else
+		{
+			// 새로 생성된 유닛은 지연 스폰 마무리
+			UGameplayStatics::FinishSpawningActor(NewUnit, SpawnTransform);
+		}
 	}
 
 	return NewUnit;

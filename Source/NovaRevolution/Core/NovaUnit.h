@@ -22,7 +22,7 @@ struct FOnAttributeChangeData;
  */
 UCLASS()
 class NOVAREVOLUTION_API ANovaUnit : public ACharacter, public IAbilitySystemInterface, public INovaSelectableInterface,
-                                     public INovaCommandInterface, public INovaTeamInterface
+                                     public INovaCommandInterface, public INovaTeamInterface, public INovaObjectPoolable
 {
 	GENERATED_BODY()
 
@@ -48,6 +48,10 @@ public:
 
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
+
+	// --- INovaObjectPoolable ---
+	virtual void OnSpawnFromPool_Implementation() override;
+	virtual void OnReturnToPool_Implementation() override;
 
 	// 사망 처리 함수
 	virtual void Die();
@@ -85,8 +89,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nova|Unit")
 	bool IsDead() const { return bIsDead; }
 
-	/** 무기 부품 컴포넌트들을 반환합니다. */
-	const TArray<TObjectPtr<UChildActorComponent>>& GetWeaponPartComponents() const { return WeaponPartComponents; }
+	/** 현재 장착된 무기 부품들을 반환합니다. */
+	const TArray<TObjectPtr<ANovaPart>>& GetWeaponParts() const { return CurrentWeaponParts; }
 
 	/** 공중 유닛의 고정 목표 Z 고도를 반환합니다. */
 	float GetDefaultAirZ() const { return DefaultAirZ; }
@@ -108,6 +112,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	FName BodyTargetSocketName = TEXT("Socket_Body");
 
+	/** 다리 파츠의 부착 오프셋 (캡슐 중심으로부터의 상대 위치) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
+	FVector LegsOffset = FVector(0.f, 0.f, -90.f);
+
 	// 무기 클래스 (단일 종류)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TSubclassOf<class ANovaPart> WeaponPartClass;
@@ -116,15 +124,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Parts")
 	TArray<FName> WeaponSocketNames;
 
-	// --- 실제 생성된 컴포넌트들 (런타임 관리용) ---
+	// --- 오브젝트 풀링을 통해 관리되는 실제 파츠 액터들 ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit|Parts|Runtime")
-	TObjectPtr<UChildActorComponent> LegsPartComponent;
+	TObjectPtr<ANovaPart> CurrentLegsPart;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit|Parts|Runtime")
-	TObjectPtr<UChildActorComponent> BodyPartComponent;
+	TObjectPtr<ANovaPart> CurrentBodyPart;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit|Parts|Runtime")
-	TArray<TObjectPtr<UChildActorComponent>> WeaponPartComponents;
+	TArray<TObjectPtr<ANovaPart>> CurrentWeaponParts;
 
 
 	//유닛 몸통 회전 관련 변수 및 함수
