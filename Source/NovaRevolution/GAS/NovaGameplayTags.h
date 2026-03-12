@@ -44,6 +44,8 @@ namespace NovaGameplayTags
 	// --- 편의성용 추가 단축키 ---
 	// 카메라 시점을 디폴트 값으로 리셋 시킵니다.
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Camera_Reset);	// Home키 이용
+	// 체력바 가시성을 On/Off 합니다.
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Input_Toggle_HealthBar)
 	
 	// --- 자원 관련 데이터 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Resource_Watt);
