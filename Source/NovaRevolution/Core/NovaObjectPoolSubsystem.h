@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
+#include "Core/NovaAssemblyTypes.h"
 #include "NovaObjectPoolSubsystem.generated.h"
 
 USTRUCT()
@@ -51,7 +52,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nova|ObjectPool")
 	void PreloadPool(TSubclassOf<AActor> Class, int32 Count);
 
+	/** 
+	 * 부품 데이터 테이블을 설정합니다. PreloadDecks 호출 전에 설정되어야 합니다.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Nova|ObjectPool")
+	void SetPartDataTable(UDataTable* InDataTable) { PartDataTable = InDataTable; }
+
+	/** 
+	 * 여러 팀의 덱 정보를 분석하여 유닛 및 부품들을 통합적으로 미리 채워둡니다. 
+	 * @param Decks 모든 팀의 덱 정보 맵
+	 * @param MaxWattCap 팀별 최대 와트 총량
+	 * @param MaxPopCap 팀별 최대 인구수 제한
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Nova|ObjectPool")
+	void PreloadDecks(const TMap<int32, FNovaDeckInfo>& Decks, float MaxWattCap, float MaxPopCap);
+
 private:
 	UPROPERTY()
 	TMap<TSubclassOf<AActor>, FNovaObjectPool> ObjectPools;
+
+	/** 부품 정보 조회를 위한 데이터 테이블 */
+	UPROPERTY()
+	TObjectPtr<UDataTable> PartDataTable;
 };
