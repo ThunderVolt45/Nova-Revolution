@@ -1,6 +1,7 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "GAS/NovaResourceAttributeSet.h"
+#include "GameplayEffectExtension.h"
 
 UNovaResourceAttributeSet::UNovaResourceAttributeSet()
 {
@@ -44,5 +45,20 @@ void UNovaResourceAttributeSet::PreAttributeChange(const FGameplayAttribute& Att
 	else if (Attribute == GetSPLevelAttribute())
 	{
 		NewValue = FMath::Max(NewValue, 1.0f); // 최소 레벨 1 유지
+	}
+}
+
+void UNovaResourceAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
+{
+	Super::PostGameplayEffectExecute(Data);
+
+	// 자원 소모/재생 GE 적용 후 BaseValue를 직접 클램핑하여 유령 자원 누적 방지
+	if (Data.EvaluatedData.Attribute == GetCurrentWattAttribute())
+	{
+		SetCurrentWatt(FMath::Clamp(GetCurrentWatt(), 0.0f, GetMaxWatt()));
+	}
+	else if (Data.EvaluatedData.Attribute == GetCurrentSPAttribute())
+	{
+		SetCurrentSP(FMath::Clamp(GetCurrentSP(), 0.0f, GetMaxSP()));
 	}
 }

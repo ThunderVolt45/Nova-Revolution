@@ -45,6 +45,8 @@ namespace NovaGameplayTags
 	
 	// --- GE 관련 식별 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen, "Effect.Resource.Regen");
+	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_Watt, "Effect.Resource.Regen.Watt");
+	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_SP, "Effect.Resource.Regen.SP");
 	
 	// --- 어빌리티 태그 ---
 	// 유닛
@@ -52,6 +54,8 @@ namespace NovaGameplayTags
 	
 	// 사령관 스킬
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp, "Ability.Skill.ResourceLevelUp");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp_Watt, "Ability.Skill.ResourceLevelUp.Watt");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp_SP, "Ability.Skill.ResourceLevelUp.SP");
 	
 	// --- 게임플레이 큐 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rifle_Fire, "GameplayCue.Weapon.Rifle.Fire");
