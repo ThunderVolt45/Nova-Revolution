@@ -339,7 +339,7 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 
 		// 공중 유닛 여부
 		bool bIsAir = (MovementType == ENovaMovementType::Air);
-		
+
 		// SelectionComponent 초기화
 		SelectionComponent->SetupSelection(Radius, HalfHeight, bIsAir);
 
@@ -571,7 +571,7 @@ void ANovaUnit::ConstructUnitParts()
 				if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentLegsPart);
 				else CurrentLegsPart->Destroy();
 			}
-			
+
 			if (PoolSubsystem)
 			{
 				CurrentLegsPart = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(LegsPartClass, GetActorTransform()));
@@ -586,7 +586,8 @@ void ANovaUnit::ConstructUnitParts()
 			if (CurrentLegsPart)
 			{
 				CurrentLegsPart->SetOwner(this);
-				CurrentLegsPart->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+				CurrentLegsPart->AttachToComponent(GetRootComponent(),
+				                                   FAttachmentTransformRules::SnapToTargetIncludingScale);
 				CurrentLegsPart->SetPartDataTable(PartDataTable);
 			}
 		}
@@ -637,7 +638,8 @@ void ANovaUnit::ConstructUnitParts()
 				UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh();
 				if (LegsMesh)
 				{
-					CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
+					CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+					                                   BodyTargetSocketName);
 					CurrentBodyPart->SetPartDataTable(PartDataTable);
 				}
 			}
@@ -684,7 +686,8 @@ void ANovaUnit::ConstructUnitParts()
 						ANovaPart* NewWeapon = nullptr;
 						if (PoolSubsystem)
 						{
-							NewWeapon = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(WeaponPartClass, GetActorTransform()));
+							NewWeapon = Cast<ANovaPart>(
+								PoolSubsystem->SpawnFromPool(WeaponPartClass, GetActorTransform()));
 						}
 						else
 						{
@@ -696,7 +699,8 @@ void ANovaUnit::ConstructUnitParts()
 						if (NewWeapon)
 						{
 							NewWeapon->SetOwner(this);
-							NewWeapon->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+							NewWeapon->AttachToComponent(
+								BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 							NewWeapon->SetPartDataTable(PartDataTable);
 							CurrentWeaponParts.Add(NewWeapon);
 						}
@@ -705,11 +709,12 @@ void ANovaUnit::ConstructUnitParts()
 					{
 						// 이미 있다면 부착 상태 및 오너 확인
 						CurrentWeaponParts[i]->SetOwner(this);
-						CurrentWeaponParts[i]->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+						CurrentWeaponParts[i]->AttachToComponent(
+							BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 					}
 				}
 			}
-			
+
 			// 남는 무기들 반환
 			while (CurrentWeaponParts.Num() > WeaponSocketNames.Num())
 			{
@@ -744,7 +749,8 @@ void ANovaUnit::InitializePartAttachments()
 	{
 		if (UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh())
 		{
-			CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
+			CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+			                                   BodyTargetSocketName);
 		}
 	}
 }
@@ -1335,9 +1341,15 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 
 		// UI 및 캐싱 데이터 초기화
 		InitializeUIColors();
-		UpdateSelectionCircleTransform();
-		UpdateHealthBarTransform();
-		UpdateHealthBarLength();
+		if (GetCapsuleComponent() && SelectionComponent)
+		{
+			float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+			float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+			bool bIsAir = (MovementType == ENovaMovementType::Air);
+
+			SelectionComponent->SetupSelection(Radius, HalfHeight, bIsAir);
+			SelectionComponent->SetTeamColor(CachedUIColor);
+		}
 	}
 
 	// 2. 체력 및 스탯 원상복구 (재조립 이후 최종 MaxHealth 기준으로 채움)
@@ -1407,14 +1419,9 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 
 	// 6. UI 상태 최종 초기화
 	// [핵심] bIsVisibleByFog를 반대값으로 설정하여 SetFogVisibility(true)가 반드시 실행되도록 강제합니다.
-	bIsVisibleByFog = false; 
-	SetFogVisibility(true); 
-
-	if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
-	{
-		SetHealthBarVisibilityOption(PC->GetShowHealthBars());
-	}
-
+	bIsVisibleByFog = false;
+	SetFogVisibility(true);
+	
 	UpdateHealthBar();
 
 	// 7. 랠리 포인트 이동
@@ -1457,11 +1464,11 @@ void ANovaUnit::OnReturnToPool_Implementation()
 	}
 
 	// 4. UI 숨김 및 상태 초기화
-	if (HealthBarWidget)
+	if (HealthBarComponent)
 	{
-		HealthBarWidget->SetVisibility(false);
+		HealthBarComponent->SetVisibility(false);
 	}
-	
+
 	// 다음 사용 시 SetFogVisibility가 정상 작동하도록 초기값(true)으로 리셋
 	bIsVisibleByFog = true;
 
