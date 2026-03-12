@@ -42,6 +42,9 @@ void ANovaBase::BeginPlay()
 	if (AbilitySystemComponent)
 	{
 		AbilitySystemComponent->InitAbilityActorInfo(this, this);
+		
+		AttributeSet->SetMaxHealth(20000.f);
+		AttributeSet->SetHealth(20000.f);
 
 		// 체력 변경 콜백 등록
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
