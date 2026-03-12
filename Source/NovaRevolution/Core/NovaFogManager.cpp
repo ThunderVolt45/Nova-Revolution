@@ -5,6 +5,7 @@
 
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
+#include "NovaBase.h"
 #include "NovaInterfaces.h"
 #include "NovaPlayerState.h"
 #include "NovaUnit.h"
@@ -81,7 +82,7 @@ void ANovaFogManager::UpdateFog()
 		float RadiusSq; // 계산 최적화를 위해 반지름의 제곱 저장
 	};
 	TArray<FSightSource> FriendlySights;
-	TArray<ANovaUnit*> EnemyUnits;
+	TArray<AActor*> EnemyActors;
 
 	// --- 드로잉 준비 ---
 	FCanvas Canvas(CurrentFogRT->GameThread_GetRenderTargetResource(),
@@ -112,7 +113,17 @@ void ANovaFogManager::UpdateFog()
 				// 아군 유닛은 항상 보이도록 설정
 				Unit->SetFogVisibility(true);
 			}
-
+			else if (ANovaBase* Base = Cast<ANovaBase>(Actor))
+			{
+				// 기지의 시야 범위 설정
+				if (Base->GetAbilitySystemComponent())
+				{
+					SightRadius = Base->GetAbilitySystemComponent()->GetNumericAttribute(
+						UNovaAttributeSet::GetSightAttribute());
+				}
+				// 아군 기지는 항상 보이도록 설정
+				Base->SetFogVisibility(true);
+			}
 			// 시야 정보 저장 (나중에 적군 가시성 체크용)
 			FriendlySights.Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
 
@@ -135,16 +146,16 @@ void ANovaFogManager::UpdateFog()
 		// 적군인 경우: 일단 리스트에 담아둠 (2차 순회에 한꺼번에 체크)
 		else
 		{
-			if (ANovaUnit* EnemyUnit = Cast<ANovaUnit>(Actor))
+			if (Actor->IsA<ANovaUnit>() || Actor->IsA<ANovaBase>())
 			{
-				EnemyUnits.Add(EnemyUnit);
+				EnemyActors.Add(Actor); // EnemyUnits가 TArray<AActor*>라고 가정
 			}
 		}
 	}
 	Canvas.Flush_GameThread();
 
 	// --- 2차 순회: 적군 유닛 가시성 판단 (O(N*M)) ---
-	for (ANovaUnit* Enemy : EnemyUnits)
+	for (AActor* Enemy : EnemyActors)
 	{
 		bool bIsVisible = false;
 		FVector EnemyLoc = Enemy->GetActorLocation();
@@ -160,7 +171,16 @@ void ANovaFogManager::UpdateFog()
 			}
 		}
 		// 적군 유닛의 가시성 상태 업데이트
-		Enemy->SetFogVisibility(bIsVisible);
+		// Enemy->SetFogVisibility(bIsVisible);
+		// 가시성 적용
+		if (ANovaUnit* Unit = Cast<ANovaUnit>(Enemy))
+		{
+			Unit->SetFogVisibility(bIsVisible);
+		}
+		else if (ANovaBase* Base = Cast<ANovaBase>(Enemy))
+		{
+			Base->SetFogVisibility(bIsVisible);
+		}
 	}
 }
 
