@@ -116,7 +116,7 @@ EBlackboardNotificationResult ANovaAIController::OnCommandTypeChanged(const UBla
 	if (!MyPawn) return EBlackboardNotificationResult::RemoveObserver;
 
 	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
-	if (!MyUnit) return EBlackboardNotificationResult::ContinueObserving;
+	if (!MyUnit || MyUnit->IsDead()) return EBlackboardNotificationResult::ContinueObserving;
 
 	ECommandType CurrentCommand = static_cast<ECommandType>(InBlackboard.GetValueAsEnum(CommandTypeKey));
 
@@ -576,4 +576,12 @@ void ANovaAIController::OnPawnDeath()
 	}
 
 	StopMovementOptimized();
+}
+
+void ANovaAIController::RestartLogic()
+{
+	if (BehaviorTreeComponent)
+	{
+		BehaviorTreeComponent->RestartLogic();
+	}
 }

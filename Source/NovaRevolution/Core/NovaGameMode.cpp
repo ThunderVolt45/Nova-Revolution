@@ -6,6 +6,7 @@
 #include "Core/NovaPlayerState.h"
 #include "Core/NovaSaveGame.h"
 #include "Core/NovaDeckPreset.h"
+#include "Core/NovaObjectPoolSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -23,7 +24,21 @@ void ANovaGameMode::BeginPlay()
 	// 1. 플레이어 덱 정보 로드
 	LoadPlayerDecks();
 
-	// 2. 게임 시작 시 기지 배치
+	// 2. 게임 시작 시 오브젝트 풀 Prewarm (사전 로드)
+	if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
+	{
+		// 데이터 테이블 전달 (서브시스템이 스펙을 조회할 수 있도록 함)
+		PoolSubsystem->SetPartDataTable(PartDataTable);
+
+		// 기본값 (AttributeSet 초기값 참고: MaxUnitWatt=6000, MaxPopulation=20)
+		float MaxUnitWattCap = 6000.0f;
+		float MaxPopCap = 20.0f;
+
+		// 만약 나중에 게임 모드 설정에서 이 값들을 바꿀 수 있다면 해당 변수를 사용하도록 수정 필요
+		PoolSubsystem->PreloadDecks(TeamDecks, MaxUnitWattCap, MaxPopCap);
+	}
+
+	// 3. 게임 시작 시 기지 배치
 	InitializePlayerBase();
 }
 

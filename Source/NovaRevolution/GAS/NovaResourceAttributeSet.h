@@ -26,6 +26,8 @@ public:
 	UNovaResourceAttributeSet();
 
 	virtual void PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue) override;
+	
+	virtual void PostGameplayEffectExecute(const struct FGameplayEffectModCallbackData& Data) override;
 
 	// 현재 와트 (Current Watt)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Resources")

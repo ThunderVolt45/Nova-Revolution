@@ -45,8 +45,16 @@ public:
 	void StopResourceRegen();
 
 	/** 자원 회복용 GameplayEffect 클래스 */
+	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Resource")
+	// TSubclassOf<class UGameplayEffect> RegenGameplayEffectClass;
+	
+	/** 자원 회복용 GameplayEffect 클래스 (Watt) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Resource")
-	TSubclassOf<class UGameplayEffect> RegenGameplayEffectClass;
+	TSubclassOf<class UGameplayEffect> WattRegenGEClass;
+
+	/** 자원 회복용 GameplayEffect 클래스 (SP) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Resource")
+	TSubclassOf<class UGameplayEffect> SPRegenGEClass;
 
 	/** 자원 획득/소모용 GameplayEffect 클래스 (Instant) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Resource")
@@ -54,7 +62,13 @@ public:
 
 private:
 	/** 자원 회복용 GE 핸들 */
-	FActiveGameplayEffectHandle RegenEffectHandle;
+	//FActiveGameplayEffectHandle RegenEffectHandle;
+	
+	/** 자원 회복용 GE 핸들 (Watt) */
+	FActiveGameplayEffectHandle WattRegenHandle;
+
+	/** 자원 회복용 GE 핸들 (SP) */
+	FActiveGameplayEffectHandle SPRegenHandle;
 
 private:
 	/** 소유한 PlayerState 및 AttributeSet 캐싱 */

@@ -53,6 +53,8 @@ namespace NovaGameplayTags
 	
 	// --- GE 관련 식별 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen); 
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen_Watt);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen_SP);
 	
 	// --- 어빌리티 태그 ---
 	// 유닛
@@ -60,6 +62,9 @@ namespace NovaGameplayTags
 	
 	// 사령관 스킬
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Skill_ResourceLevelUp);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Skill_ResourceLevelUp_Watt);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Skill_ResourceLevelUp_SP);
+	
 	
 	// --- 게임플레이 큐 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Weapon_Rifle_Fire);

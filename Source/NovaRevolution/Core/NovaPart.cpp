@@ -26,6 +26,29 @@ ANovaPart::ANovaPart()
 	StaticMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
+void ANovaPart::OnSpawnFromPool_Implementation()
+{
+	// 부활 시 애니메이션 상태 초기화
+	SetIsDead(false);
+	CurrentPitch = 0.0f;
+	TargetPitch = 0.0f;
+}
+
+void ANovaPart::OnReturnToPool_Implementation()
+{
+	// 풀로 돌아갈 때 부착 해제 및 상태 리셋
+	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+	
+	// 애니메이션 중지 등
+	if (SkeletalMesh)
+	{
+		if (UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance())
+		{
+			AnimInst->Montage_Stop(0.0f);
+		}
+	}
+}
+
 void ANovaPart::UpdateAiming(float DeltaTime)
 {
 	// 1. 목표 각도로 부드럽게 보간 (FInterpTo)
@@ -113,6 +136,18 @@ void ANovaPart::SetIsDead(bool bDead)
 		if (UNovaAnimInstance* AnimInst = Cast<UNovaAnimInstance>(SkeletalMesh->GetAnimInstance()))
 		{
 			AnimInst->bIsDead = bDead;
+			if (!bDead)
+			{
+				// 유닛이 부활할 때 애니메이션 인스턴스의 상태를 강제로 초기화
+				AnimInst->MovementSpeed = 0.0f;
+				AnimInst->RotationRate = 0.0f;
+
+				// 몽타주가 재생 중이었다면 정지시킵니다
+				AnimInst->Montage_Stop(0.0f);
+
+				// AnimGraph의 스테이트 머신이 Death 상태에서 빠져나오지 못하는 문제를 방지하기 위해 완전히 리셋
+				SkeletalMesh->InitAnim(true);
+			}
 		}
 	}
 }
@@ -138,14 +173,26 @@ void ANovaPart::PlayFireEffects()
 	// 2. GameplayCue 실행 (발사 효과)
 	if (FireCueTag.IsValid())
 	{
-		// ChildActor인 경우 GetOwner()가 즉시 유효하지 않을 수 있으므로 ParentComponent를 통해 Owner를 확인합니다.
-		AActor* OwnerActor = GetOwner();
-		if (!OwnerActor && GetParentComponent())
+		// 유닛 본체(IAbilitySystemInterface 구현체)를 찾습니다.
+		AActor* AbilityOwner = GetOwner();
+		
+		// 만약 Owner가 인터페이스를 구현하지 않는다면, 부착된 부모 액터들을 거슬러 올라가며 찾습니다.
+		if (AbilityOwner == nullptr || AbilityOwner->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()) == nullptr)
 		{
-			OwnerActor = GetParentComponent()->GetOwner();
+			AActor* CurrentSearch = this;
+			while (CurrentSearch)
+			{
+				AActor* ParentActor = CurrentSearch->GetAttachParentActor();
+				if (ParentActor && ParentActor->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()))
+				{
+					AbilityOwner = ParentActor;
+					break;
+				}
+				CurrentSearch = ParentActor;
+			}
 		}
 
-		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(OwnerActor))
+		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(AbilityOwner))
 		{
 			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 			{
@@ -159,7 +206,7 @@ void ANovaPart::PlayFireEffects()
 						FGameplayCueParameters Params;
 						Params.Location = Mesh->GetSocketLocation(SocketName);
 						Params.Normal = Mesh->GetSocketRotation(SocketName).Vector();
-						Params.Instigator = OwnerActor;
+						Params.Instigator = AbilityOwner;
 						Params.EffectCauser = this;
 						
 						ASC->ExecuteGameplayCue(FireCueTag, Params);
@@ -170,7 +217,7 @@ void ANovaPart::PlayFireEffects()
 					FGameplayCueParameters Params;
 					Params.Location = GetActorLocation();
 					Params.Normal = GetActorForwardVector();
-					Params.Instigator = OwnerActor;
+					Params.Instigator = AbilityOwner;
 					Params.EffectCauser = this;
 					
 					ASC->ExecuteGameplayCue(FireCueTag, Params);
@@ -179,7 +226,7 @@ void ANovaPart::PlayFireEffects()
 		}
 		else
 		{
-			NOVA_LOG(Warning, "PlayFireEffects: Could not find AbilitySystemInterface on Owner of %s", *GetName());
+			NOVA_LOG(Warning, "PlayFireEffects: Could not find AbilitySystemInterface on Owner or Parent of %s", *GetName());
 		}
 	}
 }

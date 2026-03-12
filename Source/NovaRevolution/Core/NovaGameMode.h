@@ -52,6 +52,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TObjectPtr<class UNovaDeckPreset> DefaultDeckPreset;
 
+	/** 부품 정보 조회를 위한 데이터 테이블 (오브젝트 풀 Prewarm 시 필요) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
+	TObjectPtr<class UDataTable> PartDataTable;
+
 	// 현재 게임 내에 살아있는 각 팀의 기지 관리
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TMap<int32, ANovaBase*> TeamBases;
