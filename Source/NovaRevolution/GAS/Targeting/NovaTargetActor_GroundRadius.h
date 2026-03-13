@@ -1,0 +1,55 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Abilities/GameplayAbilityTargetActor.h"
+#include "NovaTargetActor_GroundRadius.generated.h"
+
+
+/**
+ * 타겟팅 필터링 타입: 누구를 타겟팅할지 결정합니다.
+ */
+UENUM(BlueprintType)
+enum class ENovaTargetingFilter : uint8
+{
+	Ally    UMETA(DisplayName = "아군만"),
+	Enemy   UMETA(DisplayName = "적군만"),
+	Both    UMETA(DisplayName = "모두")
+};
+
+/**
+ * ANovaTargetActor_GroundRadius
+ * 마우스 커서 위치를 지면에 투사하여 일정 반지름 내의 유닛들을 찾는 타겟 액터입니다.
+ */
+UCLASS()
+class NOVAREVOLUTION_API ANovaTargetActor_GroundRadius : public AGameplayAbilityTargetActor
+{
+	GENERATED_BODY()
+	
+public:
+	ANovaTargetActor_GroundRadius();
+
+	/** 타겟팅 반지름 (기본값: 700 units / Nova 기준 7) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Targeting")
+	float Radius = 700.0f;
+
+	/** 누구를 타겟팅할 것인가? (GA에서 설정) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Targeting")
+	ENovaTargetingFilter TargetingFilter = ENovaTargetingFilter::Ally;
+
+	// --- GameplayAbilityTargetActor 인터페이스 오버라이드 ---
+	/** 사용자가 마우스를 클릭(Confirm)했을 때 호출되어 실제 데이터를 확정합니다. */
+	virtual void ConfirmTargetingAndContinue() override;
+
+	/** 매 프레임 마우스 위치를 추적하여 액터 위치를 갱신합니다. */
+	virtual void Tick(float DeltaSeconds) override;
+
+protected:
+	/** 마우스 아래의 지면 좌표를 가져오는 헬퍼 함수 */
+	FVector GetMouseLocationOnGround() const;
+
+	/** 팀 ID와 필터링 설정을 비교하여 유효한 타겟인지 판별합니다. */
+	bool IsValidTarget(int32 MyTeamID, int32 TargetTeamID) const;
+	
+};
