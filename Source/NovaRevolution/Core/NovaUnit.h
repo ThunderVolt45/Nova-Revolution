@@ -150,6 +150,18 @@ protected:
 
 	/** 현재 적용 중인 데미지 큐 태그 (이전 효과 제거용) */
 	FGameplayTag CurrentDamageCueTag;
+
+	/** 데미지 이펙트가 부착될 소켓 이름 */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	FName DamageSocketName = TEXT("Socket_Damage");
+
+	/** 연기 효과가 시작되는 체력 비율 (0.0 ~ 1.0) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float SmokeThreshold = 0.5f;
+
+	/** 불길 효과가 시작되는 체력 비율 (0.0 ~ 1.0) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float FireThreshold = 0.3f;
 #pragma endregion
 
 #pragma region Combat & Commands

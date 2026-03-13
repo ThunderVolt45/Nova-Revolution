@@ -905,12 +905,12 @@ void ANovaUnit::UpdateDamageEffects(float CurrentHealth, float MaxHealth)
 	float HealthPercent = (MaxHealth > 0.0f) ? (CurrentHealth / MaxHealth) : 0.0f;
 	FGameplayTag NewCueTag = FGameplayTag::EmptyTag;
 
-	// 체력 비율에 따른 GameplayCue 태그 결정
-	if (HealthPercent <= 0.3f)
+	// 체력 비율에 따른 GameplayCue 태그 결정 (임계값 변수 사용)
+	if (HealthPercent <= FireThreshold)
 	{
 		NewCueTag = FireCueTag;
 	}
-	else if (HealthPercent <= 0.7f)
+	else if (HealthPercent <= SmokeThreshold)
 	{
 		NewCueTag = SmokeCueTag;
 	}
@@ -948,9 +948,18 @@ void ANovaUnit::ApplyDamageCueToPart(ANovaPart* Part, FGameplayTag CueTag, bool 
 {
 	if (!Part || !CueTag.IsValid() || !AbilitySystemComponent) return;
 
+	UPrimitiveComponent* PartMesh = Part->GetMainMesh();
+	if (!PartMesh) return;
+
+	// 생성 시에만 소켓 존재 여부 체크
+	if (bAdd && !PartMesh->DoesSocketExist(DamageSocketName))
+	{
+		return;
+	}
+
 	FGameplayCueParameters Params;
 	// 핵심: 부품의 메시를 전달하여 GameplayCue가 해당 컴포넌트의 소켓을 찾게 함
-	Params.TargetAttachComponent = Part->GetMainMesh();
+	Params.TargetAttachComponent = PartMesh;
 	Params.Instigator = this;
 	Params.EffectCauser = Part;
 
@@ -1374,7 +1383,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	UpdateHealthBar();
 
 	// 7. 데미지 태그 초기화
-	CurrentDamageTag = FGameplayTag::EmptyTag;
+	CurrentDamageCueTag = FGameplayTag::EmptyTag;
 
 	// 8. 랠리 포인트 이동
 	if (!InitialRallyLocation.IsNearlyZero())
