@@ -875,14 +875,16 @@ void ANovaUnit::Die()
 
 		// --- 부품 분리 및 사출 ---
 		FVector DeathLoc = GetActorLocation();
-		float LaunchStrength = FMath::RandRange(400.f, 500.f); // 무작위의 힘을 가한다
+		float LaunchStrength = FMath::RandRange(500.f, 800.f); // 힘의 범위 상향 및 무작위성
 
 		for (ANovaPart* Weapon : CurrentWeaponParts)
 		{
 			if (Weapon)
 			{
+				// 무기 사출 방향에 무작위성 추가
 				FVector Dir = (Weapon->GetActorLocation() - DeathLoc).GetSafeNormal();
-				Dir.Z += 0.5f;
+				Dir += FMath::VRand() * 0.5f; // 무작위 방향 벡터 추가
+				Dir.Z = FMath::Abs(Dir.Z) + 0.5f; // 항상 위쪽을 향하도록 보정
 				Weapon->ExplodeAndDetach(Dir.GetSafeNormal() * LaunchStrength);
 			}
 		}
@@ -891,9 +893,10 @@ void ANovaUnit::Die()
 		
 		if (CurrentBodyPart)
 		{
-			// 몸통을 위쪽 대각선 방향으로 튕겨냄
+			// 몸통 사출 방향에 무작위성 추가
 			FVector Dir = (CurrentBodyPart->GetActorLocation() - DeathLoc).GetSafeNormal();
-			Dir.Z += 0.5f;
+			Dir += FMath::VRand() * 0.3f; // 몸통은 무기보다 덜 퍼지게 설정
+			Dir.Z = FMath::Abs(Dir.Z) + 0.5f; 
 			CurrentBodyPart->ExplodeAndDetach(Dir.GetSafeNormal() * LaunchStrength);
 			CurrentBodyPart = nullptr; // 유닛 반납 시 중복 반납 방지
 		}
