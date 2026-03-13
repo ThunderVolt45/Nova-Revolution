@@ -181,7 +181,7 @@ protected:
 	
 	// 유닛이 사망한 후 제거(폭발) 될 때까지 걸리는 시간
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "3.0"))
-	float TimeToDestroy = 1.5f;
+	float TimeToDestroy = 2.f;
 #pragma endregion
 
 #pragma region Combat & Commands
