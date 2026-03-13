@@ -27,6 +27,7 @@
 #include "UI/NovaHealthBarComponent.h"
 #include "UI/NovaSelectionComponent.h"
 
+#pragma region Constructor
 ANovaUnit::ANovaUnit()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -90,50 +91,72 @@ ANovaUnit::ANovaUnit()
 	HealthBarComponent = CreateDefaultSubobject<UNovaHealthBarComponent>(TEXT("HealthBarComponent"));
 	HealthBarComponent->SetupAttachment(RootComponent);
 }
+#pragma endregion
+
+#pragma region Engine Overrides
+void ANovaUnit::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// 런타임 시작 시 다시 한번 초기화 및 부착 보강
+	ConstructUnitParts();
+	InitializePartAttachments();
+
+	// 3. 모든 부품이 부착된 후 스탯 합산 및 초기화
+	InitializeAttributesFromParts();
+	InitializeAbilitiesFromParts();
+
+	if (AbilitySystemComponent)
+	{
+		// ASC 초기화 (ActorInfo 설정)
+		AbilitySystemComponent->InitAbilityActorInfo(this, this);
+
+		// 속성 변경 콜백 등록
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
+		                      .AddUObject(this, &ANovaUnit::OnHealthChanged);
+	}
+
+	// 초기 Yaw 설정
+	LastYaw = GetActorRotation().Yaw;
+
+	// UI에 적용할 색상 저장
+	InitializeUIColors();
+
+	// Selection 컴포넌트 초기 설정
+	if (SelectionComponent && GetCapsuleComponent())
+	{
+		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+		float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		bool bIsAir = (MovementType == ENovaMovementType::Air);
+
+		SelectionComponent->SetupSelection(Radius, HalfHeight, bIsAir);
+		SelectionComponent->SetTeamColor(CachedUIColor);
+	}
+
+	// 초기 체력바 상태 설정
+	UpdateHealthBar();
+
+	// --- 랠리 포인트 이동 로직 추가 ---
+	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
+	if (!InitialRallyLocation.IsNearlyZero())
+	{
+		FCommandData MoveCmd;
+		MoveCmd.CommandType = ECommandType::Move;
+		MoveCmd.TargetLocation = InitialRallyLocation;
+
+		IssueCommand(MoveCmd);
+		NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
+	}
+}
 
 void ANovaUnit::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// 사망 시에는 처리하지 않는다
 	if (bIsDead) return;
 
-	// 1. 공중 유닛 고도 조절 (가상 평면 NavMesh 사용을 위해 주석 처리)
-	/*
-	if (MovementType == ENovaMovementType::Air)
-	{
-		FVector CurrentLocation = GetActorLocation();
-		float TargetZ = DefaultAirZ;
-
-		// 아래 방향으로 레이캐스트하여 지형 높이 확인
-		FHitResult HitResult;
-		FVector Start = CurrentLocation + FVector(0.f, 0.f, 100.f);
-		FVector End = CurrentLocation - FVector(0.f, 0.f, 2000.f);
-		FCollisionQueryParams TraceParams;
-		TraceParams.AddIgnoredActor(this);
-
-		// 유닛(Pawn) 등을 지면으로 인식하지 않도록 WorldStatic 채널만 체크합니다.
-		if (GetWorld()->LineTraceSingleByChannel(HitResult, Start, End, ECC_WorldStatic, TraceParams))
-		{
-			float FloorZ = HitResult.ImpactPoint.Z;
-			float SafetyZ = FloorZ + MinSafetyHeight;
-
-			// 지면이 높아서 안전 고도를 확보해야 하는 경우 목표 Z 상향 조정
-			if (SafetyZ > DefaultAirZ)
-			{
-				TargetZ = SafetyZ;
-			}
-		}
-
-		// 현재 Z값을 목표 Z값으로 부드럽게 보간
-		if (!FMath::IsNearlyEqual(CurrentLocation.Z, TargetZ, 1.0f))
-		{
-			float NewZ = FMath::FInterpTo(CurrentLocation.Z, TargetZ, DeltaTime, HeightInterpSpeed);
-			SetActorLocation(FVector(CurrentLocation.X, CurrentLocation.Y, NewZ));
-		}
-	}
-	*/
-
-	// 2. 다리(Legs) 부품 애니메이션 데이터 전달
+	// 1. 다리(Legs) 부품 애니메이션 데이터 전달
 	if (CurrentLegsPart)
 	{
 		// 이동 속도 전달
@@ -149,11 +172,11 @@ void ANovaUnit::Tick(float DeltaTime)
 		LastYaw = CurrentYaw;
 	}
 
-	// 3. 몸통(Body) 및 무기 회전 로직 실행
+	// 2. 몸통(Body) 및 무기 회전 로직 실행
 	UpdateBodyRotation(DeltaTime);
 	UpdateWeaponAiming(DeltaTime);
 
-	// 4. 완벽히 겹쳤을 때 이동 불가가 되는 현상 방지 (Anti-Overlap) 및 아군 길막힘 방지 밀어내기
+	// 3. 완벽히 겹쳤을 때 이동 불가가 되는 현상 방지 (Anti-Overlap) 및 아군 길막힘 방지 밀어내기
 	if (!bIsDead && GetCapsuleComponent())
 	{
 		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
@@ -275,43 +298,6 @@ void ANovaUnit::Tick(float DeltaTime)
 	}
 }
 
-void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
-{
-	// 최대 연쇄 밀림 횟수 제한 (무한 루프 및 프레임 드랍 방지)
-	if (Depth > 4 || bIsDead) return;
-
-	FHitResult Hit;
-	// 스윕(Sweep)을 켜서 다른 유닛/지형과 부딪히는지 확인하며 이동
-	AddActorWorldOffset(PushDir * PushAmount, true, &Hit);
-
-	// 다른 무언가에 부딪혀서 이동이 막혔다면 연쇄 밀어내기 시도
-	if (Hit.bBlockingHit)
-	{
-		if (ANovaUnit* HitUnit = Cast<ANovaUnit>(Hit.GetActor()))
-		{
-			// 부딪힌 대상이 같은 팀 유닛인지 확인
-			if (HitUnit->GetTeamID() == GetTeamID())
-			{
-				ECommandType HitCommand = ECommandType::None;
-				if (ANovaAIController* HitAI = Cast<ANovaAIController>(HitUnit->GetController()))
-				{
-					HitCommand = HitAI->GetCurrentCommand();
-				}
-
-				// 대상이 비켜줄 수 있는 상태인지 확인
-				if (HitCommand == ECommandType::None ||
-					HitCommand == ECommandType::Stop ||
-					HitCommand == ECommandType::Attack ||
-					HitCommand == ECommandType::Patrol)
-				{
-					// 부딪힌 유닛도 같은 방향으로 밀어냄
-					HitUnit->PushUnit(PushDir, PushAmount, Depth + 1);
-				}
-			}
-		}
-	}
-}
-
 void ANovaUnit::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
@@ -347,168 +333,6 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 		InitializeUIColors();
 		SelectionComponent->SetTeamColor(CachedUIColor);
 	}
-}
-
-void ANovaUnit::BeginPlay()
-{
-	Super::BeginPlay();
-
-	// 런타임 시작 시 다시 한번 초기화 및 부착 보강
-	ConstructUnitParts();
-	InitializePartAttachments();
-
-	// 3. 모든 부품이 부착된 후 스탯 합산 및 초기화
-	InitializeAttributesFromParts();
-	InitializeAbilitiesFromParts();
-
-	if (AbilitySystemComponent)
-	{
-		// ASC 초기화 (ActorInfo 설정)
-		AbilitySystemComponent->InitAbilityActorInfo(this, this);
-
-		// 속성 변경 콜백 등록
-		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
-		                      .AddUObject(this, &ANovaUnit::OnHealthChanged);
-	}
-
-	// 초기 Yaw 설정
-	LastYaw = GetActorRotation().Yaw;
-
-	// UI에 적용할 색상 저장
-	InitializeUIColors();
-
-	// Selection 컴포넌트 초기 설정
-	if (SelectionComponent && GetCapsuleComponent())
-	{
-		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
-		float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		bool bIsAir = (MovementType == ENovaMovementType::Air);
-
-		SelectionComponent->SetupSelection(Radius, HalfHeight, bIsAir);
-		SelectionComponent->SetTeamColor(CachedUIColor);
-	}
-
-	// 초기 체력바 상태 설정
-	UpdateHealthBar();
-
-	// --- 랠리 포인트 이동 로직 추가 ---
-	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
-	if (!InitialRallyLocation.IsNearlyZero())
-	{
-		FCommandData MoveCmd;
-		MoveCmd.CommandType = ECommandType::Move;
-		MoveCmd.TargetLocation = InitialRallyLocation;
-
-		IssueCommand(MoveCmd);
-		NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
-	}
-}
-
-void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
-{
-	UnitName = Data.UnitName;
-	LegsPartClass = Data.LegsClass;
-	BodyPartClass = Data.BodyClass;
-	WeaponPartClass = Data.WeaponClass;
-
-	NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
-	         *UnitName,
-	         LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
-	         BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
-	         WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
-}
-
-
-void ANovaUnit::UpdateBodyRotation(float DeltaTime)
-{
-	// 1. 몸통 파츠가 없으면 중단합니다.
-	if (!CurrentBodyPart)
-	{
-		return;
-	}
-
-	// 현재 몸통의 세계 회전값
-	FRotator CurrentRotation = CurrentBodyPart->GetActorRotation();
-	FRotator TargetRotation;
-
-	// 1. [최적화] 블랙보드 조회 대신 캐싱된 CurrentTarget만 확인합니다.
-	if (IsValid(CurrentTarget))
-	{
-		// 타겟 방향 계산
-		FVector Direction = CurrentTarget->GetActorLocation() - GetActorLocation();
-		TargetRotation = Direction.Rotation();
-	}
-	else
-	{
-		// 2. 타겟이 없으면 유닛의 현재 정면(다리/뿌리 방향)으로 회전합니다.
-		TargetRotation = GetActorRotation();
-	}
-
-	// 모델 보정 (Y축 정면 기준 -90도)
-	TargetRotation.Yaw -= 90.0f;
-	// 좌우(Yaw) 회전만 허용
-	TargetRotation.Pitch = 0.0f;
-	TargetRotation.Roll = 0.0f;
-
-	// 3. 부드러운 회전 보간 (RInterpTo)
-	FRotator NewRotation = FMath::RInterpTo(
-		CurrentRotation,
-		TargetRotation,
-		DeltaTime,
-		BodyRotationInterpSpeed
-	);
-
-	// 계산된 회전값 적용
-	CurrentBodyPart->SetActorRotation(NewRotation);
-}
-
-void ANovaUnit::UpdateWeaponAiming(float DeltaTime)
-{
-	// 1. 타겟이 유효하지 않으면 모든 무기를 정면(0도)으로 복귀시킵니다.
-	if (!IsValid(CurrentTarget))
-	{
-		for (ANovaPart* WeaponPart : CurrentWeaponParts)
-		{
-			if (WeaponPart)
-			{
-				WeaponPart->SetTargetPitch(0.0f);
-				WeaponPart->UpdateAiming(DeltaTime);
-			}
-		}
-		return;
-	}
-
-	// 2. 각 무기 부품별로 타겟을 향한 각도를 계산합니다.
-	for (ANovaPart* WeaponPart : CurrentWeaponParts)
-	{
-		if (WeaponPart)
-		{
-			// 무기의 월드 위치와 타겟 위치 사이의 방향 벡터 계산
-			FVector WeaponLocation = WeaponPart->GetActorLocation();
-			FVector TargetLocation = CurrentTarget->GetActorLocation();
-			FVector Direction = TargetLocation - WeaponLocation;
-
-			// 방향 벡터를 회전값으로 변환하여 Pitch 추출
-			FRotator LookAtRot = Direction.Rotation();
-
-			// 조준 각도 전달
-			WeaponPart->SetTargetPitch(LookAtRot.Pitch);
-
-			// 무기 내부의 업데이트 로직 실행
-			WeaponPart->UpdateAiming(DeltaTime);
-		}
-	}
-}
-
-EBlackboardNotificationResult ANovaUnit::OnTargetActorChanged(const UBlackboardComponent& Blackboard,
-                                                              FBlackboard::FKey KeyID)
-{
-	// 1. 블랙보드에서 새로운 타겟을 꺼내 멤버 변수에 저장합니다.
-	// (이 함수는 타겟이 바뀔 때만 딱 한 번 실행되므로 매우 효율적입니다.)
-	CurrentTarget = Cast<AActor>(Blackboard.GetValueAsObject(TEXT("TargetActor")));
-
-	// 2. 계속해서 감시를 유지하겠다는 결과를 반환합니다.
-	return EBlackboardNotificationResult::ContinueObserving;
 }
 
 void ANovaUnit::PossessedBy(AController* NewController)
@@ -554,6 +378,22 @@ void ANovaUnit::UnPossessed()
 	TargetActorKeyID = FBlackboard::InvalidKey;
 
 	Super::UnPossessed();
+}
+#pragma endregion
+
+#pragma region Unit Assembly & Initialization
+void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
+{
+	UnitName = Data.UnitName;
+	LegsPartClass = Data.LegsClass;
+	BodyPartClass = Data.BodyClass;
+	WeaponPartClass = Data.WeaponClass;
+
+	NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
+	         *UnitName,
+	         LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
+	         BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
+	         WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
 }
 
 void ANovaUnit::ConstructUnitParts()
@@ -854,13 +694,6 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitMinRange(TotalMinRange);
 	AttributeSet->InitSplashRange(TotalSplashRange);
 
-	// 디버깅: 속도가 0일 경우 테스트를 위해 최소 속도 부여
-	// if (TotalSpeed <= 0.0f)
-	// {
-	// 	NOVA_SCREEN(Error, "Unit Speed is 0! Forcing speed to 300 for testing.");
-	// 	TotalSpeed = 300.0f;
-	// }
-
 	// 최대 이동 속도 설정 반영
 	if (GetCharacterMovement())
 	{
@@ -900,88 +733,60 @@ void ANovaUnit::InitializeAttributesFromParts()
 			GetCharacterMovement()->BrakingDecelerationWalking = TotalSpeed * 10.0f;
 		}
 	}
-
-	// NOVA_SCREEN(Log, "Unit Stats Initialized: %s | HP(%.f), Speed(%.f), Type(%s)",
-	//             *UnitName, TotalHealth, TotalSpeed,
-	//             MovementType == ENovaMovementType::Air ? TEXT("Air") : TEXT("Ground"));
 }
 
-
-bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
+void ANovaUnit::InitializeAbilitiesFromParts()
 {
-	if (!IsValid(Target)) return false;
+	if (!AbilitySystemComponent) return;
 
-	FVector MyLoc = GetActorLocation();
-	FVector TargetLoc = Target->GetActorLocation();
+	// 기존 부여된 모든 어빌리티 제거 (풀링 재사용 시 중복 방지)
+	AbilitySystemComponent->ClearAllAbilities();
 
-	// 1. 수평 거리 체크 (XY 평면상 거리)
-	float DistSqXY = FVector::DistSquaredXY(MyLoc, TargetLoc);
+	// 중복 제거를 위한 Set 사용
+	TSet<TSubclassOf<class UNovaGameplayAbility>> UniqueAbilities;
 
-	// 타겟의 충돌체 크기를 고려하여 판정 완화 (타겟의 루트 컴포넌트가 PrimitiveComponent인 경우)
-	float TargetRadius = 0.0f;
-	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
+	// 수집할 모든 부품 액터 리스트업
+	TArray<ANovaPart*> PartActors;
+	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
+	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
+
+	// 무기는 여러 소켓에 붙어있을 수 있지만 모두 같은 무기만 붙으므로 무기 중 하나의 어빌리티만 등록한다.
+	if (CurrentWeaponParts.Num() > 0)
 	{
-		TargetRadius = Capsule->GetScaledCapsuleRadius();
+		PartActors.Add(CurrentWeaponParts[0]);
 	}
 
-	float AdjustedRange = Range + TargetRadius;
-	if (DistSqXY > FMath::Square(AdjustedRange))
+	// 각 부품에서 어빌리티 클래스 추출
+	for (ANovaPart* Part : PartActors)
 	{
-		return false; // 수평 거리가 사거리를 벗어남
-	}
-
-	return true;
-}
-
-UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
-{
-	return AbilitySystemComponent;
-}
-
-void ANovaUnit::OnSelected()
-{
-	bIsSelected = true;
-
-	// 가시성 제어를 Component가 수행
-	if (SelectionComponent)
-	{
-		SelectionComponent->SetSelectionVisible(true);
-		SelectionComponent->SetTeamColor(CachedUIColor);
-	}
-	UE_LOG(LogTemp, Log, TEXT("Unit Selected: %s"), *GetName());
-}
-
-void ANovaUnit::OnDeselected()
-{
-	bIsSelected = false;
-
-	// Widget을 비가시화
-	if (SelectionComponent)
-	{
-		SelectionComponent->SetSelectionVisible(false);
-	}
-	UE_LOG(LogTemp, Log, TEXT("Unit Deselected: %s"), *GetName());
-}
-
-bool ANovaUnit::IsSelectable() const
-{
-	// 죽었거나 안개 속에 있으면 선택 불가
-	if (bIsDead || !bIsVisibleByFog) return false;
-
-	// 로컬 플레이어 팀 확인
-	int32 LocalPlayerTeamID = -1;
-	if (auto* PC = GetWorld()->GetFirstPlayerController())
-	{
-		if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
+		if (Part)
 		{
-			LocalPlayerTeamID = PS->GetTeamID();
+			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
+			for (auto AbilityClass : Spec.AbilityClasses)
+			{
+				if (AbilityClass)
+				{
+					UniqueAbilities.Add(AbilityClass);
+				}
+			}
 		}
 	}
 
-	// 아군이면 항상 선택 가능, 적군이면 시야 내에 있을 때만 선택 가능
-	if (TeamID == LocalPlayerTeamID) return true;
+	// 수집된 고유 어빌리티들을 ASC에 부여
+	for (auto AbilityClass : UniqueAbilities)
+	{
+		if (AbilityClass)
+		{
+			AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, -1, this));
+		}
+	}
+}
+#pragma endregion
 
-	return bIsVisibleByFog;
+#pragma region Ability System (GAS) & Combat
+UAbilitySystemComponent* ANovaUnit::GetAbilitySystemComponent() const
+{
+	return AbilitySystemComponent;
 }
 
 void ANovaUnit::IssueCommand(const FCommandData& CommandData)
@@ -1149,8 +954,6 @@ void ANovaUnit::Die()
 		HealthBarComponent->Deactivate();
 	}
 
-	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (오브젝트 풀링 적용?)
-	// Destroy();
 	// 2초 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
@@ -1175,61 +978,209 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 	UpdateHealthBar();
 }
 
-void ANovaUnit::InitializeAbilitiesFromParts()
+bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 {
-	if (!AbilitySystemComponent) return;
+	if (!IsValid(Target)) return false;
 
-	// 기존 부여된 모든 어빌리티 제거 (풀링 재사용 시 중복 방지)
-	AbilitySystemComponent->ClearAllAbilities();
+	FVector MyLoc = GetActorLocation();
+	FVector TargetLoc = Target->GetActorLocation();
 
-	// 중복 제거를 위한 Set 사용
-	TSet<TSubclassOf<class UNovaGameplayAbility>> UniqueAbilities;
+	// 1. 수평 거리 체크 (XY 평면상 거리)
+	float DistSqXY = FVector::DistSquaredXY(MyLoc, TargetLoc);
 
-	// 수집할 모든 부품 액터 리스트업
-	TArray<ANovaPart*> PartActors;
-	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
-	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
-
-	// 무기는 여러 소켓에 붙어있을 수 있지만 모두 같은 무기만 붙으므로 무기 중 하나의 어빌리티만 등록한다.
-	if (CurrentWeaponParts.Num() > 0)
+	// 타겟의 충돌체 크기를 고려하여 판정 완화 (타겟의 루트 컴포넌트가 PrimitiveComponent인 경우)
+	float TargetRadius = 0.0f;
+	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
 	{
-		PartActors.Add(CurrentWeaponParts[0]);
+		TargetRadius = Capsule->GetScaledCapsuleRadius();
 	}
 
-	// 각 부품에서 어빌리티 클래스 추출
-	for (ANovaPart* Part : PartActors)
+	float AdjustedRange = Range + TargetRadius;
+	if (DistSqXY > FMath::Square(AdjustedRange))
 	{
-		if (Part)
+		return false; // 수평 거리가 사거리를 벗어남
+	}
+
+	return true;
+}
+#pragma endregion
+
+#pragma region Movement & AI Rotation Logic
+void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
+{
+	// 최대 연쇄 밀림 횟수 제한 (무한 루프 및 프레임 드랍 방지)
+	if (Depth > 4 || bIsDead) return;
+
+	FHitResult Hit;
+	// 스윕(Sweep)을 켜서 다른 유닛/지형과 부딪히는지 확인하며 이동
+	AddActorWorldOffset(PushDir * PushAmount, true, &Hit);
+
+	// 다른 무언가에 부딪혀서 이동이 막혔다면 연쇄 밀어내기 시도
+	if (Hit.bBlockingHit)
+	{
+		if (ANovaUnit* HitUnit = Cast<ANovaUnit>(Hit.GetActor()))
 		{
-			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
-			for (auto AbilityClass : Spec.AbilityClasses)
+			// 부딪힌 대상이 같은 팀 유닛인지 확인
+			if (HitUnit->GetTeamID() == GetTeamID())
 			{
-				if (AbilityClass)
+				ECommandType HitCommand = ECommandType::None;
+				if (ANovaAIController* HitAI = Cast<ANovaAIController>(HitUnit->GetController()))
 				{
-					UniqueAbilities.Add(AbilityClass);
+					HitCommand = HitAI->GetCurrentCommand();
+				}
+
+				// 대상이 비켜줄 수 있는 상태인지 확인
+				if (HitCommand == ECommandType::None ||
+					HitCommand == ECommandType::Stop ||
+					HitCommand == ECommandType::Attack ||
+					HitCommand == ECommandType::Patrol)
+				{
+					// 부딪힌 유닛도 같은 방향으로 밀어냄
+					HitUnit->PushUnit(PushDir, PushAmount, Depth + 1);
 				}
 			}
 		}
 	}
+}
 
-	// 수집된 고유 어빌리티들을 ASC에 부여
-	for (auto AbilityClass : UniqueAbilities)
+void ANovaUnit::UpdateBodyRotation(float DeltaTime)
+{
+	// 1. 몸통 파츠가 없으면 중단합니다.
+	if (!CurrentBodyPart)
 	{
-		if (AbilityClass)
+		return;
+	}
+
+	// 현재 몸통의 세계 회전값
+	FRotator CurrentRotation = CurrentBodyPart->GetActorRotation();
+	FRotator TargetRotation;
+
+	// 1. [최적화] 블랙보드 조회 대신 캐싱된 CurrentTarget만 확인합니다.
+	if (IsValid(CurrentTarget))
+	{
+		// 타겟 방향 계산
+		FVector Direction = CurrentTarget->GetActorLocation() - GetActorLocation();
+		TargetRotation = Direction.Rotation();
+	}
+	else
+	{
+		// 2. 타겟이 없으면 유닛의 현재 정면(다리/뿌리 방향)으로 회전합니다.
+		TargetRotation = GetActorRotation();
+	}
+
+	// 모델 보정 (Y축 정면 기준 -90도)
+	TargetRotation.Yaw -= 90.0f;
+	// 좌우(Yaw) 회전만 허용
+	TargetRotation.Pitch = 0.0f;
+	TargetRotation.Roll = 0.0f;
+
+	// 3. 부드러운 회전 보간 (RInterpTo)
+	FRotator NewRotation = FMath::RInterpTo(
+		CurrentRotation,
+		TargetRotation,
+		DeltaTime,
+		BodyRotationInterpSpeed
+	);
+
+	// 계산된 회전값 적용
+	CurrentBodyPart->SetActorRotation(NewRotation);
+}
+
+void ANovaUnit::UpdateWeaponAiming(float DeltaTime)
+{
+	// 1. 타겟이 유효하지 않으면 모든 무기를 정면(0도)으로 복귀시킵니다.
+	if (!IsValid(CurrentTarget))
+	{
+		for (ANovaPart* WeaponPart : CurrentWeaponParts)
 		{
-			AbilitySystemComponent->GiveAbility(FGameplayAbilitySpec(AbilityClass, 1, -1, this));
+			if (WeaponPart)
+			{
+				WeaponPart->SetTargetPitch(0.0f);
+				WeaponPart->UpdateAiming(DeltaTime);
+			}
+		}
+		return;
+	}
+
+	// 2. 각 무기 부품별로 타겟을 향한 각도를 계산합니다.
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
+	{
+		if (WeaponPart)
+		{
+			// 무기의 월드 위치와 타겟 위치 사이의 방향 벡터 계산
+			FVector WeaponLocation = WeaponPart->GetActorLocation();
+			FVector TargetLocation = CurrentTarget->GetActorLocation();
+			FVector Direction = TargetLocation - WeaponLocation;
+
+			// 방향 벡터를 회전값으로 변환하여 Pitch 추출
+			FRotator LookAtRot = Direction.Rotation();
+
+			// 조준 각도 전달
+			WeaponPart->SetTargetPitch(LookAtRot.Pitch);
+
+			// 무기 내부의 업데이트 로직 실행
+			WeaponPart->UpdateAiming(DeltaTime);
 		}
 	}
 }
 
-
-void ANovaUnit::UpdateHealthBar()
+EBlackboardNotificationResult ANovaUnit::OnTargetActorChanged(const UBlackboardComponent& Blackboard,
+                                                              FBlackboard::FKey KeyID)
 {
-	if (!HealthBarComponent || !AttributeSet) return;
+	// 1. 블랙보드에서 새로운 타겟을 꺼내 멤버 변수에 저장합니다.
+	// (이 함수는 타겟이 바뀔 때만 딱 한 번 실행되므로 매우 효율적입니다.)
+	CurrentTarget = Cast<AActor>(Blackboard.GetValueAsObject(TEXT("TargetActor")));
 
-	HealthBarComponent->UpdateHealthBar(AttributeSet->GetHealth(),
-	                                    AttributeSet->GetMaxHealth(),
-	                                    CachedUIColor);
+	// 2. 계속해서 감시를 유지하겠다는 결과를 반환합니다.
+	return EBlackboardNotificationResult::ContinueObserving;
+}
+#pragma endregion
+
+#pragma region Selection & UI
+void ANovaUnit::OnSelected()
+{
+	bIsSelected = true;
+
+	// 가시성 제어를 Component가 수행
+	if (SelectionComponent)
+	{
+		SelectionComponent->SetSelectionVisible(true);
+		SelectionComponent->SetTeamColor(CachedUIColor);
+	}
+	UE_LOG(LogTemp, Log, TEXT("Unit Selected: %s"), *GetName());
+}
+
+void ANovaUnit::OnDeselected()
+{
+	bIsSelected = false;
+
+	// Widget을 비가시화
+	if (SelectionComponent)
+	{
+		SelectionComponent->SetSelectionVisible(false);
+	}
+	UE_LOG(LogTemp, Log, TEXT("Unit Deselected: %s"), *GetName());
+}
+
+bool ANovaUnit::IsSelectable() const
+{
+	// 죽었거나 안개 속에 있으면 선택 불가
+	if (bIsDead || !bIsVisibleByFog) return false;
+
+	// 로컬 플레이어 팀 확인
+	int32 LocalPlayerTeamID = -1;
+	if (auto* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
+		{
+			LocalPlayerTeamID = PS->GetTeamID();
+		}
+	}
+
+	// 아군이면 항상 선택 가능, 적군이면 시야 내에 있을 때만 선택 가능
+	if (TeamID == LocalPlayerTeamID) return true;
+
+	return bIsVisibleByFog;
 }
 
 void ANovaUnit::InitializeUIColors()
@@ -1249,6 +1200,17 @@ void ANovaUnit::InitializeUIColors()
 	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) CachedUIColor = FLinearColor::Yellow; // 중립
 }
 
+void ANovaUnit::UpdateHealthBar()
+{
+	if (!HealthBarComponent || !AttributeSet) return;
+
+	HealthBarComponent->UpdateHealthBar(AttributeSet->GetHealth(),
+	                                    AttributeSet->GetMaxHealth(),
+	                                    CachedUIColor);
+}
+#pragma endregion
+
+#pragma region Navigation & Fog of War
 void ANovaUnit::SetFogVisibility(bool bVisible)
 {
 	if (bIsVisibleByFog == bVisible) return;
@@ -1320,7 +1282,9 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 		NOVA_LOG(Log, "Unit %s NavModifier %hs", *GetName(), bIsObstacle ? "Activated" : "Deactivated");
 	}
 }
+#pragma endregion
 
+#pragma region Object Pooling
 void ANovaUnit::OnSpawnFromPool_Implementation()
 {
 	bIsDead = false;
@@ -1499,3 +1463,4 @@ void ANovaUnit::OnReturnToPool_Implementation()
 
 	NOVA_LOG(Log, "Unit %s Returned to Pool.", *GetName());
 }
+#pragma endregion
