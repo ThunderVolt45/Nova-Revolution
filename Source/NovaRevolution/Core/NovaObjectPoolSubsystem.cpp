@@ -51,7 +51,9 @@ AActor* UNovaObjectPoolSubsystem::SpawnFromPool(TSubclassOf<AActor> Class, const
 	{
 		// 풀에 가용한 액터가 없으면 새로 생성
 		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		
+		// 유닛을 생성할 때 가능한 한 위치를 조절해서 생성해야 한다.
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 		SpawnedActor = World->SpawnActor<AActor>(Class, Transform, SpawnParams);
 	}
 	else

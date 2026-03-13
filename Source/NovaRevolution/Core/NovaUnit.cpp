@@ -145,7 +145,7 @@ void ANovaUnit::BeginPlay()
 		MoveCmd.TargetLocation = InitialRallyLocation;
 
 		IssueCommand(MoveCmd);
-		NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
+		// NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
 	}
 }
 
@@ -153,8 +153,16 @@ void ANovaUnit::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// 사망 시에는 처리하지 않는다
-	if (bIsDead) return;
+	// 사망 시에는 머티리얼 애니메이션(1초)만 처리한다
+	if (bIsDead)
+	{
+		if (DeathTimeElapsed < CharredDuration)
+		{
+			DeathTimeElapsed += DeltaTime;
+			UpdateCharredEffect(FMath::Min(DeathTimeElapsed / CharredDuration, 1.0f));
+		}
+		return;
+	}
 
 	// 1. 다리(Legs) 부품 애니메이션 데이터 전달
 	if (CurrentLegsPart)
@@ -446,6 +454,8 @@ void ANovaUnit::ConstructLegs()
 		if (CurrentLegsPart)
 		{
 			CurrentLegsPart->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+			// 다리 부품 정면 보정 (Z: -90)
+			CurrentLegsPart->SetActorRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
 		}
 	}
 
@@ -453,6 +463,7 @@ void ANovaUnit::ConstructLegs()
 	if (CurrentLegsPart)
 	{
 		CurrentLegsPart->SetActorRelativeLocation(LegsOffset);
+		CurrentLegsPart->SetActorRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
 	}
 }
 
@@ -555,8 +566,17 @@ void ANovaUnit::InitializePartAttachments()
 	{
 		if (UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh())
 		{
+			// 소켓 위치가 정확한지 확인하기 위해 트랜스폼 업데이트 강제
+			LegsMesh->UpdateComponentToWorld();
+
 			CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
 			                                   BodyTargetSocketName);
+
+			// 부착 후 몸통의 상대 위치를 한번 더 리셋하여 정확히 소켓에 물리도록 함
+			if (UPrimitiveComponent* BodyMesh = CurrentBodyPart->GetMainMesh())
+			{
+				BodyMesh->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+			}
 		}
 	}
 }
@@ -764,8 +784,8 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 
 		if (!bCanAttackTarget)
 		{
-			NOVA_LOG(Warning, "Unit %s cannot attack %s due to TargetType mismatch or invalid target.", *GetName(),
-			         *CommandData.TargetActor->GetName());
+			// NOVA_LOG(Warning, "Unit %s cannot attack %s due to TargetType mismatch or invalid target.", *GetName(),
+			//          *CommandData.TargetActor->GetName());
 			return; // 공격 불가능한 대상이면 명령 무시
 		}
 	}
@@ -776,7 +796,7 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 		CmdInterface->IssueCommand(CommandData);
 	}
 
-	NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
+	// NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
 
 	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
 	if (CommandData.CommandType != ECommandType::Attack) return;
@@ -795,8 +815,8 @@ void ANovaUnit::Die()
 	if (bIsDead) return;
 
 	// 유닛 사망 처리 로직
-	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
+	DeathTimeElapsed = 0.0f;
 
 	// NovaPlayerController에 선택 해제 요청
 	if (ANovaPlayerController* NovaPC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
@@ -804,7 +824,7 @@ void ANovaUnit::Die()
 		NovaPC->NotifyTargetUnselectable(this);
 	}
 
-	// 자원 반납 (인구수 -1, 자신의 와트 비용만큼 차감)
+	// 자원 반납
 	ReturnResourcesOnDeath();
 
 	// AI 동작 정지 요청
@@ -813,38 +833,78 @@ void ANovaUnit::Die()
 		AIC->OnPawnDeath();
 	}
 
-	// 내비게이션 장애물 해제 (죽은 유닛은 길을 막지 않음)
+	// 내비게이션 장애물 해제
 	SetNavigationObstacle(false);
 
-	// 충돌 비활성화 및 소멸 처리
+	// 충돌 비활성화
 	if (GetCapsuleComponent()) GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
 
-	// 모든 부품에 사망 상태 전달
-	TArray<ANovaPart*> PartActors;
-	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
-	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
+	// 모든 부품 상태 사망 설정
+	if (CurrentLegsPart) CurrentLegsPart->SetIsDead(true);
+	if (CurrentBodyPart) CurrentBodyPart->SetIsDead(true);
 	for (ANovaPart* WeaponPart : CurrentWeaponParts)
 	{
-		if (WeaponPart) PartActors.Add(WeaponPart);
+		if (WeaponPart) WeaponPart->SetIsDead(true);
 	}
 
-	for (ANovaPart* Part : PartActors)
-	{
-		if (Part) Part->SetIsDead(true);
-	}
+	// 사망 초기 연출 시작 (MID 생성 및 파라미터 0 설정)
+	UpdateCharredEffect(0.0f);
 
-	// 체력바 컴포넌트 숨기기
+	// 체력바 숨기기
 	if (HealthBarComponent)
 	{
 		HealthBarComponent->SetVisibility(false);
 		HealthBarComponent->Deactivate();
 	}
-
-	// 2초 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
+	
+	// 일정 시간 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
 	{
+		// 제거 시점에 폭발 효과(GCN) 실행
+		if (ExplosionCueTag.IsValid() && AbilitySystemComponent)
+		{
+			FGameplayCueParameters Params;
+			Params.Location = GetActorLocation();
+			Params.Instigator = this;
+			Params.EffectCauser = this;
+
+			AbilitySystemComponent->ExecuteGameplayCue(ExplosionCueTag, Params);
+		}
+
+		// --- 부품 분리 및 사출 ---
+		FVector DeathLoc = GetActorLocation();
+		float LaunchStrength = FMath::RandRange(500.f, 800.f); // 힘의 범위 상향 및 무작위성
+
+		for (ANovaPart* Weapon : CurrentWeaponParts)
+		{
+			if (Weapon)
+			{
+				// 무기 사출 방향에 무작위성 추가
+				FVector Dir = (Weapon->GetActorLocation() - DeathLoc).GetSafeNormal();
+				Dir += FMath::VRand() * 0.5f; // 무작위 방향 벡터 추가
+				Dir.Z = FMath::Abs(Dir.Z) + 0.5f; // 항상 위쪽을 향하도록 보정
+				Weapon->ExplodeAndDetach(Dir.GetSafeNormal() * LaunchStrength);
+			}
+		}
+		
+		CurrentWeaponParts.Empty();
+		
+		if (CurrentBodyPart)
+		{
+			// 몸통 사출 방향에 무작위성 추가
+			FVector Dir = (CurrentBodyPart->GetActorLocation() - DeathLoc).GetSafeNormal();
+			Dir += FMath::VRand() * 0.3f; // 몸통은 무기보다 덜 퍼지게 설정
+			Dir.Z = FMath::Abs(Dir.Z) + 0.5f; 
+			CurrentBodyPart->ExplodeAndDetach(Dir.GetSafeNormal() * LaunchStrength);
+			CurrentBodyPart = nullptr; // 유닛 반납 시 중복 반납 방지
+		}
+
+		// 데미지 연출 제거
+		ClearDamageEffects();
+		
+		// 오브젝트 풀로 반환
 		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 		{
 			PoolSubsystem->ReturnToPool(this);
@@ -853,10 +913,20 @@ void ANovaUnit::Die()
 		{
 			Destroy();
 		}
-	}, 2.0f, false);
+	}, TimeToDestroy, false);
 }
 
-void ANovaUnit::ReturnResourcesOnDeath()
+void ANovaUnit::UpdateCharredEffect(float Alpha)
+{
+	if (CurrentLegsPart) CurrentLegsPart->SetCharredAlpha(Alpha);
+	if (CurrentBodyPart) CurrentBodyPart->SetCharredAlpha(Alpha);
+	for (ANovaPart* Weapon : CurrentWeaponParts)
+	{
+		if (Weapon) Weapon->SetCharredAlpha(Alpha);
+	}
+}
+
+void ANovaUnit::ReturnResourcesOnDeath() const
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 	if (!ASC) return;
@@ -880,7 +950,7 @@ void ANovaUnit::ReturnResourcesOnDeath()
 		if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
 		{
 			ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
-			NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
+			// NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
 			return; // 해당 팀의 자원을 업데이트했으므로 중단
 		}
 	}
@@ -893,6 +963,92 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 
 	// 실시간 체력바 업데이트 호출
 	UpdateHealthBar();
+
+	// 데미지 연출 업데이트
+	UpdateDamageEffects(Data.NewValue, AttributeSet->GetMaxHealth());
+}
+
+void ANovaUnit::UpdateDamageEffects(float CurrentHealth, float MaxHealth)
+{
+	if (!AbilitySystemComponent || bIsDead) return;
+
+	float HealthPercent = (MaxHealth > 0.0f) ? (CurrentHealth / MaxHealth) : 0.0f;
+
+	// 0. 모든 부품 수집
+	TArray<ANovaPart*> AllParts;
+	if (CurrentLegsPart) AllParts.Add(CurrentLegsPart);
+	if (CurrentBodyPart) AllParts.Add(CurrentBodyPart);
+	for (ANovaPart* Weapon : CurrentWeaponParts)
+	{
+		if (Weapon) AllParts.Add(Weapon);
+	}
+
+	// 1. 연기(Smoke) 상태 업데이트
+	bool bShouldHaveSmoke = (HealthPercent <= SmokeThreshold);
+	if (bIsSmokeActive != bShouldHaveSmoke)
+	{
+		bIsSmokeActive = bShouldHaveSmoke;
+		
+		for (ANovaPart* Part : AllParts)
+		{
+			UPrimitiveComponent* PartMesh = Part ? Part->GetMainMesh() : nullptr;
+			
+			// 소켓이 있는 부품만 골라냅니다.
+			if (PartMesh && PartMesh->DoesSocketExist(DamageSocketName))
+			{
+				FGameplayCueParameters Params;
+				Params.Instigator = this;
+				Params.EffectCauser = Part; // 각 파츠를 Causer로 설정하여 GCN이 부착 대상을 알 수 있게 함
+				Params.Location = PartMesh->GetSocketLocation(DamageSocketName);
+				Params.Normal = PartMesh->GetSocketRotation(DamageSocketName).Vector();
+				Params.SourceObject = Part; // 파츠별 인스턴스 구분을 위해 SourceObject에 파츠 할당
+				Params.TargetAttachComponent = PartMesh; // 실제 소켓이 있는 메시 컴포넌트를 직접 전달
+
+				if (bIsSmokeActive) AbilitySystemComponent->AddGameplayCue(SmokeCueTag, Params);
+				else AbilitySystemComponent->RemoveGameplayCue(SmokeCueTag);
+			}
+		}
+	}
+
+	// 2. 불길(Fire) 상태 업데이트
+	bool bShouldHaveFire = (HealthPercent <= FireThreshold);
+	if (bIsFireActive != bShouldHaveFire)
+	{
+		bIsFireActive = bShouldHaveFire;
+
+		for (ANovaPart* Part : AllParts)
+		{
+			UPrimitiveComponent* PartMesh = Part ? Part->GetMainMesh() : nullptr;
+			if (PartMesh && PartMesh->DoesSocketExist(DamageSocketName))
+			{
+				FGameplayCueParameters Params;
+				Params.Instigator = this;
+				Params.EffectCauser = Part;
+				Params.Location = PartMesh->GetSocketLocation(DamageSocketName);
+				Params.Normal = PartMesh->GetSocketRotation(DamageSocketName).Vector();
+				Params.SourceObject = Part;
+				Params.TargetAttachComponent = PartMesh; // 실제 소켓이 있는 메시 컴포넌트를 직접 전달
+
+				if (bIsFireActive) AbilitySystemComponent->AddGameplayCue(FireCueTag, Params);
+				else AbilitySystemComponent->RemoveGameplayCue(FireCueTag);
+			}
+		}
+	}
+}
+
+void ANovaUnit::ClearDamageEffects()
+{
+	if (bIsSmokeActive)
+	{
+		AbilitySystemComponent->RemoveGameplayCue(SmokeCueTag);
+		bIsSmokeActive = false;
+	}
+
+	if (bIsFireActive)
+	{
+		AbilitySystemComponent->RemoveGameplayCue(FireCueTag);
+		bIsFireActive = false;
+	}
 }
 
 bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
@@ -1195,7 +1351,7 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 		// 즉시 NavMesh 반영을 유도
 		NavModifier->RefreshNavigationModifiers();
 
-		NOVA_LOG(Log, "Unit %s NavModifier %hs", *GetName(), bIsObstacle ? "Activated" : "Deactivated");
+		// NOVA_LOG(Log, "Unit %s NavModifier %hs", *GetName(), bIsObstacle ? "Activated" : "Deactivated");
 	}
 }
 #pragma endregion
@@ -1273,16 +1429,18 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 
 	for (ANovaPart* Part : PartActors)
 	{
-		if (Part)
-		{
-			Part->SetIsDead(false);
+		if (!Part) continue;
+		
+		Part->SetIsDead(false);
 
-			if (Part->GetPartSpec().PartType == ENovaPartType::Weapon)
-			{
-				Part->SetTargetPitch(0.0f);
-			}
+		if (Part->GetPartSpec().PartType == ENovaPartType::Weapon)
+		{
+			Part->SetTargetPitch(0.0f);
 		}
 	}
+
+	// 모든 부품 머티리얼 초기화 (Charred = 0)
+	UpdateCharredEffect(0.0f);
 
 	// 5. AI 컨트롤러 및 비헤이비어 트리 재시작
 	if (ANovaAIController* AIC = Cast<ANovaAIController>(GetController()))
@@ -1304,7 +1462,11 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	
 	UpdateHealthBar();
 
-	// 7. 랠리 포인트 이동
+	// 7. 데미지 연출 초기화
+	bIsSmokeActive = false;
+	bIsFireActive = false;
+
+	// 8. 랠리 포인트 이동
 	if (!InitialRallyLocation.IsNearlyZero())
 	{
 		FCommandData MoveCmd;
@@ -1313,7 +1475,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		IssueCommand(MoveCmd);
 	}
 
-	NOVA_LOG(Log, "Unit %s Re-initialized from Pool with new assembly.", *GetName());
+	// NOVA_LOG(Log, "Unit %s Re-initialized from Pool with new assembly.", *GetName());
 }
 
 void ANovaUnit::OnReturnToPool_Implementation()
@@ -1377,6 +1539,6 @@ void ANovaUnit::OnReturnToPool_Implementation()
 	BodyPartClass = nullptr;
 	WeaponPartClass = nullptr;
 
-	NOVA_LOG(Log, "Unit %s Returned to Pool.", *GetName());
+	// NOVA_LOG(Log, "Unit %s Returned to Pool.", *GetName());
 }
 #pragma endregion
