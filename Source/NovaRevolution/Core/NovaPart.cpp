@@ -230,3 +230,37 @@ void ANovaPart::PlayFireEffects()
 		}
 	}
 }
+
+void ANovaPart::SetCharredAlpha(float Alpha)
+{
+	TArray<UPrimitiveComponent*> Meshes;
+	GetComponents<UPrimitiveComponent>(Meshes);
+
+	for (UPrimitiveComponent* MeshComp : Meshes)
+	{
+		if (!MeshComp) continue;
+
+		int32 NumMaterials = MeshComp->GetNumMaterials();
+		for (int32 i = 0; i < NumMaterials; ++i)
+		{
+			UMaterialInterface* Mat = MeshComp->GetMaterial(i);
+			UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Mat);
+
+			// Alpha가 0일 때(사망 초기) 다이나믹 머티리얼이 없다면 생성합니다.
+			if (!MID && Alpha <= 0.01f)
+			{
+				MID = MeshComp->CreateDynamicMaterialInstance(i);
+			}
+
+			if (MID)
+			{
+				MID->SetScalarParameterValue(TEXT("Charred"), Alpha);
+				
+				// 서서히 검은색으로 변하는 연출 (FLinearColor::Black은 0,0,0)
+				FLinearColor BlackColor = FLinearColor::Black;
+				MID->SetVectorParameterValue(TEXT("BaseColor"), FLinearColor::LerpUsingHSV(FLinearColor::White, BlackColor, Alpha));
+				MID->SetVectorParameterValue(TEXT("Color"), FLinearColor::LerpUsingHSV(FLinearColor::White, BlackColor, Alpha));
+			}
+		}
+	}
+}

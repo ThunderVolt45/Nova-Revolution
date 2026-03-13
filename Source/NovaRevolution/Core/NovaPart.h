@@ -75,6 +75,10 @@ public:
 	/** 조준 각도를 부드럽게 업데이트하고 ABP로 전달합니다. */
 	void UpdateAiming(float DeltaTime);
 
+	/** 파츠와 모든 자식 메시의 Charred 효과를 업데이트합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Effects")
+	void SetCharredAlpha(float Alpha);
+
 	// 데이터 테이블에서 스펙을 불러오는 함수
 	void InitializePartSpec();
 

@@ -178,6 +178,10 @@ protected:
 	/** 불길 효과가 시작되는 체력 비율 (0.0 ~ 1.0) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float FireThreshold = 0.3f;
+	
+	// 유닛이 사망한 후 제거(폭발) 될 때까지 걸리는 시간
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "3.0"))
+	float TimeToDestroy = 1.5f;
 #pragma endregion
 
 #pragma region Combat & Commands
@@ -208,7 +212,7 @@ public:
 
 protected:
 	/** 사망 시 팀 자원(와트, 인구수)을 반환하는 내부 함수 */
-	void ReturnResourcesOnDeath();
+	void ReturnResourcesOnDeath() const;
 
 	/** 유닛의 무기 공격 가능 타입 (대지/대공/모두) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit")

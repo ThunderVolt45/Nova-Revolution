@@ -846,10 +846,11 @@ void ANovaUnit::Die()
 		HealthBarComponent->Deactivate();
 	}
 
-	// 2초 후 오브젝트 풀로 반환
+	// 일정 시간 후 오브젝트 풀로 반환
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
 	{
+		// 폭발 GameplayCue 실행
 		if (ExplosionCueTag.IsValid() && AbilitySystemComponent)
 		{
 			FGameplayCueParameters Params;
@@ -859,8 +860,10 @@ void ANovaUnit::Die()
 			AbilitySystemComponent->ExecuteGameplayCue(ExplosionCueTag, Params);
 		}
 
+		// 유닛 손상 효과 정리
 		ClearDamageEffects();
 		
+		// 오브젝트 풀로 반환
 		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 		{
 			PoolSubsystem->ReturnToPool(this);
@@ -869,54 +872,20 @@ void ANovaUnit::Die()
 		{
 			Destroy();
 		}
-	}, 2.0f, false);
+	}, TimeToDestroy, false);
 }
 
 void ANovaUnit::UpdateCharredEffect(float Alpha)
 {
-	TArray<ANovaPart*> Parts;
-	if (CurrentLegsPart) Parts.Add(CurrentLegsPart);
-	if (CurrentBodyPart) Parts.Add(CurrentBodyPart);
+	if (CurrentLegsPart) CurrentLegsPart->SetCharredAlpha(Alpha);
+	if (CurrentBodyPart) CurrentBodyPart->SetCharredAlpha(Alpha);
 	for (ANovaPart* Weapon : CurrentWeaponParts)
 	{
-		if (Weapon) Parts.Add(Weapon);
-	}
-
-	for (ANovaPart* Part : Parts)
-	{
-		if (!Part) continue;
-
-		TArray<UPrimitiveComponent*> Meshes;
-		Part->GetComponents<UPrimitiveComponent>(Meshes);
-
-		for (UPrimitiveComponent* PartMesh : Meshes)
-		{
-			if (!PartMesh) continue;
-
-			for (int32 i = 0; i < PartMesh->GetNumMaterials(); ++i)
-			{
-				UMaterialInterface* Mat = PartMesh->GetMaterial(i);
-				UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Mat);
-
-				// Alpha가 0일 때(사망 초기) 다이나믹 머티리얼이 없다면 생성합니다.
-				if (!MID && Alpha <= 0.01f)
-				{
-					MID = PartMesh->CreateDynamicMaterialInstance(i);
-				}
-
-				if (MID)
-				{
-					MID->SetScalarParameterValue(TEXT("Charred"), Alpha);
-					// 서서히 검은색으로 변하는 연출
-					MID->SetVectorParameterValue(TEXT("BaseColor"), FLinearColor::LerpUsingHSV(FLinearColor::White, FLinearColor::Black, Alpha));
-					MID->SetVectorParameterValue(TEXT("Color"), FLinearColor::LerpUsingHSV(FLinearColor::White, FLinearColor::Black, Alpha));
-				}
-			}
-		}
+		if (Weapon) Weapon->SetCharredAlpha(Alpha);
 	}
 }
 
-void ANovaUnit::ReturnResourcesOnDeath()
+void ANovaUnit::ReturnResourcesOnDeath() const
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
 	if (!ASC) return;
