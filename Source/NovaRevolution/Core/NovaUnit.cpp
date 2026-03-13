@@ -907,18 +907,40 @@ void ANovaUnit::UpdateDamageEffects(float CurrentHealth, float MaxHealth)
 
 	float HealthPercent = (MaxHealth > 0.0f) ? (CurrentHealth / MaxHealth) : 0.0f;
 
+	// 0. 모든 부품 수집
+	TArray<ANovaPart*> AllParts;
+	if (CurrentLegsPart) AllParts.Add(CurrentLegsPart);
+	if (CurrentBodyPart) AllParts.Add(CurrentBodyPart);
+	for (ANovaPart* Weapon : CurrentWeaponParts)
+	{
+		if (Weapon) AllParts.Add(Weapon);
+	}
+
 	// 1. 연기(Smoke) 상태 업데이트
 	bool bShouldHaveSmoke = (HealthPercent <= SmokeThreshold);
 	if (bIsSmokeActive != bShouldHaveSmoke)
 	{
 		bIsSmokeActive = bShouldHaveSmoke;
 		
-		FGameplayCueParameters Params;
-		Params.Instigator = this;
-		Params.EffectCauser = this;
+		for (ANovaPart* Part : AllParts)
+		{
+			UPrimitiveComponent* PartMesh = Part ? Part->GetMainMesh() : nullptr;
+			
+			// 소켓이 있는 부품만 골라냅니다.
+			if (PartMesh && PartMesh->DoesSocketExist(DamageSocketName))
+			{
+				FGameplayCueParameters Params;
+				Params.Instigator = this;
+				Params.EffectCauser = Part; // 각 파츠를 Causer로 설정하여 GCN이 부착 대상을 알 수 있게 함
+				Params.Location = PartMesh->GetSocketLocation(DamageSocketName);
+				Params.Normal = PartMesh->GetSocketRotation(DamageSocketName).Vector();
+				Params.SourceObject = Part; // 파츠별 인스턴스 구분을 위해 SourceObject에 파츠 할당
+				Params.TargetAttachComponent = PartMesh; // 실제 소켓이 있는 메시 컴포넌트를 직접 전달
 
-		if (bIsSmokeActive) AbilitySystemComponent->AddGameplayCue(SmokeCueTag, Params);
-		else AbilitySystemComponent->RemoveGameplayCue(SmokeCueTag);
+				if (bIsSmokeActive) AbilitySystemComponent->AddGameplayCue(SmokeCueTag, Params);
+				else AbilitySystemComponent->RemoveGameplayCue(SmokeCueTag);
+			}
+		}
 	}
 
 	// 2. 불길(Fire) 상태 업데이트
@@ -927,12 +949,23 @@ void ANovaUnit::UpdateDamageEffects(float CurrentHealth, float MaxHealth)
 	{
 		bIsFireActive = bShouldHaveFire;
 
-		FGameplayCueParameters Params;
-		Params.Instigator = this;
-		Params.EffectCauser = this;
+		for (ANovaPart* Part : AllParts)
+		{
+			UPrimitiveComponent* PartMesh = Part ? Part->GetMainMesh() : nullptr;
+			if (PartMesh && PartMesh->DoesSocketExist(DamageSocketName))
+			{
+				FGameplayCueParameters Params;
+				Params.Instigator = this;
+				Params.EffectCauser = Part;
+				Params.Location = PartMesh->GetSocketLocation(DamageSocketName);
+				Params.Normal = PartMesh->GetSocketRotation(DamageSocketName).Vector();
+				Params.SourceObject = Part;
+				Params.TargetAttachComponent = PartMesh; // 실제 소켓이 있는 메시 컴포넌트를 직접 전달
 
-		if (bIsFireActive) AbilitySystemComponent->AddGameplayCue(FireCueTag, Params);
-		else AbilitySystemComponent->RemoveGameplayCue(FireCueTag);
+				if (bIsFireActive) AbilitySystemComponent->AddGameplayCue(FireCueTag, Params);
+				else AbilitySystemComponent->RemoveGameplayCue(FireCueTag);
+			}
+		}
 	}
 }
 
