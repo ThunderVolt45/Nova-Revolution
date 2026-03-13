@@ -43,9 +43,9 @@ void UNovaGA_SPLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
     }
     
     // 2. 자원 체크 및 3. 비용 지불
-    if (!CheckCost()) return; // 블루프린트 설정값으로 자원 체크
+    if (!CheckSkillCost()) return; // 블루프린트 설정값으로 자원 체크
     
-    ApplyCost();              // 한 줄로 공통 소모 처리
+    ApplySkillCost();              // 한 줄로 공통 소모 처리
 
     // 4. SP 레벨 속성 증가
     if (SPLevelUpIncrementGEClass)

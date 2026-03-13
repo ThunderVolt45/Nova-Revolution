@@ -27,7 +27,7 @@ void UNovaGA_Overwork::ActivateAbility(const FGameplayAbilitySpecHandle Handle, 
     if (!ASC || !PS) return;
     
     // 1. 자원 체크
-    if (!CheckCost()) return; // 블루프린트 설정값으로 체크
+    if (!CheckSkillCost()) return; // 블루프린트 설정값으로 체크
 
     // 2. 필요한 수치 계산
     float CurrentWatt = PS->GetCurrentWatt();
@@ -40,7 +40,7 @@ void UNovaGA_Overwork::ActivateAbility(const FGameplayAbilitySpecHandle Handle, 
     float StopDuration = (RefillAmount / RegenRate) * 1.3f;
     
     // 4. 비용 지불
-    ApplyCost();              // 한 줄로 공통 소모 처리
+    ApplySkillCost();              // 한 줄로 공통 소모 처리
 
     // 5. Watt 즉시 회복 (SetByCaller 활용)
     if (WattRefillGEClass)

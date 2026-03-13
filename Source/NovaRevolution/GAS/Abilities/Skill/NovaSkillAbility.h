@@ -45,9 +45,9 @@ protected:
 	TSubclassOf<class UGameplayEffect> ModifyResourceGEClass;
 
 	/** [추가] 설정된 변수(WattCost, SPCost)를 사용하여 자동으로 체크 */
-	bool CheckCost();
+	bool CheckSkillCost();
 
 	/** [추가] 설정된 변수와 GE를 사용하여 자동으로 소모 */
-	void ApplyCost();
+	void ApplySkillCost();
 	
 };

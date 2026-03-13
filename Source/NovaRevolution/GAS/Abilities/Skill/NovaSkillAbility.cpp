@@ -49,7 +49,7 @@ bool UNovaSkillAbility::K2_CheckAndNotifyResources(float CheckWattCost, float Ch
 	return false;
 }
 
-bool UNovaSkillAbility::CheckCost()
+bool UNovaSkillAbility::CheckSkillCost()
 {
 	// 1. 설정된 멤버 변수(Required)를 사용하여 자원 확인
 	if (!CheckResources(WattCost, SPCost))
@@ -67,7 +67,7 @@ bool UNovaSkillAbility::CheckCost()
 }
 
 
-void UNovaSkillAbility::ApplyCost()
+void UNovaSkillAbility::ApplySkillCost()
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
 	if (ASC && ModifyResourceGEClass)
