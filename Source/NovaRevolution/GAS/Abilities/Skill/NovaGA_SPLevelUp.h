@@ -27,8 +27,5 @@ protected:
 	/** SP 재생 Infinite GE (GE_SPRegen) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|LevelUp")
 	TSubclassOf<class UGameplayEffect> SPRegenGEClass;
-
-	/** 비용 소모 GE */
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|LevelUp")
-	TSubclassOf<class UGameplayEffect> ModifyResourceGEClass;
+	
 };

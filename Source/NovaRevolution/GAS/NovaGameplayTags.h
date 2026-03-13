@@ -50,11 +50,14 @@ namespace NovaGameplayTags
 	// --- 자원 관련 데이터 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Resource_Watt);
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Resource_SP);
+	// --- 자원 특정기간 생산중단 ---
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Data_Resource_Duration_WattStop);
 	
 	// --- GE 관련 식별 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen); 
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen_Watt);
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen_SP);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Block_Watt); 
 	
 	// --- 어빌리티 태그 ---
 	// 유닛
@@ -64,6 +67,7 @@ namespace NovaGameplayTags
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Skill_ResourceLevelUp);
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Skill_ResourceLevelUp_Watt);
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Skill_ResourceLevelUp_SP);
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Ability_Skill_Overwork); 
 	
 	// --- 게임플레이 큐 태그 ---
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(GameplayCue_Unit_Damage_Smoke);
