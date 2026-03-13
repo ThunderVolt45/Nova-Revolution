@@ -25,17 +25,6 @@ void UNovaResourceComponent::BeginPlay()
 		
 		// 자원 회복 GE 적용 (RTS 방식의 지속 회복)
 		UAbilitySystemComponent* ASC = OwnerPlayerState->GetAbilitySystemComponent();
-		// if (ASC && RegenGameplayEffectClass)
-		// {
-		// 	FGameplayEffectContextHandle EffectContext = ASC->MakeEffectContext();
-		// 	EffectContext.AddSourceObject(this);
-		//
-		// 	FGameplayEffectSpecHandle SpecHandle = ASC->MakeOutgoingSpec(RegenGameplayEffectClass, 1.0f, EffectContext);
-		// 	if (SpecHandle.IsValid())
-		// 	{
-		// 		RegenEffectHandle = ASC->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
-		// 	}
-		// }
 		
 		if (ASC)
 		{
@@ -127,17 +116,6 @@ void UNovaResourceComponent::UpdatePopulation(float DeltaPopulation, float Delta
 
 void UNovaResourceComponent::StopResourceRegen()
 {
-	// if (RegenEffectHandle.IsValid())
-	// {
-	// 	UAbilitySystemComponent* ASC = OwnerPlayerState ? OwnerPlayerState->GetAbilitySystemComponent() : nullptr;
-	// 	if (ASC)
-	// 	{
-	// 		ASC->RemoveActiveGameplayEffect(RegenEffectHandle);
-	// 		RegenEffectHandle.Invalidate();
-	// 		NOVA_LOG(Log, "Resource regeneration stopped for PlayerState: %s", *OwnerPlayerState->GetName());
-	// 	}
-	// }
-	
 	UAbilitySystemComponent* ASC = OwnerPlayerState ? OwnerPlayerState->GetAbilitySystemComponent() : nullptr;
 	if (ASC)
 	{
