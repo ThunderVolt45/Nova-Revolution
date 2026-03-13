@@ -15,6 +15,7 @@
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
+#include "Core/AI/NovaAIController.h"
 #include "GameFramework/HUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/NovaHUD.h"
@@ -746,6 +747,10 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 	// 현재 로컬 플레이어의 팀 ID 가져오기
 	int32 LocalTeamID = GetPlayerState<ANovaPlayerState>() ? GetPlayerState<ANovaPlayerState>()->GetTeamID() : -1;
 
+	if (CommandData.CommandType == ECommandType::Move)
+	{
+		SpawnCommandVisualEffect(CommandData.TargetLocation, CommandData.CommandType, CommandData.TargetActor.Get());
+	}
 	for (AActor* Unit : SelectedUnits)
 	{
 		// 내 팀 유닛이 아니라면 명령 전송 무시
@@ -766,7 +771,6 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 
 		if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
 		{
-			SpawnCommandVisualEffect(CommandData.TargetLocation, CommandData.CommandType);
 			CmdInterface->IssueCommand(CommandData);
 		}
 	}
@@ -895,7 +899,7 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 	}
 }
 
-void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType)
+void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor)
 {
 	UNiagaraSystem* EffectToSpawn = nullptr;
 
@@ -903,7 +907,10 @@ void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, EComman
 	switch (CommandType)
 	{
 	case ECommandType::Move:
-		EffectToSpawn = MoveCommandEffect;
+		if (!TargetActor)
+		{
+			EffectToSpawn = MoveCommandEffect;
+		}
 		break;
 	case ECommandType::Attack:
 		EffectToSpawn = AttackCommandEffect;

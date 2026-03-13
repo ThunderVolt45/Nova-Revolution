@@ -194,5 +194,5 @@ protected:
 	TObjectPtr<UNiagaraSystem> AttackCommandEffect;
 	
 	// 명령 종류에 따른 시각화 실행 함수
-	void SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType);
+	void SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor = nullptr);
 };
