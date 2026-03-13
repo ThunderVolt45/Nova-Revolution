@@ -144,28 +144,6 @@ void UNovaSelectionComponent::SetupSelection(float Radius, float HalfHeight, boo
 	CachedRadius = Radius;
 	CachedHalfHeight = HalfHeight;
 	bIsAirUnit = bIsAir;
-
-	UE_LOG(LogTemp, Warning, TEXT("===== Selection Debug ====="));
-
-	if (GetOwner())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("OwnerLoc: %s"),
-			*GetOwner()->GetActorLocation().ToString());
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("SelectionCompLoc: %s"),
-		*GetComponentLocation().ToString());
-
-	if (SelectionUIWidget)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("WidgetWorldLoc: %s"),
-			*SelectionUIWidget->GetComponentLocation().ToString());
-
-		UE_LOG(LogTemp, Warning, TEXT("WidgetRelativeLoc: %s"),
-			*SelectionUIWidget->GetRelativeLocation().ToString());
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("==========================="));
 	
 	// 메인 원 크기 및 위치 초기화
 	float Diameter = Radius * 2.0f * 1.2f;
