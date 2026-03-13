@@ -4,6 +4,7 @@
 #include "Player/NovaPlayerController.h"
 
 #include "EnhancedInputSubsystems.h"
+#include "NiagaraFunctionLibrary.h"
 #include "NovaPawn.h"
 #include "NovaRevolution.h"
 #include "Blueprint/UserWidget.h"
@@ -14,21 +15,23 @@
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
-#include "Core/NovaUnit.h"
 #include "GameFramework/HUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/NovaHUD.h"
 
 ANovaPlayerController::ANovaPlayerController()
 {
-	bShowMouseCursor = true; // 장르가 RTS 이므로 마우스 항상 표시합니다.
-	DefaultMouseCursor = EMouseCursor::Default;
+	// bShowMouseCursor = true; // 장르가 RTS 이므로 마우스 항상 표시합니다.
+	// DefaultMouseCursor = EMouseCursor::Default;
 }
 
 void ANovaPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-
+	
+	bShowMouseCursor = true;
+	DefaultMouseCursor = EMouseCursor::Default;
+	
 	// 입력 모드 설정 (Game : 게임 월드 입력(클릭, 드래그) 지원 | UI : UI 마우스 오버 등 지원)
 	FInputModeGameAndUI InputMode;
 
@@ -763,6 +766,7 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 
 		if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
 		{
+			SpawnCommandVisualEffect(CommandData.TargetLocation, CommandData.CommandType);
 			CmdInterface->IssueCommand(CommandData);
 		}
 	}
@@ -888,5 +892,30 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 		{
 			ControlGroups[i].Targets.Remove(SelectedTargets);
 		}
+	}
+}
+
+void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType)
+{
+	UNiagaraSystem* EffectToSpawn = nullptr;
+
+	// 명령 타입에 따라 이펙트 결정
+	switch (CommandType)
+	{
+	case ECommandType::Move:
+		EffectToSpawn = MoveCommandEffect;
+		break;
+	case ECommandType::Attack:
+		EffectToSpawn = AttackCommandEffect;
+		break;
+	default:
+		EffectToSpawn = MoveCommandEffect;
+		break;
+	}
+	if (EffectToSpawn)
+	{
+		// 지면에서 약간 띄워서 스폰 (Z축 오프셋)
+		FVector SpawnLoc = Loc + FVector(0.f, 0.f, 10.f);
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), EffectToSpawn, SpawnLoc);
 	}
 }

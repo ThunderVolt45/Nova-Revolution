@@ -10,6 +10,7 @@
 #include "Core/NovaTypes.h"
 #include "Core/NovaAssemblyTypes.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "GAS/NovaGameplayTags.h"
 #include "NovaUnit.generated.h"
 
 class UNovaSelectionComponent;
@@ -133,6 +134,54 @@ protected:
 private:
 	// 속성 변경 시 호출될 콜백 함수 (UI 업데이트 등)
 	void OnHealthChanged(const FOnAttributeChangeData& Data);
+
+	/** 체력 변화에 따른 데미지 연출(연기, 불길 등) 업데이트 */
+	void UpdateDamageEffects(float CurrentHealth, float MaxHealth);
+	
+	/** 모든 부품에서 데미지 GameplayCue를 제거 */
+	void ClearDamageEffects();
+
+	/** 유닛의 모든 파츠 메시 머티리얼에 Charred 효과(0.0~1.0)를 적용합니다. */
+	void UpdateCharredEffect(float Alpha);
+
+protected:
+	/** 데미지 단계별 GameplayCue 태그 */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	FGameplayTag SmokeCueTag = NovaGameplayTags::GameplayCue_Unit_Damage_Smoke;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	FGameplayTag FireCueTag = NovaGameplayTags::GameplayCue_Unit_Damage_Fire;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	FGameplayTag ExplosionCueTag = NovaGameplayTags::GameplayCue_Unit_Explosion;
+
+	/** 사망 시 유닛 위에 덮어씌울 머티리얼 (검게 그을린 효과 등) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	TObjectPtr<UMaterialInterface> DeadOverlayMaterial;
+
+	/** 현재 적용 중인 효과 상태 추적 (중첩 관리용) */
+	bool bIsSmokeActive = false;
+	bool bIsFireActive = false;
+
+	/** 사망 후 경과 시간 (머티리얼 애니메이션용) */
+	float DeathTimeElapsed = 0.0f;
+	const float CharredDuration = 0.5f;
+
+	/** 데미지 이펙트가 부착될 소켓 이름 */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	FName DamageSocketName = TEXT("Socket_Damage");
+
+	/** 연기 효과가 시작되는 체력 비율 (0.0 ~ 1.0) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float SmokeThreshold = 0.5f;
+
+	/** 불길 효과가 시작되는 체력 비율 (0.0 ~ 1.0) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float FireThreshold = 0.3f;
+	
+	// 유닛이 사망한 후 제거(폭발) 될 때까지 걸리는 시간
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "3.0"))
+	float TimeToDestroy = 2.f;
 #pragma endregion
 
 #pragma region Combat & Commands
@@ -163,7 +212,7 @@ public:
 
 protected:
 	/** 사망 시 팀 자원(와트, 인구수)을 반환하는 내부 함수 */
-	void ReturnResourcesOnDeath();
+	void ReturnResourcesOnDeath() const;
 
 	/** 유닛의 무기 공격 가능 타입 (대지/대공/모두) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
