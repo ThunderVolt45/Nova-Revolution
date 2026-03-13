@@ -41,23 +41,11 @@ void UNovaGA_SPLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
-
-    // 2. 자원 체크 및 소모 (자원 소모량 임의설정)
-    if (!CheckResources(200.0f, 50.0f))
-    {
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        NOVA_SCREEN(Warning, "Resource Is Not Enough!");
-        return;
-    }
-
-    // 3. 비용 지불
-    FGameplayEffectSpecHandle CostSpec = ASC->MakeOutgoingSpec(ModifyResourceGEClass, 1.0f, ASC->MakeEffectContext());
-    if (CostSpec.IsValid())
-    {
-        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_Watt, -200.0f);
-        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_SP, -50.0f);
-        ASC->ApplyGameplayEffectSpecToSelf(*CostSpec.Data.Get());
-    }
+    
+    // 2. 자원 체크 및 3. 비용 지불
+    if (!CheckCost()) return; // 블루프린트 설정값으로 자원 체크
+    
+    ApplyCost();              // 한 줄로 공통 소모 처리
 
     // 4. SP 레벨 속성 증가
     if (SPLevelUpIncrementGEClass)

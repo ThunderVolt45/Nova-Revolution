@@ -46,24 +46,10 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
         return;
     }
 
-    // 2. 자원 체크 (Watt 500, SP 20)
-    // 부모 클래스(UNovaSkillAbility)의 기능을 활용합니다.
-    if (!CheckResources(500.0f, 20.0f))
-    {
-        NOVA_SCREEN(Warning, "Insufficient Resources! Need 500 Watt, 20 SP.");
-        
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        return;
-    }
-
-    // 3. 비용 지불 (기존 SetByCaller GE 적용)
-    FGameplayEffectSpecHandle CostSpec = ASC->MakeOutgoingSpec(ModifyResourceGEClass, 1.0f, ASC->MakeEffectContext());
-    if (CostSpec.IsValid())
-    {
-        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_Watt, -500.0f);
-        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_SP, -20.0f);
-        ASC->ApplyGameplayEffectSpecToSelf(*CostSpec.Data.Get());
-    }
+    // 2. 자원 체크 및 3.비용 지불
+    if (!CheckCost()) return;
+    
+    ApplyCost();
 
     // 4. 레벨 속성 수치 증가 (GE_ResourceLevelUp_Increment 적용)
     if (LevelUpIncrementGEClass)

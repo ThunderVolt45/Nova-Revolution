@@ -39,14 +39,18 @@ namespace NovaGameplayTags
 	// 추가 단축키
 	UE_DEFINE_GAMEPLAY_TAG(Input_Camera_Reset, "Input.Camera.Reset"); // Home
 	UE_DEFINE_GAMEPLAY_TAG(Input_Toggle_HealthBar, "Input.Toggle.HealthBar");
+	
 	// 자원 관련 데이터
 	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_Watt, "Data.Resource.Watt");
 	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_SP, "Data.Resource.SP");
+	// 자원 특정기간 생산중단 
+	UE_DEFINE_GAMEPLAY_TAG(Data_Resource_Duration_WattStop, "Data.Resource.Duration.WattStop");
 	
 	// --- GE 관련 식별 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen, "Effect.Resource.Regen");
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_Watt, "Effect.Resource.Regen.Watt");
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_SP, "Effect.Resource.Regen.SP");
+	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Block_Watt, "Effect.Resource.Block.Watt");
 	
 	// --- 어빌리티 태그 ---
 	// 유닛
@@ -56,6 +60,7 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp, "Ability.Skill.ResourceLevelUp");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp_Watt, "Ability.Skill.ResourceLevelUp.Watt");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp_SP, "Ability.Skill.ResourceLevelUp.SP");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_Overwork, "Ability.Skill.Overwork");
 	
 	// --- 게임플레이 큐 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rifle_Fire, "GameplayCue.Weapon.Rifle.Fire");
