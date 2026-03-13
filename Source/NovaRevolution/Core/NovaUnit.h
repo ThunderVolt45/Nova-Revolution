@@ -152,6 +152,9 @@ public:
 	const TArray<FName>& GetWeaponSocketNames() const { return WeaponSocketNames; }
 
 protected:
+	/** 사망 시 팀 자원(와트, 인구수)을 반환하는 내부 함수 */
+	void ReturnResourcesOnDeath();
+
 	/** 유닛의 무기 공격 가능 타입 (대지/대공/모두) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
 	ENovaTargetType TargetType = ENovaTargetType::All;
@@ -203,6 +206,13 @@ protected:
 	/** 고도 조절 시 보간 속도 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Unit|Air")
 	float HeightInterpSpeed = 3.0f;
+
+protected:
+	/** 유닛 간 겹침 방지 및 밀어내기 처리 */
+	void HandleUnitOverlaps();
+
+	/** UI 관련 컴포넌트(체력바 등) 위치 업데이트 */
+	void UpdateUIComponents();
 
 private:
 	// 캐싱용 변수

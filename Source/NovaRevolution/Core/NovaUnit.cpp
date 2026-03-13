@@ -177,125 +177,112 @@ void ANovaUnit::Tick(float DeltaTime)
 	UpdateWeaponAiming(DeltaTime);
 
 	// 3. 완벽히 겹쳤을 때 이동 불가가 되는 현상 방지 (Anti-Overlap) 및 아군 길막힘 방지 밀어내기
-	if (!bIsDead && GetCapsuleComponent())
-	{
-		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
-		TArray<FOverlapResult> Overlaps;
-		FCollisionQueryParams Params;
-		Params.AddIgnoredActor(this);
+	HandleUnitOverlaps();
 
-		// 아군 길막힘 방지를 위해 반경을 조금 더 넓게(1.1f) 잡습니다.
-		if (GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn,
-		                                      FCollisionShape::MakeSphere(Radius * 1.1f), Params))
+	// 4. 체력바 위젯 위치 업데이트
+	UpdateUIComponents();
+}
+
+void ANovaUnit::HandleUnitOverlaps()
+{
+	if (bIsDead || !GetCapsuleComponent()) return;
+
+	float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams Params;
+	Params.AddIgnoredActor(this);
+
+	// 아군 길막힘 방지를 위해 반경을 조금 더 넓게(1.1f) 잡습니다.
+	bool bHasOverlap = GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn,
+	                                                     FCollisionShape::MakeSphere(Radius * 1.1f), Params);
+	if (!bHasOverlap) return;
+
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		ANovaUnit* OtherUnit = Cast<ANovaUnit>(Overlap.GetActor());
+		if (!OtherUnit || OtherUnit->IsDead()) continue;
+
+		FVector MyLoc = GetActorLocation();
+		FVector OtherLoc = OtherUnit->GetActorLocation();
+		FVector Diff = MyLoc - OtherLoc;
+		Diff.Z = 0.0f; // 수평 방향으로만 밀어냄
+
+		float Dist = Diff.Size();
+
+		// 거의 완전히 겹쳤을 경우 랜덤한 방향으로 튕겨냄 (기존 Anti-Overlap)
+		if (Dist < 0.1f)
 		{
-			for (const FOverlapResult& Overlap : Overlaps)
+			FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
+			AddActorWorldOffset(RandomDir * 2.0f, false);
+			continue;
+		}
+
+		// 충돌 반경의 80% 이내로 깊숙이 파고든 경우 밖으로 밀어냄 (기존 Anti-Overlap)
+		if (Dist < Radius * 0.8f)
+		{
+			FVector PushDir = Diff / Dist;
+
+			// 이동 중일 때 정면 충돌 데드락 방지 (우측 통행 유도)
+			FVector Velocity = GetVelocity();
+			Velocity.Z = 0.0f;
+
+			if (Velocity.SizeSquared() > 100.0f)
 			{
-				if (ANovaUnit* OtherUnit = Cast<ANovaUnit>(Overlap.GetActor()))
-				{
-					if (!OtherUnit->IsDead())
-					{
-						FVector MyLoc = GetActorLocation();
-						FVector OtherLoc = OtherUnit->GetActorLocation();
-						FVector Diff = MyLoc - OtherLoc;
-						Diff.Z = 0.0f; // 수평 방향으로만 밀어냄
+				FVector MyForward = Velocity.GetSafeNormal();
+				FVector MyRight = FVector::CrossProduct(FVector::UpVector, MyForward);
+				float DotRight = FVector::DotProduct(MyRight, -PushDir);
 
-						float Dist = Diff.Size();
-
-						// 거의 완전히 겹쳤을 경우 랜덤한 방향으로 튕겨냄 (기존 Anti-Overlap)
-						if (Dist < 0.1f)
-						{
-							FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).
-								GetSafeNormal();
-							AddActorWorldOffset(RandomDir * 2.0f, false);
-							continue; // 이미 밀어냈으므로 다음 유닛 검사
-						}
-
-						// 충돌 반경의 80% 이내로 깊숙이 파고든 경우 밖으로 밀어냄 (기존 Anti-Overlap)
-						if (Dist < Radius * 0.8f)
-						{
-							FVector PushDir = Diff / Dist;
-
-							// 이동 중일 때 정면 충돌 데드락 방지 (우측 통행 유도)
-							FVector Velocity = GetVelocity();
-							Velocity.Z = 0.0f;
-
-							if (Velocity.SizeSquared() > 100.0f) // 속도가 일정 이상일 때만 적용
-							{
-								FVector MyForward = Velocity.GetSafeNormal();
-								FVector MyRight = FVector::CrossProduct(FVector::UpVector, MyForward);
-
-								// 상대방이 내 기준으로 어느 쪽에 있는지 판별 (-PushDir은 상대를 향하는 방향)
-								float DotRight = FVector::DotProduct(MyRight, -PushDir);
-
-								FVector TangentDir;
-								// 상대가 내 오른쪽에 있거나 정면에 가까울 때 -> 내 오른쪽으로 회피 (우측 통행)
-								if (DotRight > -0.1f)
-								{
-									TangentDir = MyRight;
-								}
-								// 상대가 내 왼쪽에 확실히 치우쳐 있을 때 -> 내 왼쪽으로 회피
-								else
-								{
-									TangentDir = -MyRight;
-								}
-
-								// 바깥으로 밀어내는 힘과 횡방향(옆으로 비껴가는) 힘을 혼합
-								PushDir = (PushDir * 0.6f + TangentDir * 0.4f).GetSafeNormal();
-							}
-
-							AddActorWorldOffset(PushDir * 1.5f, false);
-						}
-
-						// --- 아군 길막힘 방지 밀어내기 로직 ---
-						if (GetTeamID() == OtherUnit->GetTeamID())
-						{
-							ECommandType OtherCommand = ECommandType::None;
-							if (ANovaAIController* OtherAI = Cast<ANovaAIController>(OtherUnit->GetController()))
-							{
-								OtherCommand = OtherAI->GetCurrentCommand();
-							}
-
-							// 상대 유닛이 Idle, Stop, Attack, Patrol 중일 때 상대를 밀어냅니다.
-							if (OtherCommand == ECommandType::None ||
-								OtherCommand == ECommandType::Stop ||
-								OtherCommand == ECommandType::Attack ||
-								OtherCommand == ECommandType::Patrol)
-							{
-								// 상대를 밀어낼 방향 (-Diff는 OtherUnit이 나에게서 멀어지는 방향)
-								FVector PushDir = -Diff.GetSafeNormal();
-								// 연쇄 밀어내기 호출
-								OtherUnit->PushUnit(PushDir, 2.0f, 0);
-							}
-						}
-					}
-				}
+				FVector TangentDir = (DotRight > -0.1f) ? MyRight : -MyRight;
+				PushDir = (PushDir * 0.6f + TangentDir * 0.4f).GetSafeNormal();
 			}
-		}
-	}
 
-	if (HealthBarComponent && HealthBarComponent->IsVisible())
-	{
-		if (APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
+			AddActorWorldOffset(PushDir * 1.5f, false);
+		}
+
+		// --- 아군 길막힘 방지 밀어내기 로직 ---
+		if (GetTeamID() != OtherUnit->GetTeamID()) continue;
+
+		ECommandType OtherCommand = ECommandType::None;
+		if (ANovaAIController* OtherAI = Cast<ANovaAIController>(OtherUnit->GetController()))
 		{
-			// 1. 카메라의 상단 벡터(Up Vector)를 가져옵니다.
-			// 화면상의 "아래"는 이 벡터의 반대 방향(-UpVector)입니다.
-			FVector CameraUp = CamManager->GetCameraRotation().Quaternion().GetUpVector();
-			FVector ScreenDownDir = -CameraUp;
+			OtherCommand = OtherAI->GetCurrentCommand();
+		}
 
-			// 2. 캡슐의 바닥 지점을 찾습니다.
-			float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-			FVector CapsuleBottom = GetActorLocation() - FVector(0.f, 0.f, HalfHeight);
-
-			// 3. 캡슐 반지름(Radius) + 추가 오프셋(예: 20.f)
-			float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
-			float TotalOffset = Radius + 20.0f; // 여기서 간격 조절 가능
-
-			// 4. 최종 3D 위치: 캡슐 바닥에서 "화면 아래 방향"으로 오프셋만큼 이동
-			FVector FinalAnchorLoc = CapsuleBottom + (ScreenDownDir * TotalOffset);
-
-			HealthBarComponent->SetWorldLocation(FinalAnchorLoc);
+		// 상대 유닛이 Idle, Stop, Attack, Patrol 중일 때 상대를 밀어냅니다.
+		if (OtherCommand == ECommandType::None ||
+			OtherCommand == ECommandType::Stop ||
+			OtherCommand == ECommandType::Attack ||
+			OtherCommand == ECommandType::Patrol)
+		{
+			// 상대를 밀어낼 방향 (-Diff는 OtherUnit이 나에게서 멀어지는 방향)
+			OtherUnit->PushUnit(-Diff.GetSafeNormal(), 2.0f, 0);
 		}
 	}
+}
+
+void ANovaUnit::UpdateUIComponents()
+{
+	if (!HealthBarComponent || !HealthBarComponent->IsVisible()) return;
+
+	APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager;
+	if (!CamManager) return;
+
+	// 1. 카메라의 상단 벡터(Up Vector)를 가져옵니다.
+	FVector CameraUp = CamManager->GetCameraRotation().Quaternion().GetUpVector();
+	FVector ScreenDownDir = -CameraUp;
+
+	// 2. 캡슐의 바닥 지점을 찾습니다.
+	float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	FVector CapsuleBottom = GetActorLocation() - FVector(0.f, 0.f, HalfHeight);
+
+	// 3. 캡슐 반지름(Radius) + 추가 오프셋
+	float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+	float TotalOffset = Radius + 20.0f;
+
+	// 4. 최종 3D 위치: 캡슐 바닥에서 "화면 아래 방향"으로 오프셋만큼 이동
+	FVector FinalAnchorLoc = CapsuleBottom + (ScreenDownDir * TotalOffset);
+
+	HealthBarComponent->SetWorldLocation(FinalAnchorLoc);
 }
 
 void ANovaUnit::OnConstruction(const FTransform& Transform)
@@ -804,33 +791,29 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 		{
 			bCanAttackTarget = false;
 		}
+		else if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(CommandData.TargetActor))
+		{
+			ENovaMovementType TargetMoveType = TargetUnit->GetMovementType();
+			switch (TargetType)
+			{
+			case ENovaTargetType::GroundOnly:
+				bCanAttackTarget = (TargetMoveType == ENovaMovementType::Ground);
+				break;
+			case ENovaTargetType::AirOnly:
+				bCanAttackTarget = (TargetMoveType == ENovaMovementType::Air);
+				break;
+			case ENovaTargetType::All:
+				bCanAttackTarget = true;
+				break;
+			case ENovaTargetType::None:
+				bCanAttackTarget = false;
+				break;
+			}
+		}
 		else
 		{
-			ANovaUnit* TargetUnit = Cast<ANovaUnit>(CommandData.TargetActor);
-			if (TargetUnit)
-			{
-				ENovaMovementType TargetMoveType = TargetUnit->GetMovementType();
-				switch (TargetType)
-				{
-				case ENovaTargetType::GroundOnly:
-					bCanAttackTarget = (TargetMoveType == ENovaMovementType::Ground);
-					break;
-				case ENovaTargetType::AirOnly:
-					bCanAttackTarget = (TargetMoveType == ENovaMovementType::Air);
-					break;
-				case ENovaTargetType::All:
-					bCanAttackTarget = true;
-					break;
-				case ENovaTargetType::None:
-					bCanAttackTarget = false;
-					break;
-				}
-			}
-			else
-			{
-				// 유닛이 아니지만 ASC를 가진 대상(기지 등)은 기본적으로 지상 타겟으로 간주
-				bCanAttackTarget = (TargetType != ENovaTargetType::AirOnly);
-			}
+			// 유닛이 아니지만 ASC를 가진 대상(기지 등)은 기본적으로 지상 타겟으로 간주
+			bCanAttackTarget = (TargetType != ENovaTargetType::AirOnly);
 		}
 
 		if (!bCanAttackTarget)
@@ -850,71 +833,33 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 	NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
 
 	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
-	if (CommandData.CommandType == ECommandType::Attack)
+	if (CommandData.CommandType != ECommandType::Attack) return;
+
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
 	{
-		for (ANovaPart* WeaponPart : CurrentWeaponParts)
+		if (WeaponPart)
 		{
-			if (WeaponPart)
-			{
-				WeaponPart->PlayAttackAnimation();
-			}
+			WeaponPart->PlayAttackAnimation();
 		}
 	}
 }
 
 void ANovaUnit::Die()
 {
-	if (bIsDead)
-	{
-		return;
-	}
+	if (bIsDead) return;
 
 	// 유닛 사망 처리 로직
 	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
 
 	// NovaPlayerController에 선택 해제 요청
-	if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+	if (ANovaPlayerController* NovaPC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
 	{
-		if (ANovaPlayerController* NovaPC = Cast<ANovaPlayerController>(PC))
-		{
-			NovaPC->NotifyTargetUnselectable(this);
-		}
+		NovaPC->NotifyTargetUnselectable(this);
 	}
 
 	// 자원 반납 (인구수 -1, 자신의 와트 비용만큼 차감)
-	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
-	{
-		float UnitWatt = ASC->GetNumericAttribute(UNovaAttributeSet::GetWattAttribute());
-
-		UWorld* World = GetWorld();
-		if (World)
-		{
-			for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++
-			     Iterator)
-			{
-				if (APlayerController* PC = Iterator->Get())
-				{
-					if (ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>())
-					{
-						// INovaTeamInterface를 통해 팀 ID를 확인합니다.
-						INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
-						if (TeamInterface && TeamInterface->GetTeamID() == TeamID)
-						{
-							if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<
-								UNovaResourceComponent>())
-							{
-								ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
-								NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(),
-								         UnitWatt, TeamID);
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	ReturnResourcesOnDeath();
 
 	// AI 동작 정지 요청
 	if (ANovaAIController* AIC = Cast<ANovaAIController>(GetController()))
@@ -925,8 +870,8 @@ void ANovaUnit::Die()
 	// 내비게이션 장애물 해제 (죽은 유닛은 길을 막지 않음)
 	SetNavigationObstacle(false);
 
-	// 충돌 비활성화 및 소멸 처리 (필요에 따라 래그돌 또는 파편화 연출 추가 가능)
-	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// 충돌 비활성화 및 소멸 처리
+	if (GetCapsuleComponent()) GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
 
 	// 모든 부품에 사망 상태 전달
@@ -940,17 +885,13 @@ void ANovaUnit::Die()
 
 	for (ANovaPart* Part : PartActors)
 	{
-		if (Part)
-		{
-			Part->SetIsDead(true);
-		}
+		if (Part) Part->SetIsDead(true);
 	}
 
 	// 체력바 컴포넌트 숨기기
 	if (HealthBarComponent)
 	{
 		HealthBarComponent->SetVisibility(false);
-		// 컴포넌트 비활성화
 		HealthBarComponent->Deactivate();
 	}
 
@@ -967,6 +908,36 @@ void ANovaUnit::Die()
 			Destroy();
 		}
 	}, 2.0f, false);
+}
+
+void ANovaUnit::ReturnResourcesOnDeath()
+{
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponent();
+	if (!ASC) return;
+
+	float UnitWatt = ASC->GetNumericAttribute(UNovaAttributeSet::GetWattAttribute());
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+	{
+		APlayerController* PC = Iterator->Get();
+		if (!PC) continue;
+
+		ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>();
+		if (!PS) continue;
+
+		// INovaTeamInterface를 통해 팀 ID를 확인합니다.
+		INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
+		if (!TeamInterface || TeamInterface->GetTeamID() != TeamID) continue;
+
+		if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+		{
+			ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
+			NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
+			return; // 해당 팀의 자원을 업데이트했으므로 중단
+		}
+	}
 }
 
 void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
