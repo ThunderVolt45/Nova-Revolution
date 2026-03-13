@@ -15,6 +15,7 @@ class UNovaInputConfig;
 class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
+class UNiagaraSystem;
 
 /**
  * 부대 지정의 대상들을 담아둘 구조체
@@ -183,4 +184,15 @@ protected:
 	/** 생성된 HUD 인스턴스 저장용 */
 	UPROPERTY()
 	UUserWidget* MainHUDInstance;
+	
+	// 이동 명령 시 생성할 이펙트
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI|Command")
+	TObjectPtr<UNiagaraSystem> MoveCommandEffect;
+	
+	// 공격 명령 시 생성할 이펙트
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI|Command")
+	TObjectPtr<UNiagaraSystem> AttackCommandEffect;
+	
+	// 명령 종류에 따른 시각화 실행 함수
+	void SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType);
 };
