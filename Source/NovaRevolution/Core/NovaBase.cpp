@@ -11,10 +11,11 @@
 #include "Core/Production/NovaUnitFactory.h"
 #include "NovaRevolution.h"
 #include "Components/BoxComponent.h"
-#include "Components/ProgressBar.h"
 #include "Components/WidgetComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/NovaPlayerController.h"
+#include "UI/NovaHealthBarComponent.h"
+#include "UI/NovaSelectionComponent.h"
 
 ANovaBase::ANovaBase()
 {
@@ -35,22 +36,12 @@ ANovaBase::ANovaBase()
 	}
 
 	// 선택 원 위젯
-	SelectionWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("SelectionWidget"));
-	SelectionWidget->SetupAttachment(RootComponent);
-	SelectionWidget->SetUsingAbsoluteScale(true);
-	SelectionWidget->SetUsingAbsoluteRotation(true);
-	SelectionWidget->SetWidgetSpace(EWidgetSpace::World);
-	SelectionWidget->SetRelativeRotation(FRotator(90.f, 0.f, 0.f));;
-	SelectionWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	SelectionWidget->SetVisibility(false);
+	SelectionComponent = CreateDefaultSubobject<UNovaSelectionComponent>(TEXT("SelectionComponent"));
+	SelectionComponent->SetupAttachment(RootComponent);
 
 	// 체력바 위젯
-	HealthBarWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HealthBarWidget"));
-	HealthBarWidget->SetupAttachment(RootComponent);
-	HealthBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
-	HealthBarWidget->SetDrawAtDesiredSize(false);
-	HealthBarWidget->SetUsingAbsoluteScale(true);
-	HealthBarWidget->SetVisibility(true);
+	HealthBarComponent = CreateDefaultSubobject<UNovaHealthBarComponent>(TEXT("HealthBarComponent"));
+	HealthBarComponent->SetupAttachment(RootComponent);
 
 	// ASC 및 AttributeSet 구성
 	AbilitySystemComponent = CreateDefaultSubobject<UAbilitySystemComponent>(TEXT("AbilitySystemComponent"));
@@ -72,19 +63,17 @@ void ANovaBase::BeginPlay()
 	InitializeUIColors();
 
 	// 초기 UI 트랜스폼 및 데이터 설정
-	UpdateSelectionCircleTransform();
-	UpdateHealthBarLength();
-	UpdateHealthBar();
-
-	// [추가] 플레이어 컨트롤러의 델리게이트 바인딩 및 초기 상태 동기화
-	if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+	if (SelectionComponent && BaseCollision)
 	{
-		// 1. 초기 상태 동기화
-		SetHealthBarVisibilityOption(PC->GetShowHealthBars());
+		FVector BoxExtent = BaseCollision->GetScaledBoxExtent();
+		// 박스의 X, Y 중 큰 값을 반지름으로 사용
+		float Radius = FMath::Max(BoxExtent.X, BoxExtent.Y);
+		float HalfHeight = BoxExtent.Z;
 
-		// 2. 델리게이트 바인딩
-		PC->OnShowHealthBarsChanged.AddDynamic(this, &ANovaBase::SetHealthBarVisibilityOption);
+		SelectionComponent->SetupSelection(Radius, HalfHeight, false); // 기지는 지상 판정
+		SelectionComponent->SetTeamColor(CachedUIColor);
 	}
+	UpdateHealthBar();
 
 	// 랠리 포인트 초기값 설정 (기지 앞쪽 500 유닛 지점 예시)
 	RallyPoint = GetActorLocation() + GetActorForwardVector() * 500.0f;
@@ -108,7 +97,7 @@ void ANovaBase::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// 체력바 화면 아래 방향 앵커링
-	if (HealthBarWidget && HealthBarWidget->IsVisible())
+	if (HealthBarComponent && HealthBarComponent->IsVisible())
 	{
 		if (APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
 		{
@@ -119,7 +108,7 @@ void ANovaBase::Tick(float DeltaTime)
 			float Radius = FMath::Max(BaseCollision->GetScaledBoxExtent().X, BaseCollision->GetScaledBoxExtent().Y);
 			FVector FinalAnchorLoc = BoxBottom + (ScreenDownDir * (Radius + 50.0f));
 
-			HealthBarWidget->SetWorldLocation(FinalAnchorLoc);
+			HealthBarComponent->SetWorldLocation(FinalAnchorLoc);
 		}
 	}
 }
@@ -130,8 +119,11 @@ void ANovaBase::SetTeamID(int32 NewTeamID)
 
 	// 팀 ID가 설정되었으므로, 이에 맞춰 UI 색상을 다시 계산하고 업데이트
 	InitializeUIColors();
+	if (SelectionComponent)
+	{
+		SelectionComponent->SetTeamColor(CachedUIColor);
+	}
 	UpdateHealthBar(); // 체력바 색상 즉시 갱신
-	if (bIsSelected) UpdateSelectionCircleColor(); // 선택 중이라면 원 색상도 갱신
 
 	// 해당 팀의 PlayerState를 찾아 자신을 등록
 	UWorld* World = GetWorld();
@@ -163,11 +155,10 @@ UAbilitySystemComponent* ANovaBase::GetAbilitySystemComponent() const
 void ANovaBase::OnSelected()
 {
 	bIsSelected = true;
-	if (SelectionWidget)
+	if (SelectionComponent)
 	{
-		UpdateSelectionCircleColor();
-		UpdateSelectionCircleTransform();
-		SelectionWidget->SetVisibility(true);
+		SelectionComponent->SetSelectionVisible(true);
+		SelectionComponent->SetTeamColor(CachedUIColor);
 	}
 	UE_LOG(LogTemp, Log, TEXT("Base Selected: %s (TeamID: %d)"), *GetName(), TeamID);
 }
@@ -175,7 +166,7 @@ void ANovaBase::OnSelected()
 void ANovaBase::OnDeselected()
 {
 	bIsSelected = false;
-	if (SelectionWidget) SelectionWidget->SetVisibility(false);
+	if (SelectionComponent) SelectionComponent->SetSelectionVisible(false);
 	UE_LOG(LogTemp, Log, TEXT("Base Deselected: %s"), *GetName());
 }
 
@@ -309,6 +300,14 @@ void ANovaBase::DestroyBase()
 		GM->OnBaseDestroyed(this);
 	}
 
+	// 체력바 컴포넌트 숨기기
+	if (HealthBarComponent)
+	{
+		HealthBarComponent->SetVisibility(false);
+		// 컴포넌트 비활성화
+		HealthBarComponent->Deactivate();
+	}
+
 	Destroy();
 }
 
@@ -323,74 +322,13 @@ void ANovaBase::OnHealthChanged(const FOnAttributeChangeData& Data)
 	UpdateHealthBar();
 }
 
-void ANovaBase::UpdateSelectionCircleTransform()
-{
-	if (BaseCollision && SelectionWidget)
-	{
-		// 박스의 평면 크기(X, Y) 중 큰 쪽을 기준으로 반지름 결정
-		FVector BoxExtent = BaseCollision->GetScaledBoxExtent();
-		float MaxSide = FMath::Max(BoxExtent.X, BoxExtent.Y);
-		float Diameter = MaxSide * 2.0f * 1.2f; // 지름 계산
-		SelectionWidget->SetDrawSize(FVector2D(Diameter, Diameter));
-
-		// 위치 : 박스 바닥에서 살짝 위
-		SelectionWidget->SetRelativeLocation(FVector(0.f, 0.f, -BoxExtent.Z + 10.0f));
-
-		// 절대 스케일 사용 시 스케일 고정
-		SelectionWidget->SetRelativeScale3D(FVector(1.f, 1.f, 1.f));
-	}
-}
-
-void ANovaBase::UpdateSelectionCircleColor()
-{
-	if (!SelectionWidget) return;
-
-	if (SelectionWidget->GetUserWidgetObject())
-	{
-		SelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(CachedUIColor);
-	}
-}
-
 void ANovaBase::UpdateHealthBar()
 {
-	if (!HealthBarWidget || !AttributeSet) return;
+	if (!HealthBarComponent || !AttributeSet) return;
 
-	UUserWidget* WidgetObj = HealthBarWidget->GetUserWidgetObject();
-	if (!WidgetObj) return;
-
-	// 위젯 내부의 ProgressBar 찾기 (BP에서 HealthBar로 이름 설정)
-	UProgressBar* HealthBar = Cast<UProgressBar>(WidgetObj->GetWidgetFromName(TEXT("HealthBar")));
-	if (HealthBar)
-	{
-		// 현재 체력 비율 계산 (CurrentHealth / MaxHealth)
-		float CurrentHP = AttributeSet->GetHealth();
-		float MaxHP = AttributeSet->GetMaxHealth();
-		float HPPercent = (MaxHP > 0.f) ? (CurrentHP / MaxHP) : (0.f);
-
-		// 체력 퍼센트 적용
-		HealthBar->SetPercent(HPPercent);
-		// 색상 부여
-		HealthBar->SetFillColorAndOpacity(CachedUIColor);
-	}
-}
-
-void ANovaBase::UpdateHealthBarLength()
-{
-	if (!HealthBarWidget || !AttributeSet) return;
-
-	float MaxHP = AttributeSet->GetMaxHealth();
-
-	// 로그 스케일 계산 (기준점 500HP부터 늘어나도록 설정)
-	float LogHPVal = FMath::Loge(FMath::Max(1.0f, MaxHP / 500.0f));
-
-	// 가로 길이 계산: 기본 150px + (로그값 * 계수 80)
-	float TargetWidth = MinHealthBarWidth + (LogHPVal * HealthBarLogScaleFactor);
-
-	// 범위 제한 (Min 150 ~ Max 350)
-	TargetWidth = FMath::Clamp(TargetWidth, MinHealthBarWidth, MaxHealthBarWidth);
-
-	// 적용 (세로 길이는 기지에 맞춰 15.f 정도로 두툼하게)
-	HealthBarWidget->SetDrawSize(FVector2D(TargetWidth, HealthBarHeight));
+	HealthBarComponent->UpdateHealthBar(AttributeSet->GetHealth(),
+	                                    AttributeSet->GetMaxHealth(),
+	                                    CachedUIColor);
 }
 
 void ANovaBase::InitializeUIColors()
@@ -426,9 +364,9 @@ void ANovaBase::SetFogVisibility(bool bVisible)
 	}
 
 	// 체력바 위젯 숨김/표시
-	if (HealthBarWidget)
+	if (HealthBarComponent)
 	{
-		HealthBarWidget->SetVisibility(bVisible && bHealthBarOptionEnabled);
+		HealthBarComponent->SetFogVisibility(bVisible);
 	}
 
 	// 선택된 상태에서 안개 속으로 사라졌을 때 처리
@@ -444,19 +382,8 @@ void ANovaBase::SetFogVisibility(bool bVisible)
 	}
 
 	// 선택 표시 위젯 강제 끄기
-	if (!bVisible && SelectionWidget)
+	if (!bVisible && SelectionComponent)
 	{
-		SelectionWidget->SetVisibility(false);
-	}
-}
-
-void ANovaBase::SetHealthBarVisibilityOption(bool bEnable)
-{
-	bHealthBarOptionEnabled = bEnable;
-
-	// 현재 안개에 의해 보이고 있다면, 옵션 값에 따라 체력바 갱신
-	if (HealthBarWidget && bIsVisibleByFog)
-	{
-		HealthBarWidget->SetVisibility(bEnable);
+		SelectionComponent->SetSelectionVisible(false);
 	}
 }

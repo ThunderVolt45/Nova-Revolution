@@ -36,4 +36,4 @@
 
 ## PR 양식 (Templete)
 - Pull Request 제목과 내용은 다음 양식을 따라야 함.
-@./WORK_LOG_TEMPLETE.md
+@../.github/PULL_REQUEST_TEMPLATE.md

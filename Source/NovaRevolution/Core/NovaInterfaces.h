@@ -199,3 +199,27 @@ public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Skill")
 	void ActivateSkillAbility(FGameplayTag AbilityTag);
 };
+
+// --- 오브젝트 풀링 인터페이스 ---
+UINTERFACE(MinimalAPI, BlueprintType)
+class UNovaObjectPoolable : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * 오브젝트 풀에서 관리될 수 있는 액터들이 구현해야 하는 인터페이스
+ */
+class NOVAREVOLUTION_API INovaObjectPoolable
+{
+	GENERATED_BODY()
+
+public:
+	/** 풀에서 꺼내질 때 호출됩니다. (위치/회전 이동 직후, 활성화 직전/직후) 초기화 작업을 수행합니다. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|ObjectPool")
+	void OnSpawnFromPool();
+
+	/** 풀로 돌아갈 때 호출됩니다. 상태를 리셋하거나 비활성화합니다. (풀에 들어가기 직전 호출됨) */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|ObjectPool")
+	void OnReturnToPool();
+};

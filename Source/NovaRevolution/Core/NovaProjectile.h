@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "GameplayTagContainer.h"
 #include "GameplayEffectTypes.h"
+#include "Core/NovaInterfaces.h"
 #include "NovaProjectile.generated.h"
 
 class USphereComponent;
@@ -16,7 +17,7 @@ class UNiagaraComponent;
  * Nova Revolution의 발사체 기본 클래스
  */
 UCLASS()
-class NOVAREVOLUTION_API ANovaProjectile : public AActor
+class NOVAREVOLUTION_API ANovaProjectile : public AActor, public INovaObjectPoolable
 {
 	GENERATED_BODY()
 	
@@ -25,6 +26,10 @@ public:
 
 	/** 발사체 초기화 정보를 설정합니다. */
 	void InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius = 0.0f, AActor* InTargetActor = nullptr, FVector InTargetLocation = FVector::ZeroVector, bool bInHoming = true);
+
+	// --- INovaObjectPoolable ---
+	virtual void OnSpawnFromPool_Implementation() override;
+	virtual void OnReturnToPool_Implementation() override;
 
 protected:
 	virtual void BeginPlay() override;

@@ -7,6 +7,7 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "NovaRevolution.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Core/NovaObjectPoolSubsystem.h"
 
 ANovaProjectile::ANovaProjectile()
 {
@@ -61,12 +62,16 @@ void ANovaProjectile::Tick(float DeltaTime)
 			Explode(TargetActor, TargetLocation);
 		}
 	}
-	// 3. 만약 타겟 정보가 아예 없는 비정상적인 상황이라면 소멸 처리
+	// 3. 만약 타겟 정보가 아예 없는 비정상적인 상황이라면 풀로 반환
 	else
 	{
-		if (GetLifeSpan() <= 0.0f)
+		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 		{
-			SetLifeSpan(1.0f);
+			PoolSubsystem->ReturnToPool(this);
+		}
+		else
+		{
+			Destroy();
 		}
 	}
 }
@@ -97,6 +102,37 @@ void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSp
 	{
 		TargetLocation = TargetActor->GetActorLocation();
 	}
+}
+
+void ANovaProjectile::OnSpawnFromPool_Implementation()
+{
+	// 틱 활성화 및 상태 초기화
+	SetActorTickEnabled(true);
+	
+	if (ProjectileMovement)
+	{
+		ProjectileMovement->Velocity = GetActorForwardVector() * ProjectileMovement->InitialSpeed;
+		ProjectileMovement->SetComponentTickEnabled(true);
+		ProjectileMovement->Activate(true);
+	}
+}
+
+void ANovaProjectile::OnReturnToPool_Implementation()
+{
+	// 상태 리셋
+	TargetActor = nullptr;
+	TargetLocation = FVector::ZeroVector;
+	DamageSpecHandle = FGameplayEffectSpecHandle();
+	
+	if (ProjectileMovement)
+	{
+		ProjectileMovement->StopMovementImmediately();
+		ProjectileMovement->HomingTargetComponent = nullptr;
+		ProjectileMovement->bIsHomingProjectile = false;
+		ProjectileMovement->Deactivate();
+	}
+
+	SetActorTickEnabled(false);
 }
 
 void ANovaProjectile::Explode(AActor* InTargetActor, const FVector& ImpactLocation)
@@ -152,5 +188,13 @@ void ANovaProjectile::Explode(AActor* InTargetActor, const FVector& ImpactLocati
 		}
 	}
 
-	Destroy();
+	// 3. 풀로 반환
+	if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
+	{
+		PoolSubsystem->ReturnToPool(this);
+	}
+	else
+	{
+		Destroy();
+	}
 }
