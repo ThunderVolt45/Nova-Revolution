@@ -7,6 +7,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemInterface.h"
+#include "NovaObjectPoolSubsystem.h"
 #include "NovaRevolution.h"
 
 ANovaPart::ANovaPart()
@@ -36,10 +37,35 @@ void ANovaPart::OnSpawnFromPool_Implementation()
 
 void ANovaPart::OnReturnToPool_Implementation()
 {
-	// 풀로 돌아갈 때 부착 해제 및 상태 리셋
+	// 1. 부모로부터 분리
 	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
-	
-	// 애니메이션 중지 등
+
+	// 2. 모든 메시 컴포넌트의 물리 및 트랜스폼 리셋
+	TArray<UPrimitiveComponent*> Meshes;
+	GetComponents<UPrimitiveComponent>(Meshes);
+
+	for (UPrimitiveComponent* MeshComp : Meshes)
+	{
+		if (MeshComp && MeshComp != RootComponent)
+		{
+			// 물리 시뮬레이션 완전 중지 및 속도 초기화
+			MeshComp->SetSimulatePhysics(false);
+			MeshComp->PutAllRigidBodiesToSleep();
+			MeshComp->SetAllPhysicsLinearVelocity(FVector::ZeroVector);
+			MeshComp->SetAllPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
+
+			// 충돌 비활성화
+			MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+			// 중요: 물리 시뮬레이션으로 인해 끊어졌을 수 있는 계층 구조를 복구합니다.
+			MeshComp->AttachToComponent(RootComponent, FAttachmentTransformRules::SnapToTargetIncludingScale);
+
+			// 튕겨나가면서 변한 상대 트랜스폼을 루트 기준으로 리셋
+			MeshComp->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+		}
+	}
+
+	// 3. 애니메이션 중지 및 상태 초기화
 	if (SkeletalMesh)
 	{
 		if (UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance())
@@ -229,4 +255,76 @@ void ANovaPart::PlayFireEffects()
 			NOVA_LOG(Warning, "PlayFireEffects: Could not find AbilitySystemInterface on Owner or Parent of %s", *GetName());
 		}
 	}
+}
+
+void ANovaPart::SetCharredAlpha(float Alpha)
+{
+	TArray<UPrimitiveComponent*> Meshes;
+	GetComponents<UPrimitiveComponent>(Meshes);
+
+	for (UPrimitiveComponent* MeshComp : Meshes)
+	{
+		if (!MeshComp) continue;
+
+		int32 NumMaterials = MeshComp->GetNumMaterials();
+		for (int32 i = 0; i < NumMaterials; ++i)
+		{
+			UMaterialInterface* Mat = MeshComp->GetMaterial(i);
+			UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Mat);
+
+			// Alpha가 0일 때(사망 초기) 다이나믹 머티리얼이 없다면 생성합니다.
+			if (!MID && Alpha <= 0.01f)
+			{
+				MID = MeshComp->CreateDynamicMaterialInstance(i);
+			}
+
+			if (MID)
+			{
+				MID->SetScalarParameterValue(TEXT("Charred"), Alpha);
+				
+				// 서서히 검은색으로 변하는 연출 (FLinearColor::Black은 0,0,0)
+				FLinearColor BlackColor = FLinearColor::Black;
+				MID->SetVectorParameterValue(TEXT("BaseColor"), FLinearColor::LerpUsingHSV(FLinearColor::White, BlackColor, Alpha));
+				MID->SetVectorParameterValue(TEXT("Color"), FLinearColor::LerpUsingHSV(FLinearColor::White, BlackColor, Alpha));
+			}
+		}
+	}
+}
+
+void ANovaPart::ExplodeAndDetach(FVector Impulse)
+{
+	// 1. 부모로부터 분리 (월드 변환 유지)
+	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+	// 2. 물리 설정 활성화
+	if (UPrimitiveComponent* MeshComp = GetMainMesh())
+	{
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		MeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
+		
+		// 중요: 유닛(Pawn)의 이동을 방해하지 않도록 Pawn 채널 충돌은 무시합니다.
+		MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+		
+		// 추가: 내비게이션 메쉬에 영향을 주지 않도록 설정하여 경로를 방해하지 않게 함
+		MeshComp->SetCanEverAffectNavigation(false);
+
+		MeshComp->SetSimulatePhysics(true);
+		
+		// 튕겨나가는 힘 적용
+		MeshComp->AddImpulse(Impulse, NAME_None, true);
+	}
+
+	// 3. 일정 시간 후 오브젝트 풀로 반납 (자가 반납)
+	FTimerHandle ReturnTimer;
+	GetWorld()->GetTimerManager().SetTimer(ReturnTimer, [this]()
+	{
+		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
+		{
+			PoolSubsystem->ReturnToPool(this);
+		}
+		else
+		{
+			Destroy();
+		}
+	}, 5.0f, false);
 }

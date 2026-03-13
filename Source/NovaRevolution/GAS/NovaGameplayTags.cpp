@@ -63,6 +63,9 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_Overwork, "Ability.Skill.Overwork");
 	
 	// --- 게임플레이 큐 태그 ---
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Damage_Smoke, "GameplayCue.Unit.Damage.Smoke");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Damage_Fire, "GameplayCue.Unit.Damage.Fire");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Explosion, "GameplayCue.Unit.Explosion");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rifle_Fire, "GameplayCue.Weapon.Rifle.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rifle_Hit, "GameplayCue.Weapon.Rifle.Hit");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rocketeer_Fire, "GameplayCue.Weapon.Rocketeer.Fire");
