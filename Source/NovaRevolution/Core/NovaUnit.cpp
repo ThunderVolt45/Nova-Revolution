@@ -893,6 +893,75 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 
 	// 실시간 체력바 업데이트 호출
 	UpdateHealthBar();
+
+	// 데미지 연출 업데이트
+	UpdateDamageEffects(Data.NewValue, AttributeSet->GetMaxHealth());
+}
+
+void ANovaUnit::UpdateDamageEffects(float CurrentHealth, float MaxHealth)
+{
+	if (!AbilitySystemComponent || bIsDead) return;
+
+	float HealthPercent = (MaxHealth > 0.0f) ? (CurrentHealth / MaxHealth) : 0.0f;
+	FGameplayTag NewCueTag = FGameplayTag::EmptyTag;
+
+	// 체력 비율에 따른 GameplayCue 태그 결정
+	if (HealthPercent <= 0.3f)
+	{
+		NewCueTag = FireCueTag;
+	}
+	else if (HealthPercent <= 0.7f)
+	{
+		NewCueTag = SmokeCueTag;
+	}
+
+	// 태그가 변경된 경우에만 모든 부품의 효과 갱신
+	if (CurrentDamageCueTag != NewCueTag)
+	{
+		// 모든 활성화된 부품 수집
+		TArray<ANovaPart*> AllParts;
+		if (CurrentLegsPart) AllParts.Add(CurrentLegsPart);
+		if (CurrentBodyPart) AllParts.Add(CurrentBodyPart);
+		for (ANovaPart* Weapon : CurrentWeaponParts) if (Weapon) AllParts.Add(Weapon);
+
+		for (ANovaPart* Part : AllParts)
+		{
+			// 이전 효과 제거
+			if (CurrentDamageCueTag.IsValid())
+			{
+				ApplyDamageCueToPart(Part, CurrentDamageCueTag, false);
+			}
+
+			// 새 효과 추가
+			if (NewCueTag.IsValid())
+			{
+				ApplyDamageCueToPart(Part, NewCueTag, true);
+			}
+		}
+
+		CurrentDamageCueTag = NewCueTag;
+		NOVA_LOG(Log, "Unit %s Damage Visual State Changed: %s", *GetName(), *CurrentDamageCueTag.ToString());
+	}
+}
+
+void ANovaUnit::ApplyDamageCueToPart(ANovaPart* Part, FGameplayTag CueTag, bool bAdd)
+{
+	if (!Part || !CueTag.IsValid() || !AbilitySystemComponent) return;
+
+	FGameplayCueParameters Params;
+	// 핵심: 부품의 메시를 전달하여 GameplayCue가 해당 컴포넌트의 소켓을 찾게 함
+	Params.TargetAttachComponent = Part->GetMainMesh();
+	Params.Instigator = this;
+	Params.EffectCauser = Part;
+
+	if (bAdd)
+	{
+		AbilitySystemComponent->AddGameplayCue(CueTag, Params);
+	}
+	else
+	{
+		AbilitySystemComponent->RemoveGameplayCue(CueTag);
+	}
 }
 
 bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
@@ -1304,7 +1373,10 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	
 	UpdateHealthBar();
 
-	// 7. 랠리 포인트 이동
+	// 7. 데미지 태그 초기화
+	CurrentDamageTag = FGameplayTag::EmptyTag;
+
+	// 8. 랠리 포인트 이동
 	if (!InitialRallyLocation.IsNearlyZero())
 	{
 		FCommandData MoveCmd;

@@ -133,6 +133,23 @@ protected:
 private:
 	// 속성 변경 시 호출될 콜백 함수 (UI 업데이트 등)
 	void OnHealthChanged(const FOnAttributeChangeData& Data);
+
+	/** 체력 변화에 따른 데미지 연출(연기, 불길 등) 업데이트 */
+	void UpdateDamageEffects(float CurrentHealth, float MaxHealth);
+
+	/** 특정 부품에 GameplayCue를 적용하거나 제거하는 헬퍼 함수 */
+	void ApplyDamageCueToPart(ANovaPart* Part, FGameplayTag CueTag, bool bAdd);
+
+protected:
+	/** 데미지 단계별 GameplayCue 태그 */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	FGameplayTag SmokeCueTag;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	FGameplayTag FireCueTag;
+
+	/** 현재 적용 중인 데미지 큐 태그 (이전 효과 제거용) */
+	FGameplayTag CurrentDamageCueTag;
 #pragma endregion
 
 #pragma region Combat & Commands
