@@ -10,6 +10,7 @@
 #include "Core/NovaTypes.h"
 #include "Core/NovaAssemblyTypes.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "GAS/NovaGameplayTags.h"
 #include "NovaUnit.generated.h"
 
 class UNovaSelectionComponent;
@@ -136,20 +137,21 @@ private:
 
 	/** 체력 변화에 따른 데미지 연출(연기, 불길 등) 업데이트 */
 	void UpdateDamageEffects(float CurrentHealth, float MaxHealth);
-
-	/** 특정 부품에 GameplayCue를 적용하거나 제거하는 헬퍼 함수 */
-	void ApplyDamageCueToPart(ANovaPart* Part, FGameplayTag CueTag, bool bAdd);
+	
+	/** 모든 부품에서 데미지 GameplayCue를 제거 */
+	void ClearDamageEffects();
 
 protected:
 	/** 데미지 단계별 GameplayCue 태그 */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
-	FGameplayTag SmokeCueTag;
+	FGameplayTag SmokeCueTag = NovaGameplayTags::GameplayCue_Unit_Damage_Smoke;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
-	FGameplayTag FireCueTag;
+	FGameplayTag FireCueTag = NovaGameplayTags::GameplayCue_Unit_Damage_Fire;
 
-	/** 현재 적용 중인 데미지 큐 태그 (이전 효과 제거용) */
-	FGameplayTag CurrentDamageCueTag;
+	/** 현재 적용 중인 효과 상태 추적 (중첩 관리용) */
+	bool bIsSmokeActive = false;
+	bool bIsFireActive = false;
 
 	/** 데미지 이펙트가 부착될 소켓 이름 */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")

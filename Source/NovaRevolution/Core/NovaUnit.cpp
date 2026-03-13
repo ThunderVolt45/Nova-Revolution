@@ -145,7 +145,7 @@ void ANovaUnit::BeginPlay()
 		MoveCmd.TargetLocation = InitialRallyLocation;
 
 		IssueCommand(MoveCmd);
-		NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
+		// NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
 	}
 }
 
@@ -764,8 +764,8 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 
 		if (!bCanAttackTarget)
 		{
-			NOVA_LOG(Warning, "Unit %s cannot attack %s due to TargetType mismatch or invalid target.", *GetName(),
-			         *CommandData.TargetActor->GetName());
+			// NOVA_LOG(Warning, "Unit %s cannot attack %s due to TargetType mismatch or invalid target.", *GetName(),
+			//          *CommandData.TargetActor->GetName());
 			return; // 공격 불가능한 대상이면 명령 무시
 		}
 	}
@@ -776,7 +776,7 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 		CmdInterface->IssueCommand(CommandData);
 	}
 
-	NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
+	// NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
 
 	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
 	if (CommandData.CommandType != ECommandType::Attack) return;
@@ -795,7 +795,7 @@ void ANovaUnit::Die()
 	if (bIsDead) return;
 
 	// 유닛 사망 처리 로직
-	NOVA_LOG(Warning, "Unit Died: %s", *GetName());
+	// NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
 
 	// NovaPlayerController에 선택 해제 요청
@@ -845,6 +845,9 @@ void ANovaUnit::Die()
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
 	{
+		// 데미지 연출 제거
+		ClearDamageEffects();
+		
 		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 		{
 			PoolSubsystem->ReturnToPool(this);
@@ -880,7 +883,7 @@ void ANovaUnit::ReturnResourcesOnDeath()
 		if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
 		{
 			ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
-			NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
+			// NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
 			return; // 해당 팀의 자원을 업데이트했으므로 중단
 		}
 	}
@@ -903,73 +906,48 @@ void ANovaUnit::UpdateDamageEffects(float CurrentHealth, float MaxHealth)
 	if (!AbilitySystemComponent || bIsDead) return;
 
 	float HealthPercent = (MaxHealth > 0.0f) ? (CurrentHealth / MaxHealth) : 0.0f;
-	FGameplayTag NewCueTag = FGameplayTag::EmptyTag;
 
-	// 체력 비율에 따른 GameplayCue 태그 결정 (임계값 변수 사용)
-	if (HealthPercent <= FireThreshold)
+	// 1. 연기(Smoke) 상태 업데이트
+	bool bShouldHaveSmoke = (HealthPercent <= SmokeThreshold);
+	if (bIsSmokeActive != bShouldHaveSmoke)
 	{
-		NewCueTag = FireCueTag;
+		bIsSmokeActive = bShouldHaveSmoke;
+		
+		FGameplayCueParameters Params;
+		Params.Instigator = this;
+		Params.EffectCauser = this;
+
+		if (bIsSmokeActive) AbilitySystemComponent->AddGameplayCue(SmokeCueTag, Params);
+		else AbilitySystemComponent->RemoveGameplayCue(SmokeCueTag);
 	}
-	else if (HealthPercent <= SmokeThreshold)
+
+	// 2. 불길(Fire) 상태 업데이트
+	bool bShouldHaveFire = (HealthPercent <= FireThreshold);
+	if (bIsFireActive != bShouldHaveFire)
 	{
-		NewCueTag = SmokeCueTag;
-	}
+		bIsFireActive = bShouldHaveFire;
 
-	// 태그가 변경된 경우에만 모든 부품의 효과 갱신
-	if (CurrentDamageCueTag != NewCueTag)
-	{
-		// 모든 활성화된 부품 수집
-		TArray<ANovaPart*> AllParts;
-		if (CurrentLegsPart) AllParts.Add(CurrentLegsPart);
-		if (CurrentBodyPart) AllParts.Add(CurrentBodyPart);
-		for (ANovaPart* Weapon : CurrentWeaponParts) if (Weapon) AllParts.Add(Weapon);
+		FGameplayCueParameters Params;
+		Params.Instigator = this;
+		Params.EffectCauser = this;
 
-		for (ANovaPart* Part : AllParts)
-		{
-			// 이전 효과 제거
-			if (CurrentDamageCueTag.IsValid())
-			{
-				ApplyDamageCueToPart(Part, CurrentDamageCueTag, false);
-			}
-
-			// 새 효과 추가
-			if (NewCueTag.IsValid())
-			{
-				ApplyDamageCueToPart(Part, NewCueTag, true);
-			}
-		}
-
-		CurrentDamageCueTag = NewCueTag;
-		NOVA_LOG(Log, "Unit %s Damage Visual State Changed: %s", *GetName(), *CurrentDamageCueTag.ToString());
+		if (bIsFireActive) AbilitySystemComponent->AddGameplayCue(FireCueTag, Params);
+		else AbilitySystemComponent->RemoveGameplayCue(FireCueTag);
 	}
 }
 
-void ANovaUnit::ApplyDamageCueToPart(ANovaPart* Part, FGameplayTag CueTag, bool bAdd)
+void ANovaUnit::ClearDamageEffects()
 {
-	if (!Part || !CueTag.IsValid() || !AbilitySystemComponent) return;
-
-	UPrimitiveComponent* PartMesh = Part->GetMainMesh();
-	if (!PartMesh) return;
-
-	// 생성 시에만 소켓 존재 여부 체크
-	if (bAdd && !PartMesh->DoesSocketExist(DamageSocketName))
+	if (bIsSmokeActive)
 	{
-		return;
+		AbilitySystemComponent->RemoveGameplayCue(SmokeCueTag);
+		bIsSmokeActive = false;
 	}
 
-	FGameplayCueParameters Params;
-	// 핵심: 부품의 메시를 전달하여 GameplayCue가 해당 컴포넌트의 소켓을 찾게 함
-	Params.TargetAttachComponent = PartMesh;
-	Params.Instigator = this;
-	Params.EffectCauser = Part;
-
-	if (bAdd)
+	if (bIsFireActive)
 	{
-		AbilitySystemComponent->AddGameplayCue(CueTag, Params);
-	}
-	else
-	{
-		AbilitySystemComponent->RemoveGameplayCue(CueTag);
+		AbilitySystemComponent->RemoveGameplayCue(FireCueTag);
+		bIsFireActive = false;
 	}
 }
 
@@ -1273,7 +1251,7 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 		// 즉시 NavMesh 반영을 유도
 		NavModifier->RefreshNavigationModifiers();
 
-		NOVA_LOG(Log, "Unit %s NavModifier %hs", *GetName(), bIsObstacle ? "Activated" : "Deactivated");
+		// NOVA_LOG(Log, "Unit %s NavModifier %hs", *GetName(), bIsObstacle ? "Activated" : "Deactivated");
 	}
 }
 #pragma endregion
@@ -1382,8 +1360,9 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	
 	UpdateHealthBar();
 
-	// 7. 데미지 태그 초기화
-	CurrentDamageCueTag = FGameplayTag::EmptyTag;
+	// 7. 데미지 연출 초기화
+	bIsSmokeActive = false;
+	bIsFireActive = false;
 
 	// 8. 랠리 포인트 이동
 	if (!InitialRallyLocation.IsNearlyZero())
@@ -1394,7 +1373,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		IssueCommand(MoveCmd);
 	}
 
-	NOVA_LOG(Log, "Unit %s Re-initialized from Pool with new assembly.", *GetName());
+	// NOVA_LOG(Log, "Unit %s Re-initialized from Pool with new assembly.", *GetName());
 }
 
 void ANovaUnit::OnReturnToPool_Implementation()
@@ -1458,6 +1437,6 @@ void ANovaUnit::OnReturnToPool_Implementation()
 	BodyPartClass = nullptr;
 	WeaponPartClass = nullptr;
 
-	NOVA_LOG(Log, "Unit %s Returned to Pool.", *GetName());
+	// NOVA_LOG(Log, "Unit %s Returned to Pool.", *GetName());
 }
 #pragma endregion
