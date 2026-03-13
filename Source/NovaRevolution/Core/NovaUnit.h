@@ -141,6 +141,9 @@ private:
 	/** 모든 부품에서 데미지 GameplayCue를 제거 */
 	void ClearDamageEffects();
 
+	/** 유닛의 모든 파츠 메시 머티리얼에 Charred 효과(0.0~1.0)를 적용합니다. */
+	void UpdateCharredEffect(float Alpha);
+
 protected:
 	/** 데미지 단계별 GameplayCue 태그 */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
@@ -149,9 +152,20 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
 	FGameplayTag FireCueTag = NovaGameplayTags::GameplayCue_Unit_Damage_Fire;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	FGameplayTag ExplosionCueTag = NovaGameplayTags::GameplayCue_Unit_Explosion;
+
+	/** 사망 시 유닛 위에 덮어씌울 머티리얼 (검게 그을린 효과 등) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	TObjectPtr<UMaterialInterface> DeadOverlayMaterial;
+
 	/** 현재 적용 중인 효과 상태 추적 (중첩 관리용) */
 	bool bIsSmokeActive = false;
 	bool bIsFireActive = false;
+
+	/** 사망 후 경과 시간 (머티리얼 애니메이션용) */
+	float DeathTimeElapsed = 0.0f;
+	const float CharredDuration = 0.5f;
 
 	/** 데미지 이펙트가 부착될 소켓 이름 */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")

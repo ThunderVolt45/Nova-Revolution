@@ -153,8 +153,16 @@ void ANovaUnit::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// 사망 시에는 처리하지 않는다
-	if (bIsDead) return;
+	// 사망 시에는 머티리얼 애니메이션(1초)만 처리한다
+	if (bIsDead)
+	{
+		if (DeathTimeElapsed < CharredDuration)
+		{
+			DeathTimeElapsed += DeltaTime;
+			UpdateCharredEffect(FMath::Min(DeathTimeElapsed / CharredDuration, 1.0f));
+		}
+		return;
+	}
 
 	// 1. 다리(Legs) 부품 애니메이션 데이터 전달
 	if (CurrentLegsPart)
@@ -795,8 +803,8 @@ void ANovaUnit::Die()
 	if (bIsDead) return;
 
 	// 유닛 사망 처리 로직
-	// NOVA_LOG(Warning, "Unit Died: %s", *GetName());
 	bIsDead = true;
+	DeathTimeElapsed = 0.0f;
 
 	// NovaPlayerController에 선택 해제 요청
 	if (ANovaPlayerController* NovaPC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
@@ -804,7 +812,7 @@ void ANovaUnit::Die()
 		NovaPC->NotifyTargetUnselectable(this);
 	}
 
-	// 자원 반납 (인구수 -1, 자신의 와트 비용만큼 차감)
+	// 자원 반납
 	ReturnResourcesOnDeath();
 
 	// AI 동작 정지 요청
@@ -813,39 +821,44 @@ void ANovaUnit::Die()
 		AIC->OnPawnDeath();
 	}
 
-	// 내비게이션 장애물 해제 (죽은 유닛은 길을 막지 않음)
+	// 내비게이션 장애물 해제
 	SetNavigationObstacle(false);
 
-	// 충돌 비활성화 및 소멸 처리
+	// 충돌 비활성화
 	if (GetCapsuleComponent()) GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	if (GetCharacterMovement()) GetCharacterMovement()->StopMovementImmediately();
 
-	// 모든 부품에 사망 상태 전달
-	TArray<ANovaPart*> PartActors;
-	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
-	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
+	// 모든 부품 상태 사망 설정
+	if (CurrentLegsPart) CurrentLegsPart->SetIsDead(true);
+	if (CurrentBodyPart) CurrentBodyPart->SetIsDead(true);
 	for (ANovaPart* WeaponPart : CurrentWeaponParts)
 	{
-		if (WeaponPart) PartActors.Add(WeaponPart);
+		if (WeaponPart) WeaponPart->SetIsDead(true);
 	}
 
-	for (ANovaPart* Part : PartActors)
-	{
-		if (Part) Part->SetIsDead(true);
-	}
+	// 사망 초기 연출 시작 (MID 생성 및 파라미터 0 설정)
+	UpdateCharredEffect(0.0f);
 
-	// 체력바 컴포넌트 숨기기
+	// 체력바 숨기기
 	if (HealthBarComponent)
 	{
 		HealthBarComponent->SetVisibility(false);
 		HealthBarComponent->Deactivate();
 	}
 
-	// 2초 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
+	// 2초 후 오브젝트 풀로 반환
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
 	{
-		// 데미지 연출 제거
+		if (ExplosionCueTag.IsValid() && AbilitySystemComponent)
+		{
+			FGameplayCueParameters Params;
+			Params.Location = GetActorLocation();
+			Params.Instigator = this;
+			Params.EffectCauser = this;
+			AbilitySystemComponent->ExecuteGameplayCue(ExplosionCueTag, Params);
+		}
+
 		ClearDamageEffects();
 		
 		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
@@ -857,6 +870,50 @@ void ANovaUnit::Die()
 			Destroy();
 		}
 	}, 2.0f, false);
+}
+
+void ANovaUnit::UpdateCharredEffect(float Alpha)
+{
+	TArray<ANovaPart*> Parts;
+	if (CurrentLegsPart) Parts.Add(CurrentLegsPart);
+	if (CurrentBodyPart) Parts.Add(CurrentBodyPart);
+	for (ANovaPart* Weapon : CurrentWeaponParts)
+	{
+		if (Weapon) Parts.Add(Weapon);
+	}
+
+	for (ANovaPart* Part : Parts)
+	{
+		if (!Part) continue;
+
+		TArray<UPrimitiveComponent*> Meshes;
+		Part->GetComponents<UPrimitiveComponent>(Meshes);
+
+		for (UPrimitiveComponent* PartMesh : Meshes)
+		{
+			if (!PartMesh) continue;
+
+			for (int32 i = 0; i < PartMesh->GetNumMaterials(); ++i)
+			{
+				UMaterialInterface* Mat = PartMesh->GetMaterial(i);
+				UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Mat);
+
+				// Alpha가 0일 때(사망 초기) 다이나믹 머티리얼이 없다면 생성합니다.
+				if (!MID && Alpha <= 0.01f)
+				{
+					MID = PartMesh->CreateDynamicMaterialInstance(i);
+				}
+
+				if (MID)
+				{
+					MID->SetScalarParameterValue(TEXT("Charred"), Alpha);
+					// 서서히 검은색으로 변하는 연출
+					MID->SetVectorParameterValue(TEXT("BaseColor"), FLinearColor::LerpUsingHSV(FLinearColor::White, FLinearColor::Black, Alpha));
+					MID->SetVectorParameterValue(TEXT("Color"), FLinearColor::LerpUsingHSV(FLinearColor::White, FLinearColor::Black, Alpha));
+				}
+			}
+		}
+	}
 }
 
 void ANovaUnit::ReturnResourcesOnDeath()
@@ -1362,16 +1419,18 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 
 	for (ANovaPart* Part : PartActors)
 	{
-		if (Part)
-		{
-			Part->SetIsDead(false);
+		if (!Part) continue;
+		
+		Part->SetIsDead(false);
 
-			if (Part->GetPartSpec().PartType == ENovaPartType::Weapon)
-			{
-				Part->SetTargetPitch(0.0f);
-			}
+		if (Part->GetPartSpec().PartType == ENovaPartType::Weapon)
+		{
+			Part->SetTargetPitch(0.0f);
 		}
 	}
+
+	// 모든 부품 머티리얼 초기화 (Charred = 0)
+	UpdateCharredEffect(0.0f);
 
 	// 5. AI 컨트롤러 및 비헤이비어 트리 재시작
 	if (ANovaAIController* AIC = Cast<ANovaAIController>(GetController()))
