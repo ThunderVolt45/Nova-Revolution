@@ -61,10 +61,20 @@ protected:
 	// --- 부품 조립 로직 ---
 	// 클래스 설정에 따라 실제 ChildActor를 생성하고 부착
 	void ConstructUnitParts();
+	void ConstructLegs();
+	void ConstructBody();
+	void ConstructWeapons();
+
+	/** 풀링 시스템 또는 일반 스폰을 통해 파츠를 생성하는 헬퍼 */
+	ANovaPart* SpawnPart(TSubclassOf<ANovaPart> PartClass);
+
 	void InitializePartAttachments();
 
 	// 부품들의 스탯을 합산하여 유닛의 기본 스탯(AttributeSet) 초기화
 	void InitializeAttributesFromParts();
+
+	/** 다리 부품의 특수 스펙(이동 방식, 충돌 반경 등)을 물리/이동 컴포넌트에 반영 */
+	void ApplyLegsSpec(const FNovaPartSpecRow& Spec);
 
 	// 부품들의 어빌리티를 수집하여 유닛에게 부여 (중복 방지)
 	void InitializeAbilitiesFromParts();

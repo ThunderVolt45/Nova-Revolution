@@ -385,94 +385,82 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 
 void ANovaUnit::ConstructUnitParts()
 {
+	ConstructLegs();
+	ConstructBody();
+	ConstructWeapons();
+}
+
+ANovaPart* ANovaUnit::SpawnPart(TSubclassOf<ANovaPart> PartClass)
+{
+	if (!PartClass) return nullptr;
+
 	UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
+	ANovaPart* NewPart;
 
-	// 1. 다리(Legs) 할당
-	if (LegsPartClass)
+	if (PoolSubsystem)
 	{
-		// 클래스가 바뀌었거나 아직 없는 경우
-		if (!CurrentLegsPart || CurrentLegsPart->GetClass() != LegsPartClass)
-		{
-			if (CurrentLegsPart)
-			{
-				if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentLegsPart);
-				else CurrentLegsPart->Destroy();
-			}
-
-			if (PoolSubsystem)
-			{
-				CurrentLegsPart = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(LegsPartClass, GetActorTransform()));
-			}
-			else
-			{
-				FActorSpawnParameters Params;
-				Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-				CurrentLegsPart = GetWorld()->SpawnActor<ANovaPart>(LegsPartClass, Params);
-			}
-
-			if (CurrentLegsPart)
-			{
-				CurrentLegsPart->SetOwner(this);
-				CurrentLegsPart->AttachToComponent(GetRootComponent(),
-				                                   FAttachmentTransformRules::SnapToTargetIncludingScale);
-				CurrentLegsPart->SetPartDataTable(PartDataTable);
-			}
-		}
-
-		// 클래스 변경 여부와 상관없이 오프셋은 항상 업데이트 (에디터 실시간 반영용)
-		if (CurrentLegsPart)
-		{
-			CurrentLegsPart->SetOwner(this);
-			CurrentLegsPart->SetActorRelativeLocation(LegsOffset);
-		}
+		NewPart = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(PartClass, GetActorTransform()));
 	}
 	else
 	{
-		// 클래스가 None인 경우 기존 부품 제거
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		NewPart = GetWorld()->SpawnActor<ANovaPart>(PartClass, Params);
+	}
+
+	if (NewPart)
+	{
+		NewPart->SetOwner(this);
+		NewPart->SetPartDataTable(PartDataTable);
+	}
+
+	return NewPart;
+}
+
+void ANovaUnit::ConstructLegs()
+{
+	UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
+
+	// 클래스가 없으면 기존 부품 제거 후 종료
+	if (!LegsPartClass)
+	{
 		if (CurrentLegsPart)
 		{
 			if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentLegsPart);
 			else CurrentLegsPart->Destroy();
 			CurrentLegsPart = nullptr;
 		}
+		return;
 	}
 
-	// 2. 몸통(Body) 할당
-	if (BodyPartClass)
+	// 클래스가 바뀌었거나 아직 없는 경우 새로 생성
+	if (!CurrentLegsPart || CurrentLegsPart->GetClass() != LegsPartClass)
 	{
-		if (!CurrentBodyPart || CurrentBodyPart->GetClass() != BodyPartClass)
+		if (CurrentLegsPart)
 		{
-			if (CurrentBodyPart)
-			{
-				if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentBodyPart);
-				else CurrentBodyPart->Destroy();
-			}
+			if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentLegsPart);
+			else CurrentLegsPart->Destroy();
+		}
 
-			if (PoolSubsystem)
-			{
-				CurrentBodyPart = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(BodyPartClass, GetActorTransform()));
-			}
-			else
-			{
-				FActorSpawnParameters Params;
-				Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-				CurrentBodyPart = GetWorld()->SpawnActor<ANovaPart>(BodyPartClass, Params);
-			}
-
-			if (CurrentBodyPart && CurrentLegsPart)
-			{
-				CurrentBodyPart->SetOwner(this);
-				UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh();
-				if (LegsMesh)
-				{
-					CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
-					                                   BodyTargetSocketName);
-					CurrentBodyPart->SetPartDataTable(PartDataTable);
-				}
-			}
+		CurrentLegsPart = SpawnPart(LegsPartClass);
+		if (CurrentLegsPart)
+		{
+			CurrentLegsPart->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
 		}
 	}
-	else
+
+	// 오프셋은 항상 업데이트 (에디터 실시간 반영용)
+	if (CurrentLegsPart)
+	{
+		CurrentLegsPart->SetActorRelativeLocation(LegsOffset);
+	}
+}
+
+void ANovaUnit::ConstructBody()
+{
+	UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
+
+	if (!BodyPartClass)
 	{
 		if (CurrentBodyPart)
 		{
@@ -480,92 +468,83 @@ void ANovaUnit::ConstructUnitParts()
 			else CurrentBodyPart->Destroy();
 			CurrentBodyPart = nullptr;
 		}
+		return;
 	}
 
-	// 3. 무기(Weapons) 할당
-	// 기존 무기들 중 클래스가 다른 것들은 풀로 반환 또는 파괴
+	if (!CurrentBodyPart || CurrentBodyPart->GetClass() != BodyPartClass)
+	{
+		if (CurrentBodyPart)
+		{
+			if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentBodyPart);
+			else CurrentBodyPart->Destroy();
+		}
+
+		CurrentBodyPart = SpawnPart(BodyPartClass);
+		InitializePartAttachments();
+	}
+}
+
+void ANovaUnit::ConstructWeapons()
+{
+	UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
+
+	// 1. 기존 무기 중 클래스가 다른 것들 제거
 	for (int32 i = CurrentWeaponParts.Num() - 1; i >= 0; --i)
 	{
-		if (!CurrentWeaponParts[i] || CurrentWeaponParts[i]->GetClass() != WeaponPartClass)
+		if (CurrentWeaponParts[i] && CurrentWeaponParts[i]->GetClass() == WeaponPartClass) continue;
+
+		if (CurrentWeaponParts[i])
 		{
-			if (CurrentWeaponParts[i])
-			{
-				if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentWeaponParts[i]);
-				else CurrentWeaponParts[i]->Destroy();
-			}
-			CurrentWeaponParts.RemoveAt(i);
+			if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentWeaponParts[i]);
+			else CurrentWeaponParts[i]->Destroy();
 		}
+		CurrentWeaponParts.RemoveAt(i);
 	}
 
-	if (WeaponPartClass && CurrentBodyPart)
+	// 2. 무기 클래스나 몸통이 없으면 종료
+	if (!WeaponPartClass || !CurrentBodyPart)
 	{
-		UPrimitiveComponent* BodyMesh = CurrentBodyPart->GetMainMesh();
-		if (BodyMesh)
+		for (ANovaPart* Weapon : CurrentWeaponParts)
 		{
-			for (int32 i = 0; i < WeaponSocketNames.Num(); ++i)
-			{
-				const FName& SocketName = WeaponSocketNames[i];
-				if (BodyMesh->DoesSocketExist(SocketName))
-				{
-					// 기존에 이 소켓에 붙어있는 무기가 있는지 확인 (인덱스 기반)
-					if (!CurrentWeaponParts.IsValidIndex(i))
-					{
-						ANovaPart* NewWeapon = nullptr;
-						if (PoolSubsystem)
-						{
-							NewWeapon = Cast<ANovaPart>(
-								PoolSubsystem->SpawnFromPool(WeaponPartClass, GetActorTransform()));
-						}
-						else
-						{
-							FActorSpawnParameters Params;
-							Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-							NewWeapon = GetWorld()->SpawnActor<ANovaPart>(WeaponPartClass, Params);
-						}
-
-						if (NewWeapon)
-						{
-							NewWeapon->SetOwner(this);
-							NewWeapon->AttachToComponent(
-								BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
-							NewWeapon->SetPartDataTable(PartDataTable);
-							CurrentWeaponParts.Add(NewWeapon);
-						}
-					}
-					else
-					{
-						// 이미 있다면 부착 상태 및 오너 확인
-						CurrentWeaponParts[i]->SetOwner(this);
-						CurrentWeaponParts[i]->AttachToComponent(
-							BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
-					}
-				}
-			}
-
-			// 남는 무기들 반환
-			while (CurrentWeaponParts.Num() > WeaponSocketNames.Num())
-			{
-				ANovaPart* ExtraWeapon = CurrentWeaponParts.Pop();
-				if (ExtraWeapon)
-				{
-					if (PoolSubsystem) PoolSubsystem->ReturnToPool(ExtraWeapon);
-					else ExtraWeapon->Destroy();
-				}
-			}
-		}
-	}
-	else if (!WeaponPartClass)
-	{
-		// 무기 클래스가 None이면 모든 무기 제거
-		for (ANovaPart* WeaponPart : CurrentWeaponParts)
-		{
-			if (WeaponPart)
-			{
-				if (PoolSubsystem) PoolSubsystem->ReturnToPool(WeaponPart);
-				else WeaponPart->Destroy();
-			}
+			if (!Weapon) continue;
+			if (PoolSubsystem) PoolSubsystem->ReturnToPool(Weapon);
+			else Weapon->Destroy();
 		}
 		CurrentWeaponParts.Empty();
+		return;
+	}
+
+	// 3. 소켓 수에 맞춰 무기 생성 및 부착
+	UPrimitiveComponent* BodyMesh = CurrentBodyPart->GetMainMesh();
+	if (!BodyMesh) return;
+
+	for (int32 i = 0; i < WeaponSocketNames.Num(); ++i)
+	{
+		const FName& SocketName = WeaponSocketNames[i];
+		if (!BodyMesh->DoesSocketExist(SocketName)) continue;
+
+		if (!CurrentWeaponParts.IsValidIndex(i))
+		{
+			ANovaPart* NewWeapon = SpawnPart(WeaponPartClass);
+			if (NewWeapon)
+			{
+				NewWeapon->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+				CurrentWeaponParts.Add(NewWeapon);
+			}
+		}
+		else
+		{
+			CurrentWeaponParts[i]->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+		}
+	}
+
+	// 4. 남는 무기들 반환
+	while (CurrentWeaponParts.Num() > WeaponSocketNames.Num())
+	{
+		ANovaPart* ExtraWeapon = CurrentWeaponParts.Pop();
+		if (!ExtraWeapon) continue;
+		if (PoolSubsystem) PoolSubsystem->ReturnToPool(ExtraWeapon);
+		else ExtraWeapon->Destroy();
 	}
 }
 
@@ -586,92 +565,41 @@ void ANovaUnit::InitializeAttributesFromParts()
 {
 	if (!AttributeSet) return;
 
-	float TotalWatt = 0.0f;
-	float TotalHealth = 0.0f;
-	float TotalAttack = 0.0f;
-	float TotalDefense = 0.0f;
-	float TotalSpeed = 0.0f;
-	float TotalFireRate = 0.0f;
-	float TotalSight = 0.0f;
-	float TotalRange = 0.0f;
-	float TotalMinRange = 0.0f;
-	float TotalSplashRange = 0.0f;
+	float TotalWatt = 0.0f, TotalHealth = 0.0f, TotalAttack = 0.0f, TotalDefense = 0.0f, TotalSpeed = 0.0f;
+	float TotalFireRate = 0.0f, TotalSight = 0.0f, TotalRange = 0.0f, TotalMinRange = 0.0f, TotalSplashRange = 0.0f;
 
-	// 수집할 모든 부품 액터들을 리스트업
+	// 수집할 모든 부품 액터 리스트업
 	TArray<ANovaPart*> PartActors;
 	if (CurrentLegsPart) PartActors.Add(CurrentLegsPart);
 	if (CurrentBodyPart) PartActors.Add(CurrentBodyPart);
+	if (CurrentWeaponParts.Num() > 0) PartActors.Add(CurrentWeaponParts[0]);
 
-	// 무기 부품 스펙 반영
-	if (CurrentWeaponParts.Num() > 0)
-	{
-		PartActors.Add(CurrentWeaponParts[0]);
-	}
-
-	// 각 부품에서 스탯 수집
 	for (ANovaPart* Part : PartActors)
 	{
-		if (Part)
-		{
-			Part->InitializePartSpec();
-			const FNovaPartSpecRow& Spec = Part->GetPartSpec();
+		if (!Part) continue;
 
-			TotalWatt += Spec.Watt;
-			TotalHealth += Spec.Health;
-			TotalAttack += Spec.Attack;
-			TotalDefense += Spec.Defense;
-			TotalSpeed += Spec.Speed;
-			TotalFireRate += Spec.FireRate;
-			TotalSight += Spec.Sight;
-			TotalRange += Spec.Range;
-			TotalMinRange += Spec.MinRange;
-			TotalSplashRange += Spec.SplashRange;
+		Part->InitializePartSpec();
+		const FNovaPartSpecRow& Spec = Part->GetPartSpec();
 
-			if (Spec.PartType == ENovaPartType::Legs)
-			{
-				MovementType = Spec.MovementType;
-				if (Spec.CollisionRadius > 0.0f)
-				{
-					if (UCapsuleComponent* Capsule = GetCapsuleComponent())
-					{
-						Capsule->SetCapsuleRadius(Spec.CollisionRadius);
-						if (NavModifier)
-						{
-							float ModifierRadius = Spec.CollisionRadius * 0.8f;
-							float ModifierHeight = Capsule->GetUnscaledCapsuleHalfHeight();
-							NavModifier->FailsafeExtent = FVector(ModifierRadius, ModifierRadius, ModifierHeight);
-						}
-						if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
-						{
-							MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
-							if (MovementType == ENovaMovementType::Air)
-							{
-								MoveComp->NavAgentProps.bCanWalk = false;
-								MoveComp->NavAgentProps.bCanFly = true;
-							}
-							else
-							{
-								MoveComp->NavAgentProps.bCanWalk = true;
-								MoveComp->NavAgentProps.bCanFly = false;
-							}
-							MoveComp->AvoidanceConsiderationRadius = Spec.CollisionRadius;
-							MoveComp->bUseRVOAvoidance = false;
-							MoveComp->UpdateNavAgent(*this);
-						}
-					}
-				}
-			}
-			else if (Spec.PartType == ENovaPartType::Weapon)
-			{
-				TargetType = Spec.TargetType;
-			}
-		}
+		TotalWatt += Spec.Watt;
+		TotalHealth += Spec.Health;
+		TotalAttack += Spec.Attack;
+		TotalDefense += Spec.Defense;
+		TotalSpeed += Spec.Speed;
+		TotalFireRate += Spec.FireRate;
+		TotalSight += Spec.Sight;
+		TotalRange += Spec.Range;
+		TotalMinRange += Spec.MinRange;
+		TotalSplashRange += Spec.SplashRange;
+
+		if (Spec.PartType == ENovaPartType::Legs) ApplyLegsSpec(Spec);
+		else if (Spec.PartType == ENovaPartType::Weapon) TargetType = Spec.TargetType;
 	}
 
 	// AttributeSet 초기화
 	AttributeSet->InitWatt(TotalWatt);
 	AttributeSet->InitHealth(TotalHealth);
-	AttributeSet->InitMaxHealth(TotalHealth); // MaxHealth도 동일하게 초기화
+	AttributeSet->InitMaxHealth(TotalHealth);
 	AttributeSet->InitAttack(TotalAttack);
 	AttributeSet->InitDefense(TotalDefense);
 	AttributeSet->InitSpeed(TotalSpeed);
@@ -681,45 +609,63 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitMinRange(TotalMinRange);
 	AttributeSet->InitSplashRange(TotalSplashRange);
 
-	// 최대 이동 속도 설정 반영
-	if (GetCharacterMovement())
+	// 이동 속도 및 AI 설정 반영
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	if (!MoveComp) return;
+
+	MoveComp->MaxWalkSpeed = TotalSpeed;
+	MoveComp->MaxFlySpeed = TotalSpeed;
+	MoveComp->bRequestedMoveUseAcceleration = false;
+
+	if (MovementType == ENovaMovementType::Air)
 	{
-		GetCharacterMovement()->MaxWalkSpeed = TotalSpeed;
-		GetCharacterMovement()->MaxFlySpeed = TotalSpeed;
+		MoveComp->SetMovementMode(MOVE_Flying);
+		MoveComp->bCheatFlying = true;
+		MoveComp->MaxAcceleration = TotalSpeed * 10.0f;
+		MoveComp->BrakingDecelerationFlying = TotalSpeed * 10.0f;
+		MoveComp->BrakingFrictionFactor = 2.0f;
+		MoveComp->FallingLateralFriction = 8.0f;
+		MoveComp->bConstrainToPlane = true;
+		MoveComp->bSnapToPlaneAtStart = true;
 
-		// AI 이동 시 가속도를 무시하고 즉각적인 방향 전환과 최고 속도 도달을 허용 (빠릿빠릿한 조작감의 핵심)
-		GetCharacterMovement()->bRequestedMoveUseAcceleration = false;
-
-		// 공중 유닛 설정
-		if (MovementType == ENovaMovementType::Air)
-		{
-			GetCharacterMovement()->SetMovementMode(MOVE_Flying);
-			GetCharacterMovement()->bCheatFlying = true; // 중력 영향 배제 보강
-
-			// 비행 시 굼뜨게 움직이는 현상 방지: 마찰력을 걷기 수준으로 올림
-			GetCharacterMovement()->MaxAcceleration = TotalSpeed * 10.0f; // 더 강력한 가속도
-			GetCharacterMovement()->BrakingDecelerationFlying = TotalSpeed * 10.0f; // 즉각적인 제동
-			GetCharacterMovement()->BrakingFrictionFactor = 2.0f;
-			GetCharacterMovement()->FallingLateralFriction = 8.0f; // 공중 미끄러짐 방지
-
-			// 가상 평면 NavMesh를 타기 위해 평면 제약을 켭니다.
-			GetCharacterMovement()->bConstrainToPlane = true;
-			GetCharacterMovement()->bSnapToPlaneAtStart = true;
-
-			// 생성 위치를 하늘(Z = DefaultAirZ)로 고정
-			FVector CurrentLoc = GetActorLocation();
-			SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ));
-		}
-		else
-		{
-			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
-			GetCharacterMovement()->bConstrainToPlane = true;
-
-			// 지상 유닛 가속도 보정
-			GetCharacterMovement()->MaxAcceleration = TotalSpeed * 10.0f;
-			GetCharacterMovement()->BrakingDecelerationWalking = TotalSpeed * 10.0f;
-		}
+		FVector CurrentLoc = GetActorLocation();
+		SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ));
 	}
+	else
+	{
+		MoveComp->SetMovementMode(MOVE_Walking);
+		MoveComp->bConstrainToPlane = true;
+		MoveComp->MaxAcceleration = TotalSpeed * 10.0f;
+		MoveComp->BrakingDecelerationWalking = TotalSpeed * 10.0f;
+	}
+}
+
+void ANovaUnit::ApplyLegsSpec(const FNovaPartSpecRow& Spec)
+{
+	MovementType = Spec.MovementType;
+	if (Spec.CollisionRadius <= 0.0f) return;
+
+	UCapsuleComponent* Capsule = GetCapsuleComponent();
+	if (!Capsule) return;
+
+	Capsule->SetCapsuleRadius(Spec.CollisionRadius);
+
+	if (NavModifier)
+	{
+		float ModifierRadius = Spec.CollisionRadius * 0.8f;
+		float ModifierHeight = Capsule->GetUnscaledCapsuleHalfHeight();
+		NavModifier->FailsafeExtent = FVector(ModifierRadius, ModifierRadius, ModifierHeight);
+	}
+
+	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+	if (!MoveComp) return;
+
+	MoveComp->NavAgentProps.AgentRadius = Spec.CollisionRadius;
+	MoveComp->NavAgentProps.bCanWalk = (MovementType != ENovaMovementType::Air);
+	MoveComp->NavAgentProps.bCanFly = (MovementType == ENovaMovementType::Air);
+	MoveComp->AvoidanceConsiderationRadius = Spec.CollisionRadius;
+	MoveComp->bUseRVOAvoidance = false;
+	MoveComp->UpdateNavAgent(*this);
 }
 
 void ANovaUnit::InitializeAbilitiesFromParts()
@@ -1231,9 +1177,8 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 	if (NavModifier)
 	{
 		// 장애물 상태에 따라 영역 클래스 설정 (UnitArea: 고비용, Default: 일반)
-		TSubclassOf<UNavArea> NewAreaClass = bIsObstacle
-			                                     ? UNovaNavArea_Unit::StaticClass()
-			                                     : UNavArea_Default::StaticClass();
+		TSubclassOf<UNavArea> NewAreaClass = bIsObstacle ? 
+			UNovaNavArea_Unit::StaticClass() : UNavArea_Default::StaticClass();
 
 		// 영역 클래스 설정 및 활성화/비활성화 처리
 		NavModifier->SetAreaClass(NewAreaClass);
