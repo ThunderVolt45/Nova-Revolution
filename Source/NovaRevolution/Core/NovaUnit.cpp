@@ -11,8 +11,6 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/AI/NovaAIController.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/ProgressBar.h"
-#include "Components/WidgetComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GAS/NovaAttributeSet.h"
 #include "GAS/Abilities/NovaGameplayAbility.h"
@@ -24,7 +22,10 @@
 #include "NavModifierComponent.h"
 #include "NovaNavArea_Unit.h"
 #include "AI/Navigation/NavigationDataResolution.h"
+// #include "Commandlets/GatherTextFromAssetsCommandlet.h"
 #include "NavAreas/NavArea_Default.h"
+#include "UI/NovaHealthBarComponent.h"
+#include "UI/NovaSelectionComponent.h"
 
 ANovaUnit::ANovaUnit()
 {
@@ -81,53 +82,13 @@ ANovaUnit::ANovaUnit()
 	bUseControllerRotationYaw = false;
 
 	// 선택 표시 위젯 컴포넌트
-	SelectionWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("SelectionWidget"));
-	SelectionWidget->SetupAttachment(RootComponent);
-	// 부모 캡슐의 스케일과 회전이 위젯을 조절하지 못하게 차단
-	SelectionWidget->SetUsingAbsoluteScale(true);
-	SelectionWidget->SetUsingAbsoluteRotation(true);
-	SelectionWidget->SetWidgetSpace(EWidgetSpace::World); // 월드 공간에 배치
-	SelectionWidget->SetRelativeRotation(FRotator(90.f, 0.f, 0.f)); // 바닥에 눕힘
-	SelectionWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision); // 충돌 끄기
-	SelectionWidget->SetVisibility(false); // 초기에는 숨김
+	SelectionComponent = CreateDefaultSubobject<UNovaSelectionComponent>(TEXT("SelectionComponent"));
+	SelectionComponent->SetupAttachment(RootComponent);
+	SelectionComponent->SetRelativeLocation(FVector::ZeroVector);
 
-	// 바닥 전용 위젯 생성
-	GroundSelectionWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("GroundSelectionWidget"));
-	GroundSelectionWidget->SetupAttachment(RootComponent);
-	GroundSelectionWidget->SetUsingAbsoluteScale(true);
-	GroundSelectionWidget->SetUsingAbsoluteRotation(true);
-	GroundSelectionWidget->SetWorldRotation(FRotator(90.f, 0.f, 0.f));
-	GroundSelectionWidget->SetWidgetSpace(EWidgetSpace::World);
-	GroundSelectionWidget->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	GroundSelectionWidget->SetVisibility(false);
-
-	// 수직 고도 안내선
-	HeightIndicatorLine = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeightIndicatorLine"));
-	HeightIndicatorLine->SetupAttachment(RootComponent);
-	// 엔진 기본 큐브 메쉬 로드
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube"));
-	if (CubeMesh.Succeeded())
-	{
-		HeightIndicatorLine->SetStaticMesh(CubeMesh.Object);
-	}
-	// 항상 수직을 유지하도록 설정
-	HeightIndicatorLine->SetUsingAbsoluteRotation(true);
-	HeightIndicatorLine->SetWorldRotation(FRotator::ZeroRotator);;
-	HeightIndicatorLine->SetCastShadow(false); // 선은 그림자를 만들지 않음
-	HeightIndicatorLine->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	HeightIndicatorLine->SetVisibility(false);
-
-	// 체력바 위젯 생성
-	HealthBarWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("HealthBarWidget"));
-	HealthBarWidget->SetupAttachment(RootComponent);
-	HealthBarWidget->SetWidgetSpace(EWidgetSpace::Screen);
-	// 체력바 크기
-	HealthBarWidget->SetDrawSize(FVector2D(MinHealthBarWidth, HealthBarHeight));
-	HealthBarWidget->SetDrawAtDesiredSize(false);
-	HealthBarWidget->SetUsingAbsoluteScale(true);
-	HealthBarWidget->SetUsingAbsoluteRotation(true);
-	HealthBarWidget->SetUsingAbsoluteScale(true);
-	HealthBarWidget->SetVisibility(true);
+	// 체력바 컴포넌트 추가
+	HealthBarComponent = CreateDefaultSubobject<UNovaHealthBarComponent>(TEXT("HealthBarComponent"));
+	HealthBarComponent->SetupAttachment(RootComponent);
 }
 
 void ANovaUnit::Tick(float DeltaTime)
@@ -289,13 +250,7 @@ void ANovaUnit::Tick(float DeltaTime)
 		}
 	}
 
-	// 선택된 상태일 때만 실시간으로 바닥 위치 추적 (선택됨, 죽지않음, widget존재)
-	if (bIsSelected && !bIsDead)
-	{
-		UpdateGroundCircleAndLine();
-	}
-
-	if (HealthBarWidget && HealthBarWidget->IsVisible())
+	if (HealthBarComponent && HealthBarComponent->IsVisible())
 	{
 		if (APlayerCameraManager* CamManager = GetWorld()->GetFirstPlayerController()->PlayerCameraManager)
 		{
@@ -315,7 +270,7 @@ void ANovaUnit::Tick(float DeltaTime)
 			// 4. 최종 3D 위치: 캡슐 바닥에서 "화면 아래 방향"으로 오프셋만큼 이동
 			FVector FinalAnchorLoc = CapsuleBottom + (ScreenDownDir * TotalOffset);
 
-			HealthBarWidget->SetWorldLocation(FinalAnchorLoc);
+			HealthBarComponent->SetWorldLocation(FinalAnchorLoc);
 		}
 	}
 }
@@ -367,10 +322,6 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 	// 2. 부품들 실제 소켓에 정렬 부착
 	InitializePartAttachments();
 
-	// 위젯 크기 설정 함수 호출
-	UpdateSelectionCircleTransform();
-	UpdateHealthBarTransform();
-
 	// 3. 에디터 프리뷰 환경에서만 미리 계산 반영 (런타임 이중 초기화 방지)
 	if (GetWorld() && !GetWorld()->IsGameWorld())
 	{
@@ -378,19 +329,23 @@ void ANovaUnit::OnConstruction(const FTransform& Transform)
 	}
 
 	// 캡슐 반지름에 맞춰 위젯 크기 동적 설정
-	if (GetCapsuleComponent() && SelectionWidget)
+	if (GetCapsuleComponent() && SelectionComponent)
 	{
-		// 캡슐 반지름 가져오기 (스케일 포함)
+		// 캡슐 반지름
 		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
 
-		// 원의 지름 계산 (캡슐보다 약간 더 크게 1.2배 여유)
-		float Diameter = Radius * 2.0f * 1.2f;
+		// 캡슐 높이의 절반
+		float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 
-		// DrawSize를 설정(지름 * 지름)
-		SelectionWidget->SetDrawSize(FVector2D(Diameter, Diameter));
+		// 공중 유닛 여부
+		bool bIsAir = (MovementType == ENovaMovementType::Air);
 
-		// DrawAtDesiredSize는 수동 설정 시 false
-		SelectionWidget->SetDrawAtDesiredSize(false);
+		// SelectionComponent 초기화
+		SelectionComponent->SetupSelection(Radius, HalfHeight, bIsAir);
+
+		// 팀 색상 즉시 반영
+		InitializeUIColors();
+		SelectionComponent->SetTeamColor(CachedUIColor);
 	}
 }
 
@@ -422,23 +377,19 @@ void ANovaUnit::BeginPlay()
 	// UI에 적용할 색상 저장
 	InitializeUIColors();
 
-	// 위젯 사이즈 갱신
-	UpdateSelectionCircleTransform();
+	// Selection 컴포넌트 초기 설정
+	if (SelectionComponent && GetCapsuleComponent())
+	{
+		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+		float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		bool bIsAir = (MovementType == ENovaMovementType::Air);
+
+		SelectionComponent->SetupSelection(Radius, HalfHeight, bIsAir);
+		SelectionComponent->SetTeamColor(CachedUIColor);
+	}
 
 	// 초기 체력바 상태 설정
-	UpdateHealthBarTransform();
 	UpdateHealthBar();
-	UpdateHealthBarLength();
-
-	// [추가] 플레이어 컨트롤러의 델리게이트 바인딩 및 초기 상태 동기화
-	if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
-	{
-		// 1. 초기 상태 동기화 (현재 PC의 설정값 가져오기)
-		SetHealthBarVisibilityOption(PC->GetShowHealthBars());
-
-		// 2. 이후 변경 사항 수신을 위해 바인딩
-		PC->OnShowHealthBarsChanged.AddDynamic(this, &ANovaUnit::SetHealthBarVisibilityOption);
-	}
 
 	// --- 랠리 포인트 이동 로직 추가 ---
 	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
@@ -620,7 +571,7 @@ void ANovaUnit::ConstructUnitParts()
 				if (PoolSubsystem) PoolSubsystem->ReturnToPool(CurrentLegsPart);
 				else CurrentLegsPart->Destroy();
 			}
-			
+
 			if (PoolSubsystem)
 			{
 				CurrentLegsPart = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(LegsPartClass, GetActorTransform()));
@@ -635,7 +586,8 @@ void ANovaUnit::ConstructUnitParts()
 			if (CurrentLegsPart)
 			{
 				CurrentLegsPart->SetOwner(this);
-				CurrentLegsPart->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+				CurrentLegsPart->AttachToComponent(GetRootComponent(),
+				                                   FAttachmentTransformRules::SnapToTargetIncludingScale);
 				CurrentLegsPart->SetPartDataTable(PartDataTable);
 			}
 		}
@@ -686,7 +638,8 @@ void ANovaUnit::ConstructUnitParts()
 				UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh();
 				if (LegsMesh)
 				{
-					CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
+					CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+					                                   BodyTargetSocketName);
 					CurrentBodyPart->SetPartDataTable(PartDataTable);
 				}
 			}
@@ -733,7 +686,8 @@ void ANovaUnit::ConstructUnitParts()
 						ANovaPart* NewWeapon = nullptr;
 						if (PoolSubsystem)
 						{
-							NewWeapon = Cast<ANovaPart>(PoolSubsystem->SpawnFromPool(WeaponPartClass, GetActorTransform()));
+							NewWeapon = Cast<ANovaPart>(
+								PoolSubsystem->SpawnFromPool(WeaponPartClass, GetActorTransform()));
 						}
 						else
 						{
@@ -745,7 +699,8 @@ void ANovaUnit::ConstructUnitParts()
 						if (NewWeapon)
 						{
 							NewWeapon->SetOwner(this);
-							NewWeapon->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+							NewWeapon->AttachToComponent(
+								BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 							NewWeapon->SetPartDataTable(PartDataTable);
 							CurrentWeaponParts.Add(NewWeapon);
 						}
@@ -754,11 +709,12 @@ void ANovaUnit::ConstructUnitParts()
 					{
 						// 이미 있다면 부착 상태 및 오너 확인
 						CurrentWeaponParts[i]->SetOwner(this);
-						CurrentWeaponParts[i]->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+						CurrentWeaponParts[i]->AttachToComponent(
+							BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
 					}
 				}
 			}
-			
+
 			// 남는 무기들 반환
 			while (CurrentWeaponParts.Num() > WeaponSocketNames.Num())
 			{
@@ -793,7 +749,8 @@ void ANovaUnit::InitializePartAttachments()
 	{
 		if (UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh())
 		{
-			CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, BodyTargetSocketName);
+			CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+			                                   BodyTargetSocketName);
 		}
 	}
 }
@@ -985,18 +942,11 @@ void ANovaUnit::OnSelected()
 {
 	bIsSelected = true;
 
-	if (SelectionWidget)
+	// 가시성 제어를 Component가 수행
+	if (SelectionComponent)
 	{
-		UpdateSelectionCircleColor();
-		SelectionWidget->SetVisibility(true);
-
-		// 바닥 위젯 켜기
-		if (GroundSelectionWidget)
-		{
-			GroundSelectionWidget->SetVisibility(true);
-			// 선택 즉시 위치를 한 번 잡아줌
-			UpdateGroundCircleAndLine();
-		}
+		SelectionComponent->SetSelectionVisible(true);
+		SelectionComponent->SetTeamColor(CachedUIColor);
 	}
 	UE_LOG(LogTemp, Log, TEXT("Unit Selected: %s"), *GetName());
 }
@@ -1004,10 +954,12 @@ void ANovaUnit::OnSelected()
 void ANovaUnit::OnDeselected()
 {
 	bIsSelected = false;
+
 	// Widget을 비가시화
-	if (SelectionWidget) SelectionWidget->SetVisibility(false);
-	if (GroundSelectionWidget) GroundSelectionWidget->SetVisibility(false);
-	if (HeightIndicatorLine) HeightIndicatorLine->SetVisibility(false);
+	if (SelectionComponent)
+	{
+		SelectionComponent->SetSelectionVisible(false);
+	}
 	UE_LOG(LogTemp, Log, TEXT("Unit Deselected: %s"), *GetName());
 }
 
@@ -1124,6 +1076,7 @@ void ANovaUnit::Die()
 			NovaPC->NotifyTargetUnselectable(this);
 		}
 	}
+
 	// 자원 반납 (인구수 -1, 자신의 와트 비용만큼 차감)
 	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
 	{
@@ -1188,6 +1141,16 @@ void ANovaUnit::Die()
 		}
 	}
 
+	// 체력바 컴포넌트 숨기기
+	if (HealthBarComponent)
+	{
+		HealthBarComponent->SetVisibility(false);
+		// 컴포넌트 비활성화
+		HealthBarComponent->Deactivate();
+	}
+
+	// TODO: 팀원들과 상의하여 유닛 소멸 방식 결정 (오브젝트 풀링 적용?)
+	// Destroy();
 	// 2초 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
@@ -1259,180 +1222,14 @@ void ANovaUnit::InitializeAbilitiesFromParts()
 	}
 }
 
-void ANovaUnit::UpdateSelectionCircleColor()
-{
-	if (!SelectionWidget) return;
-
-	// 위젯 인스턴스에 접근하여 색상 전달
-	// 1. 본체 위젯 색상 변경
-	if (SelectionWidget && SelectionWidget->GetUserWidgetObject())
-	{
-		SelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(CachedUIColor);
-	}
-
-	// 2. 바닥 투영 원 색상 변경 (추가)
-	if (GroundSelectionWidget && GroundSelectionWidget->GetUserWidgetObject())
-	{
-		GroundSelectionWidget->GetUserWidgetObject()->SetColorAndOpacity(CachedUIColor);
-	}
-
-	// 3. 수직 안내선 색상 변경 (추가)
-	if (HeightIndicatorLine)
-	{
-		// 런타임에 색상을 바꾸기 위해 Dynamic Material Instance를 사용합니다.
-		UMaterialInstanceDynamic* DynMat = HeightIndicatorLine->CreateDynamicMaterialInstance(0);
-		if (DynMat)
-		{
-			// 재질에서 만든 파라미터 이름(예: TeamColor)에 맞춰 색상을 전달합니다.
-			DynMat->SetVectorParameterValue(TEXT("TeamColor"), CachedUIColor);
-		}
-	}
-}
-
-void ANovaUnit::UpdateSelectionCircleTransform()
-{
-	if (GetCapsuleComponent() && SelectionWidget)
-	{
-		// 스케일이 적용된 최종 반지름 값을 가져옴
-		float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
-
-		// 지름에 여유있게 1.2배
-		float Diameter = Radius * 2.0f * 1.2f;
-
-		// 위젯의 해상도(DrawSize)를 지름 크기로 설정
-		// SetUsingAbsoluteScale(true) 덕분에 이 수치가 곧 월드 크기가 됩니다.
-		SelectionWidget->SetDrawSize(FVector2D(Diameter, Diameter));
-
-		// 위치(높이) 업데이트
-		float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		// 공중 유닛은 위젯을 더 아래로 내려줌
-		if (MovementType == ENovaMovementType::Air)
-		{
-			HalfHeight += AirWidgetHeightOffset;
-		}
-		// 캡슐의 바닥에서 2.f정도 위로 올려줌 (위젯이 지면에 묻히는 걸 방지)
-		SelectionWidget->SetRelativeLocation(FVector(0.f, 0.f, -HalfHeight + 2.f));
-
-		// 상속을 껏으므로 위젯 자체 스케일은 1, 1, 1로 고정
-		SelectionWidget->SetRelativeScale3D(FVector(1.f, 1.f, 1.f));
-	}
-}
-
-void ANovaUnit::UpdateGroundCircleAndLine()
-{
-	if (!GroundSelectionWidget || !HeightIndicatorLine) return;
-
-	// 1. 시작점 설정: 캡슐의 정중앙에서 '절반 높이'만큼 내려서 바닥(Bottom) 지점을 찾습니다.
-	float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	FVector CapsuleBottom = GetActorLocation() - FVector(0.f, 0.f, HalfHeight);
-
-	// 유닛 위치에서 아래로 충분히 긴 레이를 쏩니다.
-	FVector Start = GetActorLocation() + FVector(0.f, 0.f, 10.f);;
-	FVector End = Start - FVector(0.f, 0.f, 5000.f);
-
-	FHitResult Hit;
-	FCollisionQueryParams Params;
-	Params.AddIgnoredActor(this);
-
-	// ECollisionChannel GroundChannel = ECC_GameTraceChannel1;
-	if (GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_WorldStatic/*GroundChannel*/, Params))
-	{
-		FVector GroundLoc = Hit.Location;
-		float Height = CapsuleBottom.Z - GroundLoc.Z;
-
-		// 바닥 원 크기 설정(고정 크기)
-		GroundSelectionWidget->SetVisibility(bIsSelected); // 선택 시 가시성 유지
-		GroundSelectionWidget->SetWorldLocation(GroundLoc + FVector(0.f, 0.f, 10.f));
-		GroundSelectionWidget->SetDrawSize(FVector2D(GroundSelectionCircleSize, GroundSelectionCircleSize));
-
-		// 수직 안내선 업데이트 (공중 유닛일 때만 의미 있음)
-		if (MovementType == ENovaMovementType::Air && Height > 20.f)
-		{
-			HeightIndicatorLine->SetVisibility(bIsSelected); // 선택됐을 때만 보임
-
-			// 선의 위치는 유닛과 바닥의 정중앙에 배치
-			FVector MidPoint = (CapsuleBottom + GroundLoc) * 0.5f;
-			HeightIndicatorLine->SetWorldLocation(MidPoint);
-
-			// Z 스케일을 높이에 맞게 조절 (기본 큐브 100단위 기준)
-			// X, Y는 아주 얇게 (0.01f ~ 0.05f) 조정하세요.
-			HeightIndicatorLine->SetWorldScale3D(FVector(0.02f, 0.02f, Height / 100.f));
-		}
-		else
-		{
-			HeightIndicatorLine->SetVisibility(false);
-		}
-	}
-}
 
 void ANovaUnit::UpdateHealthBar()
 {
-	if (!HealthBarWidget || !AttributeSet) return;
+	if (!HealthBarComponent || !AttributeSet) return;
 
-	UUserWidget* WidgetObj = HealthBarWidget->GetUserWidgetObject();
-	if (!WidgetObj) return;
-
-	// 위젯 내부의 ProgressBar 찾기 (BP에서 HealthBar로 이름 설정)
-	UProgressBar* HealthBar = Cast<UProgressBar>(WidgetObj->GetWidgetFromName(TEXT("HealthBar")));
-	if (HealthBar)
-	{
-		// 현재 체력 비율 계산 (CurrentHealth / MaxHealth)
-		float CurrentHP = AttributeSet->GetHealth();
-		float MaxHP = AttributeSet->GetMaxHealth();
-		float HPPercent = (MaxHP > 0.f) ? (CurrentHP / MaxHP) : (0.f);
-
-		// 체력 퍼센트 적용
-		HealthBar->SetPercent(HPPercent);
-		// 색상 부여
-		HealthBar->SetFillColorAndOpacity(CachedUIColor);
-	}
-}
-
-void ANovaUnit::UpdateHealthBarTransform()
-{
-	if (GetCapsuleComponent() && HealthBarWidget)
-	{
-		// 1. 기준점 계산 (캡슐의 하단 지점)
-		float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-
-		// 2. 오프셋 설정: 캡슐 반지름(Radius)이나 특정 수치(AirWidgetHeightOffset 등)를 고려하여
-		// 유닛 아래쪽(또는 위쪽)으로 3D 앵커를 띄워줍니다.
-		float HealthBarZ = -HalfHeight - 20.0f; // 기본 유닛 아래 20.f 지점
-
-		// 공중 유닛의 경우 선택 원이 이미 아래로 내려가 있으므로, 그보다 더 아래에 배치
-		if (MovementType == ENovaMovementType::Air)
-		{
-			HealthBarZ = -HalfHeight - AirWidgetHeightOffset - 40.0f;
-		}
-
-		// 3. Screen Space 위젯의 3D 투영점(Anchor) 설정
-		HealthBarWidget->SetRelativeLocation(FVector(0.f, 0.f, HealthBarZ));
-
-		// 4. 스케일 상속 방지 및 크기 고정
-		HealthBarWidget->SetUsingAbsoluteScale(true);
-		HealthBarWidget->SetRelativeScale3D(FVector(1.f, 1.f, 1.f));
-		HealthBarWidget->SetRelativeScale3D(FVector(1.f, 1.f, 1.f));
-	}
-}
-
-void ANovaUnit::UpdateHealthBarLength()
-{
-	if (!HealthBarWidget || !AttributeSet) return;
-
-	// 최대 체력 가져오기
-	float MaxHP = AttributeSet->GetMaxHealth();
-
-	// 로그 스케일 가로 길이 계산
-	float LogHPVal = FMath::Loge(FMath::Max(1.0f, MaxHP / 100.0f));
-
-	// 가로 길이 계산 : 기본값 + (최대 체력 * 비례 계수)
-	float TargetWidth = MinHealthBarWidth + (LogHPVal * HealthBarLogScaleFactor);
-
-	// 최소/최대 범위 제한 (Clamp)
-	TargetWidth = FMath::Clamp(TargetWidth, MinHealthBarWidth, MaxHealthBarWidth);
-
-	// 위젯 컴포넌트에 적용 (세로 길이는 고정)
-	HealthBarWidget->SetDrawSize(FVector2D(TargetWidth, HealthBarHeight));
+	HealthBarComponent->UpdateHealthBar(AttributeSet->GetHealth(),
+	                                    AttributeSet->GetMaxHealth(),
+	                                    CachedUIColor);
 }
 
 void ANovaUnit::InitializeUIColors()
@@ -1467,9 +1264,9 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 	}
 
 	// 체력바 위젯도 안개 가시성에 따라 숨김/표시
-	if (HealthBarWidget)
+	if (HealthBarComponent)
 	{
-		HealthBarWidget->SetVisibility(bVisible && bHealthBarOptionEnabled);
+		HealthBarComponent->SetFogVisibility(bVisible);
 	}
 
 	// 선택된 상태에서 안개 속으로 사라졌을 때
@@ -1483,20 +1280,9 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 	}
 
 	// 선택 표시 위젯이 켜져 있었다면 강제로 끄기
-	if (!bVisible && SelectionWidget)
+	if (!bVisible && SelectionComponent)
 	{
-		SelectionWidget->SetVisibility(false);
-	}
-}
-
-void ANovaUnit::SetHealthBarVisibilityOption(bool bEnable)
-{
-	bHealthBarOptionEnabled = bEnable;
-
-	// 현재 안개에 의해 보이고 있다면, 옵션 값에 따라 체력바 갱신
-	if (HealthBarWidget && bIsVisibleByFog)
-	{
-		HealthBarWidget->SetVisibility(bEnable);
+		SelectionComponent->SetSelectionVisible(false);
 	}
 }
 
@@ -1555,9 +1341,15 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 
 		// UI 및 캐싱 데이터 초기화
 		InitializeUIColors();
-		UpdateSelectionCircleTransform();
-		UpdateHealthBarTransform();
-		UpdateHealthBarLength();
+		if (GetCapsuleComponent() && SelectionComponent)
+		{
+			float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+			float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+			bool bIsAir = (MovementType == ENovaMovementType::Air);
+
+			SelectionComponent->SetupSelection(Radius, HalfHeight, bIsAir);
+			SelectionComponent->SetTeamColor(CachedUIColor);
+		}
 	}
 
 	// 2. 체력 및 스탯 원상복구 (재조립 이후 최종 MaxHealth 기준으로 채움)
@@ -1627,14 +1419,9 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 
 	// 6. UI 상태 최종 초기화
 	// [핵심] bIsVisibleByFog를 반대값으로 설정하여 SetFogVisibility(true)가 반드시 실행되도록 강제합니다.
-	bIsVisibleByFog = false; 
-	SetFogVisibility(true); 
-
-	if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
-	{
-		SetHealthBarVisibilityOption(PC->GetShowHealthBars());
-	}
-
+	bIsVisibleByFog = false;
+	SetFogVisibility(true);
+	
 	UpdateHealthBar();
 
 	// 7. 랠리 포인트 이동
@@ -1677,11 +1464,11 @@ void ANovaUnit::OnReturnToPool_Implementation()
 	}
 
 	// 4. UI 숨김 및 상태 초기화
-	if (HealthBarWidget)
+	if (HealthBarComponent)
 	{
-		HealthBarWidget->SetVisibility(false);
+		HealthBarComponent->SetVisibility(false);
 	}
-	
+
 	// 다음 사용 시 SetFogVisibility가 정상 작동하도록 초기값(true)으로 리셋
 	bIsVisibleByFog = true;
 

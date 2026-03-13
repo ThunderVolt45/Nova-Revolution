@@ -12,6 +12,8 @@
 #include "BehaviorTree/BlackboardComponent.h"
 #include "NovaUnit.generated.h"
 
+class UNovaSelectionComponent;
+class UNovaHealthBarComponent;
 class UWidgetComponent;
 class UAbilitySystemComponent;
 class UNovaAttributeSet;
@@ -243,72 +245,22 @@ private:
 	void OnHealthChanged(const FOnAttributeChangeData& Data);
 
 protected:
-	// 유닛 선택 표시용 WidgetComponent
+	// 선택 시 UI적 요소를 표시할 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	TObjectPtr<UWidgetComponent> SelectionWidget;
-
-	// 공중 유닛의 위젯 위치 조절용 변수
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	float AirWidgetHeightOffset = 50.f;
-
-	// 항상 바닥에 투사되는 선택 원 (공중 유닛용)
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	TObjectPtr<UWidgetComponent> GroundSelectionWidget;
-
-	// 공중 유닛의 지면 투영 원(Ground Circle)의 고정 지름
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
-	float GroundSelectionCircleSize = 20.0f;
-
-	// 유닛과 바닥을 잇는 수직 고도 안내선
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	TObjectPtr<UStaticMeshComponent> HeightIndicatorLine;
-
+	TObjectPtr<UNovaSelectionComponent> SelectionComponent;
+	
 	// 상단 체력바 위젯 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	TObjectPtr<UWidgetComponent> HealthBarWidget;
-
-	// 체력바의 세로 길이
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	float HealthBarHeight = 15.0f;
-
-	// 체력바의 최소 가로 길이
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	float MinHealthBarWidth = 1.0f;
-
-	// 체력바의 최대 가로 길이
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	float MaxHealthBarWidth = 200.0f;
-
-	// 로그 스케일 계산 시 사용할 비중 수치 (값이 클수록 길이가 더 많이 늘어남)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	float HealthBarLogScaleFactor = 40.0f;
-
-	// 플레이어 옵션에 의한 체력바 표시 여부 (기본값: true)
-	bool bHealthBarOptionEnabled = true;
-	
-	// TeamID별 색 변경 함수
-	void UpdateSelectionCircleColor();
-
-	// 캡슐 크기에 맞춰 선택 위젯의 지름을 업데이트 하는 함수
-	void UpdateSelectionCircleTransform();
-
-	// 지면 위젯과 안내선의 위치 및 길이를 업데이트.
-	void UpdateGroundCircleAndLine();
-
-	// 체력바의 퍼센트와 색상을 업데이트
-	void UpdateHealthBar();
-
-	// 체력바의 3D 앵커 위치를 캡슐 크기에 맞춰 업데이트합니다. (Screen Space 왜곡 및 확대 대응)
-	void UpdateHealthBarTransform();
-
-	// 최대 체력에 따른 체력바 가로 길이를 업데이트
-	void UpdateHealthBarLength();
+	TObjectPtr<UNovaHealthBarComponent> HealthBarComponent;
 	
 	// 캐싱된 UI 색상 (성능 최적화용)
 	FLinearColor CachedUIColor = FLinearColor::White;
 	
 	// TeamID를 확인하여 UI 색상을 결정하는 함수
 	void InitializeUIColors();
+	
+	// 체력바 업데이트 함수
+	void UpdateHealthBar();
 	
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit", meta = (AllowPrivateAccess = "true"))
@@ -325,10 +277,6 @@ protected:
 public:
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
-	
-	// 체력바 표시 옵션 설정 함수
-	UFUNCTION() // Dynamic Delegate 바인딩을 위해 UFUNCTION추가
-	void SetHealthBarVisibilityOption(bool bEnable);
 
 	/** 유닛이 NavMesh 상에서 장애물로 작동할지 여부를 설정합니다. */
 	void SetNavigationObstacle(bool bIsObstacle);
