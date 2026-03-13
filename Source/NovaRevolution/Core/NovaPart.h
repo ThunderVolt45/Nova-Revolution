@@ -79,6 +79,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Effects")
 	void SetCharredAlpha(float Alpha);
 
+	/** 파츠를 본체에서 분리하고 물리력을 가해 튕겨나가게 합니다. */
+	void ExplodeAndDetach(FVector Impulse);
+
 	// 데이터 테이블에서 스펙을 불러오는 함수
 	void InitializePartSpec();
 

@@ -454,6 +454,8 @@ void ANovaUnit::ConstructLegs()
 		if (CurrentLegsPart)
 		{
 			CurrentLegsPart->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+			// 다리 부품 정면 보정 (Z: -90)
+			CurrentLegsPart->SetActorRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
 		}
 	}
 
@@ -461,6 +463,7 @@ void ANovaUnit::ConstructLegs()
 	if (CurrentLegsPart)
 	{
 		CurrentLegsPart->SetActorRelativeLocation(LegsOffset);
+		CurrentLegsPart->SetActorRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
 	}
 }
 
@@ -563,8 +566,17 @@ void ANovaUnit::InitializePartAttachments()
 	{
 		if (UPrimitiveComponent* LegsMesh = CurrentLegsPart->GetMainMesh())
 		{
+			// 소켓 위치가 정확한지 확인하기 위해 트랜스폼 업데이트 강제
+			LegsMesh->UpdateComponentToWorld();
+
 			CurrentBodyPart->AttachToComponent(LegsMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
 			                                   BodyTargetSocketName);
+
+			// 부착 후 몸통의 상대 위치를 한번 더 리셋하여 정확히 소켓에 물리도록 함
+			if (UPrimitiveComponent* BodyMesh = CurrentBodyPart->GetMainMesh())
+			{
+				BodyMesh->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+			}
 		}
 	}
 }
@@ -845,22 +857,48 @@ void ANovaUnit::Die()
 		HealthBarComponent->SetVisibility(false);
 		HealthBarComponent->Deactivate();
 	}
-
-	// 일정 시간 후 오브젝트 풀로 반환
+	
+	// 일정 시간 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
 	{
-		// 폭발 GameplayCue 실행
+		// 제거 시점에 폭발 효과(GCN) 실행
 		if (ExplosionCueTag.IsValid() && AbilitySystemComponent)
 		{
 			FGameplayCueParameters Params;
 			Params.Location = GetActorLocation();
 			Params.Instigator = this;
 			Params.EffectCauser = this;
+
 			AbilitySystemComponent->ExecuteGameplayCue(ExplosionCueTag, Params);
 		}
 
-		// 유닛 손상 효과 정리
+		// --- 부품 분리 및 사출 ---
+		FVector DeathLoc = GetActorLocation();
+		float LaunchStrength = FMath::RandRange(400.f, 500.f); // 무작위의 힘을 가한다
+
+		for (ANovaPart* Weapon : CurrentWeaponParts)
+		{
+			if (Weapon)
+			{
+				FVector Dir = (Weapon->GetActorLocation() - DeathLoc).GetSafeNormal();
+				Dir.Z += 0.5f;
+				Weapon->ExplodeAndDetach(Dir.GetSafeNormal() * LaunchStrength);
+			}
+		}
+		
+		CurrentWeaponParts.Empty();
+		
+		if (CurrentBodyPart)
+		{
+			// 몸통을 위쪽 대각선 방향으로 튕겨냄
+			FVector Dir = (CurrentBodyPart->GetActorLocation() - DeathLoc).GetSafeNormal();
+			Dir.Z += 0.5f;
+			CurrentBodyPart->ExplodeAndDetach(Dir.GetSafeNormal() * LaunchStrength);
+			CurrentBodyPart = nullptr; // 유닛 반납 시 중복 반납 방지
+		}
+
+		// 데미지 연출 제거
 		ClearDamageEffects();
 		
 		// 오브젝트 풀로 반환
