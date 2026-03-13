@@ -26,15 +26,8 @@ void UNovaGA_Overwork::ActivateAbility(const FGameplayAbilitySpecHandle Handle, 
     ANovaPlayerState* PS = Cast<ANovaPlayerState>(ActorInfo->OwnerActor.Get());
     if (!ASC || !PS) return;
     
-    // 1. 자원 체크 (Watt 0, SP 20)
-    // 부모 클래스(UNovaSkillAbility)의 기능을 활용합니다.
-    if (!CheckResources(0.0f, 20.0f))
-    {
-        NOVA_SCREEN(Warning, "Insufficient Resources! Need 500 Watt, 20 SP.");
-        
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        return;
-    }
+    // 1. 자원 체크
+    if (!CheckCost()) return; // 블루프린트 설정값으로 체크
 
     // 2. 필요한 수치 계산
     float CurrentWatt = PS->GetCurrentWatt();
@@ -45,15 +38,9 @@ void UNovaGA_Overwork::ActivateAbility(const FGameplayAbilitySpecHandle Handle, 
     float WattLevel = PS->GetWattLevel();
     float RegenRate = GetCurrentWattRegenRate(WattLevel);
     float StopDuration = (RefillAmount / RegenRate) * 1.3f;
-
-    // 4. 비용 지불 (기존 SetByCaller GE 적용)
-    FGameplayEffectSpecHandle CostSpec = ASC->MakeOutgoingSpec(ModifyResourceGEClass, 1.0f, ASC->MakeEffectContext());
-    if (CostSpec.IsValid())
-    {
-        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_Watt, -0.0f);
-        CostSpec.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_SP, -20.0f);
-        ASC->ApplyGameplayEffectSpecToSelf(*CostSpec.Data.Get());
-    }
+    
+    // 4. 비용 지불
+    ApplyCost();              // 한 줄로 공통 소모 처리
 
     // 5. Watt 즉시 회복 (SetByCaller 활용)
     if (WattRefillGEClass)

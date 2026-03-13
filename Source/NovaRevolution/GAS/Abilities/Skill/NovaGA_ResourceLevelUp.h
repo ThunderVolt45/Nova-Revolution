@@ -28,8 +28,5 @@ protected:
 	/** 자원 재생을 담당하는 Infinite GE (GE_ResourceRegen) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|LevelUp")
 	TSubclassOf<class UGameplayEffect> ResourceRegenGEClass;
-
-	/** 자원 소모(비용)를 담당하는 GE (SetByCaller 방식) */
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|LevelUp")
-	TSubclassOf<class UGameplayEffect> ModifyResourceGEClass;
+	
 };

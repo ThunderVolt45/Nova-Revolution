@@ -27,9 +27,6 @@ protected:
 	/** Watt 재생 Infinite GE (GE_WattRegen) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|LevelUp")
 	TSubclassOf<class UGameplayEffect> WattRegenGEClass;
-
-	/** 비용 소모 GE (SetByCaller) */
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|LevelUp")
-	TSubclassOf<class UGameplayEffect> ModifyResourceGEClass;
+	
 	
 };

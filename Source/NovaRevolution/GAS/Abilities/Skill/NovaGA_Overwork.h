@@ -31,10 +31,6 @@ protected:
 	/** Watt 생산을 중단시키는 Duration GE (Effect.Resource.Block.Watt 태그 부여) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Skill")
 	TSubclassOf<class UGameplayEffect> WattStopGEClass;
-	
-	/** 자원 소모(비용)를 담당하는 GE (SetByCaller 방식) */
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|LevelUp")
-	TSubclassOf<class UGameplayEffect> ModifyResourceGEClass;
 
 	/** 현재 와트 생산 속도를 가져오기 위한 함수 (데이터 에셋이나 계산 공식에 따라 조정 필요) */
 	float GetCurrentWattRegenRate(float WattLevel) const;
