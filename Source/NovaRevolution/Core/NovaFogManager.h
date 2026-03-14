@@ -69,4 +69,7 @@ private:
 	
 	// MPC 값을 계산하고 설정하는 내부 함수
 	void UpdateMPCParameters();
+	
+	// 첫 번째 유효한 프레임에 초기화 수행하기 위한 bool 변수(Standalone 안전장치)
+	bool bIsFogInitialized = false;
 };
