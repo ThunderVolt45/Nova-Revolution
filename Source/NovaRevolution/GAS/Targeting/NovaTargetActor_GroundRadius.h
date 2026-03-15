@@ -37,6 +37,9 @@ public:
 	/** 누구를 타겟팅할 것인가? (GA에서 설정) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Targeting")
 	ENovaTargetingFilter TargetingFilter = ENovaTargetingFilter::Ally;
+	
+	// [추가] 타겟팅이 시작될 때 GA로부터 넘어온 Radius를 실제 캡슐 크기에 적용합니다.
+	virtual void StartTargeting(UGameplayAbility* Ability) override;
 
 	// --- GameplayAbilityTargetActor 인터페이스 오버라이드 ---
 	/** 사용자가 마우스를 클릭(Confirm)했을 때 호출되어 실제 데이터를 확정합니다. */
@@ -46,10 +49,16 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 protected:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Targeting")
+	TObjectPtr<class UCapsuleComponent> CollisionCapsule;
+	
 	/** 마우스 아래의 지면 좌표를 가져오는 헬퍼 함수 */
 	FVector GetMouseLocationOnGround() const;
 
 	/** 팀 ID와 필터링 설정을 비교하여 유효한 타겟인지 판별합니다. */
 	bool IsValidTarget(int32 MyTeamID, int32 TargetTeamID) const;
+	
+	/** 현재 범위 내에 있는 유효한 아군 유닛들을 찾아 반환하는 공통 함수 */
+	void GetFilteredActorsInRange(TArray<AActor*>& OutActors) const;
 	
 };

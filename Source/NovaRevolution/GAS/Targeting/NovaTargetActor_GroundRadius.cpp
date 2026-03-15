@@ -1,99 +1,126 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "GAS/Targeting/NovaTargetActor_GroundRadius.h"
+
+#include "NovaRevolution.h"
 #include "Abilities/GameplayAbility.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h" // 추가: APlayerState를 사용하기 위해 필수
 #include "Core/NovaInterfaces.h" // TeamID 확인을 위한 인터페이스
+#include "Core/NovaLog.h"
 #include "Core/NovaTypes.h" // 추가: NovaTeam::None 사용을 위해 필수
+#include "Core/NovaUnit.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 
 ANovaTargetActor_GroundRadius::ANovaTargetActor_GroundRadius()
 {
     // 마우스 추적을 위해 틱 활성화
     PrimaryActorTick.bCanEverTick = true;
-    // Confirm(클릭) 시 액터를 바로 파괴할지 여부 (보통 Task에서 관리하므로 기본값 유지)
-    bDestroyOnConfirmation = false;
+    
+    // 1. 컴포넌트 생성 및 설정
+    CollisionCapsule = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CollisionCapsule"));
+    RootComponent = CollisionCapsule;
+
+    // 2. 물리 설정: 오직 쿼리(Query)만 수행하도록 설정
+    CollisionCapsule->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    CollisionCapsule->SetCollisionResponseToAllChannels(ECR_Ignore);
+    CollisionCapsule->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap); // 유닛(Pawn)만 감지
+
+    // 3. 기본 크기 (Radius는 GA에서 넘겨받은 값을 Tick에서 동적으로 적용 가능)
+    CollisionCapsule->SetCapsuleRadius(Radius);
+    CollisionCapsule->SetCapsuleHalfHeight(1000.0f); // 공중 유닛을 잡기 위한 충분한 높이
+
+    // 4. 디버깅용 시각화 활성화
+    CollisionCapsule->SetHiddenInGame(false);
 }
 
 void ANovaTargetActor_GroundRadius::Tick(float DeltaSeconds)
 {
     Super::Tick(DeltaSeconds);
 
-    // 매 프레임 마우스 위치를 계산하여 액터의 위치를 업데이트합니다.
     FVector MouseLoc = GetMouseLocationOnGround();
     SetActorLocation(MouseLoc);
+
+    // [디버깅 로직] 공통 함수를 사용하여 유닛들을 가져옵니다.
+    TArray<AActor*> CurrentUnits;
+    GetFilteredActorsInRange(CurrentUnits);
+
+    if (CurrentUnits.Num() > 0)
+    {
+        FString UnitNames = "";
+        for (AActor* Actor : CurrentUnits)
+        {
+            if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+            {
+                UnitNames += Unit->GetUnitName() + TEXT(", ");
+            }
+        }
+        UnitNames.RemoveFromEnd(TEXT(", "));
+        NOVA_SCREEN(Log, "Units in Range (%d): %s", CurrentUnits.Num(), *UnitNames);
+    }
+    else
+    {
+        NOVA_SCREEN(Log, "No Allied Units in Range.");
+    }
+    
+    // 지면(XY평면)에 평행한 원 그리기
+    FMatrix CircleMatrix = FMatrix::Identity;
+    CircleMatrix.SetOrigin(MouseLoc + FVector(0.f, 0.f, 5.f)); // 지면보다 살짝 위에 그림 (Z-Fighting 방지)
+    CircleMatrix.SetAxis(2, FVector::ForwardVector); // 원이 바라보는 방향 (Up축 설정)
+
+    DrawDebugCircle(
+        GetWorld(),
+        CircleMatrix,
+        Radius,
+        64,           // 세그먼트 수 (64 정도면 충분히 부드러움)
+        FColor::Cyan, // 하늘색 원형 가이드
+        false,        // Persistent (한 프레임만 표시)
+        -1.0f,        // Lifetime
+        0,            // Depth Priority
+        3.0f,         // 선 두께
+        false         // 원 중심에서 선을 그릴지 여부
+    );
+}
+
+void ANovaTargetActor_GroundRadius::StartTargeting(UGameplayAbility* Ability)
+{
+    Super::StartTargeting(Ability);
+    
+    // [중요] GA에서 TargetActor->Radius = RecallRadius; 라고 설정한 직후에 이 함수가 호출됩니다.
+    // 이때 딱 한 번 캡슐의 물리적 반지름을 설정합니다.
+    if (CollisionCapsule)
+    {
+        CollisionCapsule->SetCapsuleRadius(Radius);
+        CollisionCapsule->SetCapsuleHalfHeight(2000.0f); // 공중 유닛 감지 높이 고정
+    }
 }
 
 void ANovaTargetActor_GroundRadius::ConfirmTargetingAndContinue()
 {
-    // 추가: PrimaryPC가 없으면 타겟팅을 수행할 수 없음
     if (!PrimaryPC)
     {
         CancelTargeting();
         return;
     }
-    
-    // 1. 현재 마우스 위치에서 범위 내 유닛 검색 (Overlap 쿼리)
-    TArray<FOverlapResult> Overlaps;
-    FCollisionShape Sphere = FCollisionShape::MakeSphere(Radius);
-    FCollisionQueryParams Params;
-    Params.AddIgnoredActor(this); // 자기 자신은 제외
-    
-    // 추가: PrimaryPC가 조종하는 Pawn도 검색에서 제외할지 결정 (기지 소환의 경우 필요할 수 있음) -> 제외해야함, CameraPawn은 검색에서 제외
-    if (PrimaryPC->GetPawn()) 
+
+    // [수정됨] 공통 함수를 사용하여 최종 타겟을 확정합니다.
+    TArray<AActor*> FinalUnits;
+    GetFilteredActorsInRange(FinalUnits);
+
+    if (FinalUnits.Num() > 0)
     {
-        Params.AddIgnoredActor(PrimaryPC->GetPawn());
-    }
+        TArray<TWeakObjectPtr<AActor>> FilteredWeakActors;
+        for(AActor* Actor : FinalUnits) FilteredWeakActors.Add(Actor);
 
-    // Pawn 채널을 대상으로 구체 범위 내 모든 액터 검색
-    GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn, Sphere, Params);
-
-    // 2. 내 팀 ID 확인
-    int32 MyTeamID = NovaTeam::None;
-    if (PrimaryPC)
-    {
-        // 방법 A: PlayerState가 인터페이스를 구현하고 있으므로 PS를 먼저 확인
-        if (INovaTeamInterface* TeamInterface = PrimaryPC->GetPlayerState<INovaTeamInterface>())
-        {
-            MyTeamID = TeamInterface->GetTeamID();
-        }
-        // 방법 B (Fallback): 만약 Controller에도 구현해두었다면 직접 확인
-        else if (INovaTeamInterface* PCTeamInterface = Cast<INovaTeamInterface>(PrimaryPC))
-        {
-            MyTeamID = PCTeamInterface->GetTeamID();
-        }
-    }
-
-    // 3. 필터링 로직 수행 및 타겟 리스트 구성
-    TArray<TWeakObjectPtr<AActor>> FilteredActors;
-    for (const FOverlapResult& Result : Overlaps)
-    {
-        AActor* OverlappedActor = Result.GetActor();
-        if (INovaTeamInterface* UnitTeam = Cast<INovaTeamInterface>(OverlappedActor))
-        {
-            // 팀 ID를 비교하여 타겟에 포함할지 결정
-            if (IsValidTarget(MyTeamID, UnitTeam->GetTeamID()))
-            {
-                FilteredActors.Add(OverlappedActor);
-            }
-        }
-    }
-
-    // 4. 결과가 있다면 데이터를 Gameplay Ability로 전송
-    if (FilteredActors.Num() > 0)
-    {
-        // 유닛 리스트를 포함한 TargetDataHandle 생성
-        FGameplayAbilityTargetDataHandle Handle = StartLocation.MakeTargetDataHandleFromActors(FilteredActors);
-
-        // 델리게이트를 통해 GA에게 데이터가 준비되었음을 알림
+        FGameplayAbilityTargetDataHandle Handle = StartLocation.MakeTargetDataHandleFromActors(FilteredWeakActors);
         TargetDataReadyDelegate.Broadcast(Handle);
     }
     else
     {
-        // 대상이 하나도 없으면 타겟팅 취소 처리
         CancelTargeting();
     }
 }
@@ -117,13 +144,50 @@ bool ANovaTargetActor_GroundRadius::IsValidTarget(int32 MyTeamID, int32 TargetTe
     return false;
 }
 
+void ANovaTargetActor_GroundRadius::GetFilteredActorsInRange(TArray<AActor*>& OutActors) const
+{
+    OutActors.Empty();
+    if (!PrimaryPC) return;
+
+    // [매우 간결해진 로직] 컴포넌트가 이미 감지 중인 오버랩 목록을 즉시 가져옵니다.
+    TArray<AActor*> OverlappingActors;
+    CollisionCapsule->GetOverlappingActors(OverlappingActors, ANovaUnit::StaticClass());
+    
+    //GetWorld()->OverlapMultiByChannel(Overlaps, GetActorLocation(), FQuat::Identity, ECC_Pawn, Sphere, Params);
+
+    // 내 팀 ID 확인
+    int32 MyTeamID = NovaTeam::None;
+    if (INovaTeamInterface* TeamInterface = PrimaryPC->GetPlayerState<INovaTeamInterface>())
+    {
+        MyTeamID = TeamInterface->GetTeamID();
+    }
+
+    for (AActor* Actor : OverlappingActors)
+    {
+        ANovaUnit* Unit = Cast<ANovaUnit>(Actor);
+        // 사망하지 않았으며 필터링 조건에 맞는 유닛만 선별
+        if (Unit && !Unit->IsDead() && IsValidTarget(MyTeamID, Unit->GetTeamID()))
+        {
+            OutActors.Add(Actor);
+        }
+    }
+}
+
 FVector ANovaTargetActor_GroundRadius::GetMouseLocationOnGround() const
 {
     if (PrimaryPC)
     {
         FHitResult Hit;
-        // Visibility 채널을 사용하여 지면(Terrain) 위치를 감지
-        if (PrimaryPC->GetHitResultUnderCursor(ECC_Visibility, false, Hit))
+        // ECC_Visibility 대신 지형(WorldStatic)만 감지하거나, 유닛을 무시하는 설정을 추가합니다.
+        FCollisionQueryParams Params;
+    
+        // 유닛 클래스들을 트레이스에서 제외 (커서가 유닛에 가려 지면 좌표를 놓치는 현상 방지)
+        TArray<AActor*> AllUnits;
+        UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANovaUnit::StaticClass(), AllUnits);
+        Params.AddIgnoredActors(AllUnits);
+
+        // 지면(보통 WorldStatic) 채널을 우선적으로 체크
+        if (PrimaryPC->GetHitResultUnderCursor(ECC_WorldStatic, false, Hit))
         {
             return Hit.ImpactPoint;
         }
