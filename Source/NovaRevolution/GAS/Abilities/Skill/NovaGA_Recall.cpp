@@ -99,9 +99,6 @@ void UNovaGA_Recall::OnTargetDataReadyCallback(const FGameplayAbilityTargetDataH
     }
 
     FVector Destination = PlayerBase->GetRallyPoint();
-
-    // 3. 타겟팅된 유닛들 처리
-    //TArray<AActor*> TargetActors = DataHandle.GetActors();
     
     // 라이브러리 함수를 사용하여 핸들로부터 액터 배열을 한 번에 추출합니다.
     TArray<AActor*> TargetActors = UAbilitySystemBlueprintLibrary::GetAllActorsFromTargetData(DataHandle);
@@ -110,18 +107,32 @@ void UNovaGA_Recall::OnTargetDataReadyCallback(const FGameplayAbilityTargetDataH
     {
         if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
         {
-            // (A) 비주얼 이펙트 실행 (GameplayCue)
+            // [수정] 이동할 최종 위치 계산
+            FVector FinalLocation = Destination;
+
+            // 공중 유닛인 경우, 유닛이 유지해야 할 기본 고도(DefaultAirZ)를 Z축에 더해줍니다.
+            // 이를 통해 공중 유닛이 기지 바닥에 처박히는 현상을 방지합니다.
+            if (Unit->GetMovementType() == ENovaMovementType::Air)
+            {
+                FinalLocation.Z += Unit->GetDefaultAirZ();
+            }
+
+            // 비주얼 이펙트 실행 (GameplayCue)
             if (RecallCueTag.IsValid())
             {
                 Unit->GetAbilitySystemComponent()->ExecuteGameplayCue(RecallCueTag);
             }
 
-            // (B) 실제 위치 이동
-            // 여러 유닛이 동시에 이동할 때 겹침 방지를 위해 약간의 오프셋을 줄 수도 있습니다.
-            Unit->SetActorLocation(Destination);
+            // [수정] 보정된 위치로 순간이동
+            Unit->SetActorLocation(FinalLocation);
 
-            // (C) 이동 후 유닛의 기존 명령 취소 (선택 사항)
-            // Unit->Stop(); // 이동 후 멍하게 서 있지 않도록 명령 초기화 가능
+            // 이동 후 유닛의 기존 명령을 취소하고 정지 상태로 만듭니다. (선택 사항)
+            if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
+            {
+                FCommandData StopCmd;
+                StopCmd.CommandType = ECommandType::Stop;
+                CmdInterface->IssueCommand(StopCmd);
+            }
         }
     }
 
