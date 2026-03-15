@@ -1,13 +1,14 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "AbilitySystemBlueprintLibrary.h"
 #include "GAS/Abilities/Skill/NovaGA_Recall.h"
 #include "GAS/Targeting/NovaTargetActor_GroundRadius.h"
+#include "AbilitySystemBlueprintLibrary.h"
 #include "Core/NovaBase.h"
 #include "Core/NovaUnit.h"
 #include "AbilitySystemComponent.h"
 #include "NovaRevolution.h"
 #include "Core/NovaLog.h"
+#include "Player/NovaPlayerController.h"
 
 UNovaGA_Recall::UNovaGA_Recall()
 {
@@ -36,6 +37,13 @@ void UNovaGA_Recall::ActivateAbility(const FGameplayAbilitySpecHandle Handle, co
         NOVA_SCREEN(Error, "TargetActorClass is not assigned in Recall Ability!");
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
+    }
+    
+    // 추가) PlayerController를 가져와 스킬 모드로 설정
+    if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetActorInfo().PlayerController))
+    {
+        //PC->PendingCommandType = ECommandType::Skill;
+        PC->SetPendingCommandType(ECommandType::Skill);
     }
 
     // 3. [해결] 타겟 액터를 우리가 직접 먼저 스폰합니다.
@@ -66,7 +74,7 @@ void UNovaGA_Recall::ActivateAbility(const FGameplayAbilitySpecHandle Handle, co
         WaitTargetTask->ValidData.AddDynamic(this, &UNovaGA_Recall::OnTargetDataReadyCallback);
         WaitTargetTask->Cancelled.AddDynamic(this, &UNovaGA_Recall::OnTargetDataCancelledCallback);
 
-        // 8. 태스크 활성화 (이 시점부터 타겟 액터가 월드에 나타나고 마우스를 추적합니다)
+        // 8. 태스크 활성화 (이 시점부터 타겟 액터가 월드에 나타나고 마우스를 추적합니다) **타겟액터 활동시작!!**
         WaitTargetTask->ReadyForActivation();
     }
     else
@@ -125,6 +133,22 @@ void UNovaGA_Recall::OnTargetDataCancelledCallback(const FGameplayAbilityTargetD
 {
     // 사용자가 취소했을 경우 자원을 소모하지 않고 어빌리티만 종료합니다.
     EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, true);
+}
+
+void UNovaGA_Recall::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+    const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+{
+    // [추가] 어빌리티가 끝날 때(완료 또는 취소) 무조건 컨트롤러 상태를 복구합니다.
+    if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(ActorInfo->PlayerController))
+    {
+        // 현재 상태가 Skill일 때만 일반 모드(None)로 복구하여 조작권을 플레이어에게 돌려줍니다.
+        if (PC->GetPendingCommandType() == ECommandType::Skill)
+        {
+            PC->SetPendingCommandType(ECommandType::None);
+        }
+    }
+    
+    Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
 }
 
 

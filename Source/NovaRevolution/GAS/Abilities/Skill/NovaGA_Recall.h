@@ -30,6 +30,10 @@ protected:
 	/** 사용자가 타겟팅을 취소(ESC 등)했을 때 호출되는 콜백 */
 	UFUNCTION()
 	void OnTargetDataCancelledCallback(const FGameplayAbilityTargetDataHandle& DataHandle);
+	
+	/** 어빌리티가 종료될 때 자동으로 호출되는 GAS 표준 함수 */
+	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo,
+	  const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 
 protected:
 	/** 사용할 타겟 액터 클래스 (ANovaTargetActor_GroundRadius 또는 그 자식 블루프린트) */
@@ -42,5 +46,5 @@ protected:
 
 	/** 타겟팅 반지름 (기본값 700 = 노바 기준 7) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Recall")
-	float RecallRadius = 700.0f;
+	float RecallRadius = 500.0f;
 };
