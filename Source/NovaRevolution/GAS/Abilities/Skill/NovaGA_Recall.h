@@ -47,4 +47,8 @@ protected:
 	/** 타겟팅 반지름 (기본값 700 = 노바 기준 7) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Recall")
 	float RecallRadius = 500.0f;
+	
+	/** 이 스킬의 타겟 하이라이트 색상 (에디터에서 분홍색으로 설정!) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Recall")
+	FLinearColor SkillHighlightColor = FLinearColor(1.0f, 0.5f, 0.5f, 0.7f);
 };

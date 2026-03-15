@@ -58,6 +58,9 @@ void UNovaGA_Recall::ActivateAbility(const FGameplayAbilitySpecHandle Handle, co
         // 5. 반지름 및 필터 설정 (GA의 데이터를 액터에 주입)
         SpawnedTargetActor->Radius = RecallRadius;
         SpawnedTargetActor->TargetingFilter = ENovaTargetingFilter::Ally;
+        
+        // 하이라이트 색상값 전달
+        SpawnedTargetActor->CurrentHighlightColor = SkillHighlightColor;
     }
 
     // 6. [해결] WaitTargetDataUsingActor를 사용하여 우리가 만든 액터를 태스크에 전달합니다.
