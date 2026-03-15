@@ -54,6 +54,8 @@ void ANovaFogManager::UpdateFog()
 {
 	if (!CurrentFogRT || !HistoryFogRT || !FogVolume) return;
 
+	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
+	
 	// 1. Standalone 안전장치: 첫 번째 유효한 프레임에 초기화 수행
 	if (!bIsFogInitialized)
 	{

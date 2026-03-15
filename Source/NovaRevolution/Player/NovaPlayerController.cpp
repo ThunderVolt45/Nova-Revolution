@@ -536,11 +536,14 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 					{
 						ClearSelection();
 						NewSelectable->OnSelected();
-						SelectedUnits.Add(CursorHit.GetActor());
+						SelectedUnits.Add(HitActor);
 					}
-				}
-			}
-		}
+					}
+
+					// 선택 변경 알림
+					OnSelectionChanged.Broadcast(SelectedUnits);
+					}
+					}
 		// TODO: 나중에 여기에 HUD->DragSelectUpdate(..., false) 호출을 추가합니다.
 	}
 
@@ -738,6 +741,9 @@ void ANovaPlayerController::PerformBoxSelection()
 				SelectedUnits.Add(TargetEnemy);
 			}
 		}
+
+		// 선택 변경 알림
+		OnSelectionChanged.Broadcast(SelectedUnits);
 	}
 }
 
@@ -828,6 +834,9 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 	// 포커스 정보 갱신
 	LastFocusID = FocusID;
 	LastFocusTime = CurrentTime;
+
+	// 선택 변경 알림
+	OnSelectionChanged.Broadcast(SelectedUnits);
 }
 
 void ANovaPlayerController::ToggleHealthBar(FGameplayTag InputTag)
@@ -857,6 +866,7 @@ void ANovaPlayerController::ClearSelection()
 		}
 	}
 	SelectedUnits.Empty();
+	OnSelectionChanged.Broadcast(SelectedUnits);
 }
 
 // 생성된 유닛 자동 부대 편입
@@ -887,6 +897,9 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 			Selectable->OnDeselected();
 		}
 		SelectedUnits.Remove(SelectedTargets);
+
+		// 선택 변경 알림
+		OnSelectionChanged.Broadcast(SelectedUnits);
 	}
 
 	// 부대 지정(ControlGroups) 리스트에서도 제거
