@@ -133,6 +133,24 @@ UPrimitiveComponent* ANovaPart::GetMainMesh() const
 	return nullptr;
 }
 
+void ANovaPart::SetHighlight(UMaterialInterface* InHighlightMaterial)
+{
+	// 1. 액터에 포함된 모든 종류의 메시 컴포넌트(Skeletal, Static 모두 포함)를 찾습니다.
+	// TArray에 담아 컴포넌트 구조가 복잡하더라도 일괄 처리가 가능하게 합니다.
+	TArray<UMeshComponent*> MeshComponents;
+	GetComponents<UMeshComponent>(MeshComponents);
+
+	// 2. 찾은 모든 메시 컴포넌트를 순회하며 오버레이 머티리얼을 적용합니다.
+	for (UMeshComponent* MeshComp : MeshComponents)
+	{
+		if (MeshComp)
+		{
+			// 전달받은 머티리얼이 있으면 하이라이트가 켜지고, nullptr이면 꺼집니다.
+			MeshComp->SetOverlayMaterial(InHighlightMaterial);
+		}
+	}
+}
+
 void ANovaPart::SetMovementSpeed(float Speed)
 {
 	if (SkeletalMesh)
