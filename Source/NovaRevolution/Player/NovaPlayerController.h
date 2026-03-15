@@ -176,6 +176,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nova|UI")
 	bool GetShowHealthBars() const { return bShowHealthBars; }
 	
+	// 추가) GA에서 사용하기 위한 PendingCommandType Getter/Setter 함수
+	// 명령 대기 상태를 설정합니다. (GA에서 호출)
+	UFUNCTION(BlueprintCallable, Category = "Nova|Command")
+	void SetPendingCommandType(ECommandType NewType) { PendingCommandType = NewType; }
+
+	// 현재 명령 대기 상태를 반환합니다.
+	UFUNCTION(BlueprintPure, Category = "Nova|Command")
+	ECommandType GetPendingCommandType() const { return PendingCommandType; }
+	
 protected:
 	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
