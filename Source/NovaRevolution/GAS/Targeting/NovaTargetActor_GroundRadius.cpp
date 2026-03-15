@@ -45,14 +45,52 @@ void ANovaTargetActor_GroundRadius::Tick(float DeltaSeconds)
     FVector MouseLoc = GetMouseLocationOnGround();
     SetActorLocation(MouseLoc);
 
-    // [디버깅 로직] 공통 함수를 사용하여 유닛들을 가져옵니다.
-    TArray<AActor*> CurrentUnits;
-    GetFilteredActorsInRange(CurrentUnits);
+    // 2. 현재 범위 내 아군 유닛 목록 가져오기
+    TArray<AActor*> CurrentActors;
+    GetFilteredActorsInRange(CurrentActors);
 
+    // 가독성을 위해 ANovaUnit 포인터 배열로 변환
+    TArray<TWeakObjectPtr<ANovaUnit>> CurrentUnits;
+    for (AActor* Actor : CurrentActors)
+    {
+        if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+            CurrentUnits.Add(Unit);
+    }
+
+    // 3. [하이라이트 로직]
+    // (A) 영역을 벗어난 유닛들: 이전 목록에는 있지만 현재 목록에는 없는 경우 -> 끄기
+    for (int32 i = LastHighlightedUnits.Num() - 1; i >= 0; --i)
+    {
+        TWeakObjectPtr<ANovaUnit> OldUnit = LastHighlightedUnits[i];
+        // 유닛이 유효하지 않거나(파괴됨), 현재 감지 범위 내에 없다면 하이라이트 해제
+        if (OldUnit.IsValid() && !CurrentUnits.Contains(OldUnit))
+        {
+            OldUnit->SetHighlight(false);
+            LastHighlightedUnits.RemoveAt(i);
+        }
+        else if (!OldUnit.IsValid())
+        {
+            // 유닛이 이미 파괴된 경우 리스트에서만 제거
+            LastHighlightedUnits.RemoveAt(i);
+        }
+    }
+
+    // (B) 새로 들어온 유닛들: 현재 목록에는 있지만 이전 목록에는 없는 경우 -> 켜기
+    for (auto& NewUnit : CurrentUnits)
+    {
+        if (NewUnit.IsValid() && !LastHighlightedUnits.Contains(NewUnit))
+        {
+            // 흰색 하이라이트 적용 (소환 대기 상태 시각화)
+            NewUnit->SetHighlight(true, CurrentHighlightColor);
+            LastHighlightedUnits.Add(NewUnit);
+        }
+    }
+    
+    
     if (CurrentUnits.Num() > 0)
     {
         FString UnitNames = "";
-        for (AActor* Actor : CurrentUnits)
+        for (AActor* Actor : CurrentActors)
         {
             if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
             {
@@ -171,6 +209,21 @@ void ANovaTargetActor_GroundRadius::GetFilteredActorsInRange(TArray<AActor*>& Ou
             OutActors.Add(Actor);
         }
     }
+}
+
+void ANovaTargetActor_GroundRadius::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    // 스킬이 끝나거나 취소되어 액터가 사라질 때, 남아있는 모든 하이라이트를 끕니다.
+    for (auto& Unit : LastHighlightedUnits)
+    {
+        if (Unit.IsValid())
+        {
+            Unit->SetHighlight(false);
+        }
+    }
+    LastHighlightedUnits.Empty();
+    
+    Super::EndPlay(EndPlayReason);
 }
 
 FVector ANovaTargetActor_GroundRadius::GetMouseLocationOnGround() const

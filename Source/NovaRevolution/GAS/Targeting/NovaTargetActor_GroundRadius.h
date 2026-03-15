@@ -29,6 +29,10 @@ class NOVAREVOLUTION_API ANovaTargetActor_GroundRadius : public AGameplayAbility
 	
 public:
 	ANovaTargetActor_GroundRadius();
+	
+	/** 타겟팅 영역 내 유닛의 하이라이트 색상 (에디터에서 분홍색으로 설정 가능) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Targeting")
+	FLinearColor CurrentHighlightColor = FLinearColor::White; // 기본 흰색
 
 	/** 타겟팅 반지름 (기본값: 700 units / Nova 기준 7) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Targeting")
@@ -38,7 +42,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Targeting")
 	ENovaTargetingFilter TargetingFilter = ENovaTargetingFilter::Ally;
 	
-	// [추가] 타겟팅이 시작될 때 GA로부터 넘어온 Radius를 실제 캡슐 크기에 적용합니다.
+	// 타겟팅이 시작될 때 GA로부터 넘어온 Radius를 실제 캡슐 크기에 적용합니다.
 	virtual void StartTargeting(UGameplayAbility* Ability) override;
 
 	// --- GameplayAbilityTargetActor 인터페이스 오버라이드 ---
@@ -51,6 +55,14 @@ public:
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Targeting")
 	TObjectPtr<class UCapsuleComponent> CollisionCapsule;
+	
+	// NovaUnit Material Highlight 관련
+	/** 이전 프레임에서 하이라이트되었던 유닛들 (영역 이탈 시 끄기 위함) */
+	UPROPERTY()
+	TArray<TWeakObjectPtr<class ANovaUnit>> LastHighlightedUnits;
+
+	/** 액터가 파괴될 때(스킬 종료/취소) 모든 하이라이트를 끕니다. */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	
 	/** 마우스 아래의 지면 좌표를 가져오는 헬퍼 함수 */
 	FVector GetMouseLocationOnGround() const;
