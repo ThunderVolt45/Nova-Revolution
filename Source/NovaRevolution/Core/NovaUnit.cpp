@@ -97,6 +97,12 @@ ANovaUnit::ANovaUnit()
 void ANovaUnit::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	// 하이라이트용 동적 머티리얼 인스턴스 미리 생성
+	if (HighlightMasterMaterial)
+	{
+		HighlightDynamicMaterial = UMaterialInstanceDynamic::Create(HighlightMasterMaterial, this);
+	}
 
 	// 런타임 시작 시 다시 한번 초기화 및 부착 보강
 	ConstructUnitParts();
@@ -1544,4 +1550,34 @@ void ANovaUnit::OnReturnToPool_Implementation()
 
 	// NOVA_LOG(Log, "Unit %s Returned to Pool.", *GetName());
 }
+#pragma endregion
+
+#pragma region Material Overlay
+
+void ANovaUnit::SetHighlight(bool bEnable, FLinearColor HighlightColor)
+{
+	bIsHighlightActive = bEnable;
+	UMaterialInterface* MaterialToApply = nullptr;
+
+	if (bEnable && HighlightDynamicMaterial)
+	{
+		// 1. 동적 인스턴스의 색상 파라미터 업데이트 (마스터 머티리얼의 파라미터 이름과 일치해야 함)
+		HighlightDynamicMaterial->SetVectorParameterValue(TEXT("OverlayColor"), HighlightColor);
+		MaterialToApply = HighlightDynamicMaterial;
+	}
+
+	// 2. 모든 파츠(다리, 몸체, 무기 등)에 일괄 적용
+	// 각 파츠 클래스(ANovaPart) 내부에 정의된 SetHighlight를 호출하여 OverlayMaterial을 설정합니다.
+	if (CurrentLegsPart) CurrentLegsPart->SetHighlight(MaterialToApply);
+	if (CurrentBodyPart) CurrentBodyPart->SetHighlight(MaterialToApply);
+    
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
+	{
+		if (WeaponPart)
+		{
+			WeaponPart->SetHighlight(MaterialToApply);
+		}
+	}
+}
+
 #pragma endregion

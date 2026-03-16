@@ -3,6 +3,7 @@
 
 #include "Player/NovaPlayerController.h"
 
+#include "AbilitySystemComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NovaPawn.h"
@@ -15,6 +16,7 @@
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
+#include "Core/AI/NovaAIController.h"
 #include "GameFramework/HUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/NovaHUD.h"
@@ -158,6 +160,36 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift)) bIsShiftDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Ctrl)) bIsCtrlDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Alt)) bIsAltDown = true;
+	
+	
+	// 사령관 Skill 관련 로직 추가 : 스킬 타겟팅 모드인 경우 입력을 가로채서 GAS에만 전달하고 함수를 끝냅니다.
+	if (PendingCommandType == ECommandType::Skill)
+	{
+		if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+		{
+			UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
+			if (ASC)
+			{
+				// 좌클릭 -> Confirm
+				if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
+				{
+					NOVA_LOG(Log, "Input_Select detected during Skill mode. Calling LocalInputConfirm for PC: %s", *GetName());
+					
+					ASC->LocalInputConfirm();
+					return; // 기존의 드래그/선택 로직을 실행하지 않고 나갑니다.
+				}
+				// 우클릭 -> Cancel
+				else if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
+				{
+					NOVA_LOG(Warning, "Input_Command detected during Skill mode. Calling LocalInputCancel for PC: %s", *GetName());
+					
+					ASC->LocalInputCancel();
+					return; // 기존의 이동 명령을 실행하지 않고 나갑니다.
+				}
+			}
+		}
+	}
+	
 
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Toggle_HealthBar))
 	{
@@ -535,11 +567,14 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 					{
 						ClearSelection();
 						NewSelectable->OnSelected();
-						SelectedUnits.Add(CursorHit.GetActor());
+						SelectedUnits.Add(HitActor);
 					}
-				}
-			}
-		}
+					}
+
+					// 선택 변경 알림
+					OnSelectionChanged.Broadcast(SelectedUnits);
+					}
+					}
 		// TODO: 나중에 여기에 HUD->DragSelectUpdate(..., false) 호출을 추가합니다.
 	}
 
@@ -737,6 +772,9 @@ void ANovaPlayerController::PerformBoxSelection()
 				SelectedUnits.Add(TargetEnemy);
 			}
 		}
+
+		// 선택 변경 알림
+		OnSelectionChanged.Broadcast(SelectedUnits);
 	}
 }
 
@@ -746,6 +784,10 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 	// 현재 로컬 플레이어의 팀 ID 가져오기
 	int32 LocalTeamID = GetPlayerState<ANovaPlayerState>() ? GetPlayerState<ANovaPlayerState>()->GetTeamID() : -1;
 
+	if (CommandData.CommandType == ECommandType::Move)
+	{
+		SpawnCommandVisualEffect(CommandData.TargetLocation, CommandData.CommandType, CommandData.TargetActor.Get());
+	}
 	for (AActor* Unit : SelectedUnits)
 	{
 		// 내 팀 유닛이 아니라면 명령 전송 무시
@@ -766,7 +808,6 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 
 		if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
 		{
-			SpawnCommandVisualEffect(CommandData.TargetLocation, CommandData.CommandType);
 			CmdInterface->IssueCommand(CommandData);
 		}
 	}
@@ -824,6 +865,9 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 	// 포커스 정보 갱신
 	LastFocusID = FocusID;
 	LastFocusTime = CurrentTime;
+
+	// 선택 변경 알림
+	OnSelectionChanged.Broadcast(SelectedUnits);
 }
 
 void ANovaPlayerController::ToggleHealthBar(FGameplayTag InputTag)
@@ -853,6 +897,7 @@ void ANovaPlayerController::ClearSelection()
 		}
 	}
 	SelectedUnits.Empty();
+	OnSelectionChanged.Broadcast(SelectedUnits);
 }
 
 // 생성된 유닛 자동 부대 편입
@@ -883,6 +928,9 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 			Selectable->OnDeselected();
 		}
 		SelectedUnits.Remove(SelectedTargets);
+
+		// 선택 변경 알림
+		OnSelectionChanged.Broadcast(SelectedUnits);
 	}
 
 	// 부대 지정(ControlGroups) 리스트에서도 제거
@@ -895,7 +943,7 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 	}
 }
 
-void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType)
+void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor)
 {
 	UNiagaraSystem* EffectToSpawn = nullptr;
 
@@ -903,7 +951,10 @@ void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, EComman
 	switch (CommandType)
 	{
 	case ECommandType::Move:
-		EffectToSpawn = MoveCommandEffect;
+		if (!TargetActor)
+		{
+			EffectToSpawn = MoveCommandEffect;
+		}
 		break;
 	case ECommandType::Attack:
 		EffectToSpawn = AttackCommandEffect;

@@ -47,9 +47,9 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
     }
 
     // 2. 자원 체크 및 3.비용 지불
-    if (!CheckCost()) return;
+    if (!CheckSkillCost()) return;
     
-    ApplyCost();
+    ApplySkillCost();
 
     // 4. 레벨 속성 수치 증가 (GE_ResourceLevelUp_Increment 적용)
     if (LevelUpIncrementGEClass)

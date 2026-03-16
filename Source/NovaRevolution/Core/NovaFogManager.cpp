@@ -47,15 +47,26 @@ void ANovaFogManager::BeginPlay()
 		);
 	}
 
-	UpdateMPCParameters();
+	// UpdateMPCParameters();
 }
 
 void ANovaFogManager::UpdateFog()
 {
 	if (!CurrentFogRT || !HistoryFogRT || !FogVolume) return;
 
-	// 현재 시야 RT 초기화 (검은색)
 	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
+	
+	// 1. Standalone 안전장치: 첫 번째 유효한 프레임에 초기화 수행
+	if (!bIsFogInitialized)
+	{
+		// History를 White로 확실히 밀어줌
+		UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), HistoryFogRT, FLinearColor::White);
+
+		// MPC 파라미터도 이때 확실히 업데이트
+		UpdateMPCParameters();
+
+		bIsFogInitialized = true;
+	}
 
 	// 로컬 플레이어 정보 가져오기
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();

@@ -42,7 +42,8 @@ enum class ECommandType : uint8
 	Hold,       // H (제자리 대기 및 공격)
 	Stop,       // S (현재 명령 취소)
 	Spread,     // C (유닛 산개)
-	Halt        // L (완전 정지)
+	Halt,        // L (완전 정지)
+	Skill        // 유닛을 대상으로 하는 스킬이 사용중임을 알림
 };
 
 /**
