@@ -434,8 +434,44 @@ void ANovaAIController::HandleStuckStatus()
 	{
 		if (bIsDisposableCommand)
 		{
-			// 이동/산개 명령은 목표 지점이 꽉 차있으면 중단 (명령 완료로 간주)
-			NOVA_LOG(Log, "AIController: Goal is occupied. Terminating disposable command [%d] for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
+			// [개선] 목표 지점이 점유되었을 때, 단순히 NavMesh만 체크하는 게 아니라 실제 유닛 충돌체도 감지하여 빈 공간 검색
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			if (NavSys)
+			{
+				FNavLocation ProjectedLocation;
+				// 목표 지점 주변으로 탐색 반경 설정 (EarlyArrivalDistance 활용)
+				float SearchRadius = EarlyArrivalDistance;
+				
+				if (NavSys->ProjectPointToNavigation(GoalLocation, ProjectedLocation, FVector(SearchRadius, SearchRadius, 500.f)))
+				{
+					// 찾은 지점이 실제로 비어 있는지 충돌 검사 (내 자신과 타겟 액터는 제외)
+					FCollisionQueryParams OccupyParams;
+					OccupyParams.AddIgnoredActor(MyPawn);
+					if (TargetActor) OccupyParams.AddIgnoredActor(TargetActor);
+
+					bool bIsNewLocOccupied = GetWorld()->OverlapAnyTestByChannel(
+						ProjectedLocation.Location, FQuat::Identity, ECC_Pawn, 
+						FCollisionShape::MakeSphere(CheckRadius), OccupyParams);
+
+					if (!bIsNewLocOccupied)
+					{
+						float NewDistSq = FVector::DistSquared(ProjectedLocation.Location, GoalLocation);
+						float CurrentDistSq = FVector::DistSquared(CurrentLocation, GoalLocation);
+
+						// 현재 위치보다 목표에 유의미하게(약 50유닛 이상) 더 가까운 빈 공간일 때만 이동 갱신
+						// 이를 통해 아주 미세한 위치 차이로 인한 무한 루프(Infinite Rerouting) 방지
+						if (NewDistSq < CurrentDistSq - FMath::Square(50.f))
+						{
+							NOVA_LOG(Log, "AIController: Goal occupied. Rerouting to empty space for [%s]", *MyPawn->GetName());
+							MoveToLocationOptimized(ProjectedLocation.Location);
+							return;
+						}
+					}
+				}
+			}
+
+			// 더 이상 갈 수 있는 빈 공간이 없거나 이미 최선으로 근접했다면 명령 완료 처리
+			NOVA_LOG(Log, "AIController: No better empty space found. Terminating command [%d] for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
 			BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)ECommandType::None);
 			StopMovementOptimized();
 		}
