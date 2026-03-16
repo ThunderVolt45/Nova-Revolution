@@ -520,38 +520,6 @@ void ANovaAIController::HandleStuckStatus()
 			NOVA_LOG(Log, "AIController: Goal occupied but persistent command [%d] remains. Waiting for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
 			StopMovementOptimized(); 
 		}
-		return;
-	}
-
-	// 3. 목표 지점은 비어있는데 끼어있는 경우 -> 옆으로 우회 시도
-	NOVA_LOG(Log, "AIController: Goal clear but stuck. Attempting bypass for [%s]", *MyPawn->GetName());
-
-	FVector MoveDirection = (GoalLocation - CurrentLocation).GetSafeNormal();
-	FVector BypassDirection = FVector::CrossProduct(MoveDirection, FVector::UpVector);
-	
-	if (FMath::RandBool()) BypassDirection *= -1.0f;
-
-	FVector DetourPoint = CurrentLocation + BypassDirection * BypassDistance;
-
-	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-	if (NavSys)
-	{
-		FNavLocation ProjectedLocation;
-		// 투영 범위도 우회 거리에 비례하여 설정
-		if (NavSys->ProjectPointToNavigation(DetourPoint, ProjectedLocation, FVector(BypassDistance, BypassDistance, 300.f)))
-		{
-			// 일시적으로 우회 지점으로 이동
-			MoveToLocationOptimized(ProjectedLocation.Location, 50.0f);
-		}
-		else
-		{
-			// 우회 지점조차 없다면 중단 가능한 명령만 종료
-			if (bIsDisposableCommand)
-			{
-				BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)ECommandType::None);
-			}
-			StopMovementOptimized();
-		}
 	}
 }
 
