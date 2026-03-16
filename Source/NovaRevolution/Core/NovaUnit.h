@@ -14,12 +14,16 @@
 #include "GAS/NovaGameplayTags.h"
 #include "NovaUnit.generated.h"
 
+class USceneCaptureComponent2D;
 class UNovaSelectionComponent;
 class UNovaHealthBarComponent;
 class UWidgetComponent;
 class UAbilitySystemComponent;
 class UNovaAttributeSet;
 struct FOnAttributeChangeData;
+
+// 유닛의 속성 변경을 UI에 알리기 위한 델리게이트 선언
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUnitAttributeChanged, ANovaUnit*, Unit);
 
 /**
  * Nova Revolution의 모든 유닛(로봇)의 기본 클래스
@@ -304,36 +308,31 @@ private:
 #pragma region Selection & UI
 
 public:
+	// 유닛의 속성 변경을 UI에 알리기 위한 델리게이트 변수
+	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")
+	FOnUnitAttributeChanged OnUnitAttributeChanged;
+
 	// --- INovaSelectableInterface ---
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
 	virtual bool IsSelectable() const override;
 	virtual ENovaSelectableType GetSelectableType() const override { return ENovaSelectableType::Unit; }
 
+	// 유닛이 Base의 몇번 슬롯에서 나왔는지 기억하기 위한 Setter
+	void SetProductionSlotIndex(int32 InIndex) { ProductionSlotIndex = InIndex; }
+
 	// --- UI 데이터 Getter ---
 	/** 유닛의 이름을 반환합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|UI")
 	FString GetUnitName() const { return UnitName; }
 
-	/** 현재 체력 값을 반환 */
+	/** 유닛의 AttributeSet을 반환하여 UI에서 필요한 모든 정보를 한 번에 접근할 수 있게 합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|UI")
-	float GetHealth() const { return AttributeSet ? AttributeSet->GetHealth() : 0.0f; }
+	UNovaAttributeSet* GetAttributeSet() const { return AttributeSet; }
 
-	/** 최대 체력 값을 반환 */
+	/** 유닛이 생산된 슬롯 번호를 반환합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|UI")
-	float GetMaxHealth() const { return AttributeSet ? AttributeSet->GetMaxHealth() : 0.0f; }
-
-	/** 공격력 값을 반환 */
-	UFUNCTION(BlueprintPure, Category = "Nova|UI")
-	float GetAttack() const { return AttributeSet ? AttributeSet->GetAttack() : 0.0f; }
-
-	/** 방어력 값을 반환 */
-	UFUNCTION(BlueprintPure, Category = "Nova|UI")
-	float GetDefense() const { return AttributeSet ? AttributeSet->GetDefense() : 0.0f; }
-
-	/** 이동 속도 값을 반환 */
-	UFUNCTION(BlueprintPure, Category = "Nova|UI")
-	float GetSpeed() const { return AttributeSet ? AttributeSet->GetSpeed() : 0.0f; }
+	int32 GetProductionSlotIndex() const { return ProductionSlotIndex; }
 
 protected:
 	// TeamID를 확인하여 UI 색상을 결정하는 함수
@@ -360,6 +359,28 @@ protected:
 	// 선택 여부 (팀원 B가 하이라이트 로직 구현 시 사용)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
 	bool bIsSelected = false;
+
+	// 이 유닛이 생산된 덱 슬롯 번호 (0~9) (UI표시를 위함)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
+	int32 ProductionSlotIndex = -1;
+
+	/** UI 포트레이트용 캡처 카메라 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
+	TObjectPtr<USceneCaptureComponent2D> PortraitCapture;
+
+	/** 렌더 타겟 에셋 (에디터 또는 생성자에서 할당) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
+	TObjectPtr<UTextureRenderTarget2D> PortraitRenderTarget;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
+	FVector PortraitCaptureLocation = FVector(200.0f, 0.f, 30.f);
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
+	FRotator PortraitCaptureRotation = FRotator(0.f, -180.f, -20.f);
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
+	float PortraitCaptureFOVAngle = 45.f;
+	
 #pragma endregion
 
 #pragma region Navigation & Fog of War
@@ -401,8 +422,9 @@ public:
 	virtual void OnSpawnFromPool_Implementation() override;
 	virtual void OnReturnToPool_Implementation() override;
 #pragma endregion
-	
+
 #pragma region Material Overlay
+
 public:
 	/** 유닛의 모든 파츠에 하이라이트 효과를 적용합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Unit|Effects")
@@ -419,6 +441,6 @@ protected:
 
 	/** 현재 하이라이트가 활성화된 상태인지 여부 */
 	bool bIsHighlightActive = false;
-	
+
 #pragma endregion
 };

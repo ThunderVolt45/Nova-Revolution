@@ -18,12 +18,12 @@
 #include "Engine/OverlapResult.h"
 #include "Core/NovaObjectPoolSubsystem.h"
 #include "BrainComponent.h"
-
 #include "NavModifierComponent.h"
 #include "NovaNavArea_Unit.h"
 #include "AI/Navigation/NavigationDataResolution.h"
 // #include "Commandlets/GatherTextFromAssetsCommandlet.h"
 #include "NavigationSystem.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "NavAreas/NavArea_Default.h"
 #include "UI/NovaHealthBarComponent.h"
 #include "UI/NovaSelectionComponent.h"
@@ -83,6 +83,34 @@ ANovaUnit::ANovaUnit()
 	bUseControllerRotationRoll = false;
 	bUseControllerRotationYaw = false;
 
+	// 1. 캡처 컴포넌트 생성
+	PortraitCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("PortraitCapture"));
+	PortraitCapture->SetupAttachment(RootComponent);
+
+	// 2. 중요: 자기 자신만 찍도록 설정 (배경 제거 효과)
+	PortraitCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
+	// 소스 변경 (SceneColorSceneDepth -> FinalColorLDR)
+	// LDR 모드는 알파 채널에 Opacity(불투명도)를 저장합니다.
+	PortraitCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+
+	// 포스트 프로세스 끄기
+	PortraitCapture->ShowFlags.SetPostProcessing(false); // 포스트 프로세스 끄기
+	PortraitCapture->ShowFlags.SetAtmosphere(false); // 대기 효과 끄기
+	PortraitCapture->ShowFlags.SetFog(false); // 안개 끄기
+
+	// 3. 성능을 위해 기본적으로 꺼둠
+	PortraitCapture->bCaptureEveryFrame = false;
+	PortraitCapture->bCaptureOnMovement = false;
+
+	// 4. 위치 조정 (기본적으로 유닛 앞쪽 위)
+	PortraitCapture->SetRelativeLocation(PortraitCaptureLocation);
+	PortraitCapture->SetRelativeRotation(PortraitCaptureRotation);
+	PortraitCapture->FOVAngle = PortraitCaptureFOVAngle;
+
+	// 라이팅 끄기 (Unlit 모드와 동일 효과)
+	// PortraitCapture->ShowFlags.SetLighting(false);
+	PortraitCapture->ShowFlags.SetLighting(true);
+
 	// 선택 표시 위젯 컴포넌트
 	SelectionComponent = CreateDefaultSubobject<UNovaSelectionComponent>(TEXT("SelectionComponent"));
 	SelectionComponent->SetupAttachment(RootComponent);
@@ -98,7 +126,7 @@ ANovaUnit::ANovaUnit()
 void ANovaUnit::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	// 하이라이트용 동적 머티리얼 인스턴스 미리 생성
 	if (HighlightMasterMaterial)
 	{
@@ -129,6 +157,14 @@ void ANovaUnit::BeginPlay()
 
 	// 초기 Yaw 설정
 	LastYaw = GetActorRotation().Yaw;
+
+	// 렌더 타겟 연결
+	if (PortraitRenderTarget && PortraitCapture)
+	{
+		PortraitCapture->TextureTarget = PortraitRenderTarget;
+		// ShowOnlyList에 자기 자신 추가
+		PortraitCapture->ShowOnlyActors.Add(this);
+	}
 
 	// UI에 적용할 색상 저장
 	InitializeUIColors();
@@ -470,6 +506,12 @@ ANovaPart* ANovaUnit::SpawnPart(TSubclassOf<ANovaPart> PartClass)
 	{
 		NewPart->SetOwner(this);
 		NewPart->SetPartDataTable(PartDataTable);
+
+		// 캡처 카메라가 이 부품을 볼 수 있도록 리스트에 추가
+		if (PortraitCapture)
+		{
+			PortraitCapture->ShowOnlyActors.AddUnique(NewPart);
+		}
 	}
 
 	return NewPart;
@@ -503,7 +545,8 @@ void ANovaUnit::ConstructLegs()
 		CurrentLegsPart = SpawnPart(LegsPartClass);
 		if (CurrentLegsPart)
 		{
-			CurrentLegsPart->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::SnapToTargetIncludingScale);
+			CurrentLegsPart->AttachToComponent(GetRootComponent(),
+			                                   FAttachmentTransformRules::SnapToTargetIncludingScale);
 			// 다리 부품 정면 보정 (Z: -90)
 			CurrentLegsPart->SetActorRelativeRotation(FRotator(0.0f, -90.0f, 0.0f));
 		}
@@ -589,13 +632,15 @@ void ANovaUnit::ConstructWeapons()
 			ANovaPart* NewWeapon = SpawnPart(WeaponPartClass);
 			if (NewWeapon)
 			{
-				NewWeapon->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+				NewWeapon->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+				                             SocketName);
 				CurrentWeaponParts.Add(NewWeapon);
 			}
 		}
 		else
 		{
-			CurrentWeaponParts[i]->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale, SocketName);
+			CurrentWeaponParts[i]->AttachToComponent(BodyMesh, FAttachmentTransformRules::SnapToTargetIncludingScale,
+			                                         SocketName);
 		}
 	}
 
@@ -912,7 +957,7 @@ void ANovaUnit::Die()
 		HealthBarComponent->SetVisibility(false);
 		HealthBarComponent->Deactivate();
 	}
-	
+
 	// 일정 시간 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
@@ -943,22 +988,22 @@ void ANovaUnit::Die()
 				Weapon->ExplodeAndDetach(Dir.GetSafeNormal() * LaunchStrength);
 			}
 		}
-		
+
 		CurrentWeaponParts.Empty();
-		
+
 		if (CurrentBodyPart)
 		{
 			// 몸통 사출 방향에 무작위성 추가
 			FVector Dir = (CurrentBodyPart->GetActorLocation() - DeathLoc).GetSafeNormal();
 			Dir += FMath::VRand() * 0.3f; // 몸통은 무기보다 덜 퍼지게 설정
-			Dir.Z = FMath::Abs(Dir.Z) + 0.5f; 
+			Dir.Z = FMath::Abs(Dir.Z) + 0.5f;
 			CurrentBodyPart->ExplodeAndDetach(Dir.GetSafeNormal() * LaunchStrength);
 			CurrentBodyPart = nullptr; // 유닛 반납 시 중복 반납 방지
 		}
 
 		// 데미지 연출 제거
 		ClearDamageEffects();
-		
+
 		// 오브젝트 풀로 반환
 		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 		{
@@ -1021,6 +1066,9 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 
 	// 데미지 연출 업데이트
 	UpdateDamageEffects(Data.NewValue, AttributeSet->GetMaxHealth());
+
+	// UI 갱신 알림 브로드캐스트
+	OnUnitAttributeChanged.Broadcast(this);
 }
 
 void ANovaUnit::OnSpeedChanged(const FOnAttributeChangeData& Data)
@@ -1066,11 +1114,11 @@ void ANovaUnit::UpdateDamageEffects(float CurrentHealth, float MaxHealth)
 	if (bIsSmokeActive != bShouldHaveSmoke)
 	{
 		bIsSmokeActive = bShouldHaveSmoke;
-		
+
 		for (ANovaPart* Part : AllParts)
 		{
 			UPrimitiveComponent* PartMesh = Part ? Part->GetMainMesh() : nullptr;
-			
+
 			// 소켓이 있는 부품만 골라냅니다.
 			if (PartMesh && PartMesh->DoesSocketExist(DamageSocketName))
 			{
@@ -1313,6 +1361,12 @@ void ANovaUnit::OnSelected()
 {
 	bIsSelected = true;
 
+	// 선택되면 카메라 켜기
+	if (PortraitCapture)
+	{
+		PortraitCapture->bCaptureEveryFrame = true;
+	}
+
 	// 가시성 제어를 Component가 수행
 	if (SelectionComponent)
 	{
@@ -1325,6 +1379,12 @@ void ANovaUnit::OnSelected()
 void ANovaUnit::OnDeselected()
 {
 	bIsSelected = false;
+
+	// 선택 해제되면 카메라 끄기 (성능 절약)
+	if (PortraitCapture)
+	{
+		PortraitCapture->bCaptureEveryFrame = false;
+	}
 
 	// Widget을 비가시화
 	if (SelectionComponent)
@@ -1432,8 +1492,9 @@ void ANovaUnit::SetNavigationObstacle(bool bIsObstacle)
 	if (NavModifier)
 	{
 		// 장애물 상태에 따라 영역 클래스 설정 (UnitArea: 고비용, Default: 일반)
-		TSubclassOf<UNavArea> NewAreaClass = bIsObstacle ? 
-			UNovaNavArea_Unit::StaticClass() : UNavArea_Default::StaticClass();
+		TSubclassOf<UNavArea> NewAreaClass = bIsObstacle
+			                                     ? UNovaNavArea_Unit::StaticClass()
+			                                     : UNavArea_Default::StaticClass();
 
 		// 영역 클래스 설정 및 활성화/비활성화 처리
 		NavModifier->SetAreaClass(NewAreaClass);
@@ -1529,7 +1590,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	for (ANovaPart* Part : PartActors)
 	{
 		if (!Part) continue;
-		
+
 		Part->SetIsDead(false);
 
 		if (Part->GetPartSpec().PartType == ENovaPartType::Weapon)
@@ -1558,7 +1619,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	// [핵심] bIsVisibleByFog를 반대값으로 설정하여 SetFogVisibility(true)가 반드시 실행되도록 강제합니다.
 	bIsVisibleByFog = false;
 	SetFogVisibility(true);
-	
+
 	UpdateHealthBar();
 
 	// 7. 데미지 연출 초기화
@@ -1660,7 +1721,7 @@ void ANovaUnit::SetHighlight(bool bEnable, FLinearColor HighlightColor)
 	// 각 파츠 클래스(ANovaPart) 내부에 정의된 SetHighlight를 호출하여 OverlayMaterial을 설정합니다.
 	if (CurrentLegsPart) CurrentLegsPart->SetHighlight(MaterialToApply);
 	if (CurrentBodyPart) CurrentBodyPart->SetHighlight(MaterialToApply);
-    
+
 	for (ANovaPart* WeaponPart : CurrentWeaponParts)
 	{
 		if (WeaponPart)
