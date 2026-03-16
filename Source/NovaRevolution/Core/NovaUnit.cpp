@@ -149,6 +149,10 @@ void ANovaUnit::BeginPlay()
 		// 속성 변경 콜백 등록
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
 		                      .AddUObject(this, &ANovaUnit::OnHealthChanged);
+		
+		// 속도 변경 콜백 등록 : 저주프리즈 스킬 관련 로직
+		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetSpeedAttribute())
+			.AddUObject(this, &ANovaUnit::OnSpeedChanged);
 	}
 
 	// 초기 Yaw 설정
@@ -1065,6 +1069,29 @@ void ANovaUnit::OnHealthChanged(const FOnAttributeChangeData& Data)
 
 	// UI 갱신 알림 브로드캐스트
 	OnUnitAttributeChanged.Broadcast(this);
+}
+
+void ANovaUnit::OnSpeedChanged(const FOnAttributeChangeData& Data)
+{
+	// NewValue는 GameplayEffect(CurseFreeze)에 의해 0이 되거나, 효과 종료 후 원래 값이 들어옵니다.
+	float NewSpeed = Data.NewValue;
+
+	if (UCharacterMovementComponent* MoveComp = GetCharacterMovement())
+	{
+		// 1. 실제 이동 컴포넌트의 최대 속도 갱신
+		// 지상 유닛과 공중 유닛 모두에 대응하도록 MaxWalkSpeed와 MaxFlySpeed를 모두 업데이트합니다.
+		MoveComp->MaxWalkSpeed = NewSpeed;
+		MoveComp->MaxFlySpeed = NewSpeed;
+
+		// 2. 만약 속도가 0이 되었다면 (얼어붙었다면)
+		if (NewSpeed <= 0.0f)
+		{
+			// 즉시 모든 이동 관성을 멈춥니다 (빙결 시 미끄러짐 방지 및 물리적 고정 효과)
+			MoveComp->StopMovementImmediately();
+		}
+
+		NOVA_LOG(Log, "Unit %s Speed Changed: %.f", *GetName(), NewSpeed);
+	}
 }
 
 void ANovaUnit::UpdateDamageEffects(float CurrentHealth, float MaxHealth)

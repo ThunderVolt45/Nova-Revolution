@@ -173,6 +173,12 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				// 좌클릭 -> Confirm
 				if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 				{
+					// [버그 수정 핵심]
+					// 스킬을 확정하기 직전에, 현재 마우스 위치를 드래그 시작점으로 강제 동기화합니다.
+					// 이렇게 해야 함수가 리턴된 후 실행될 Held/Released 로직이 '이전' 좌표를 참조하지 않습니다.
+					GetMousePosition(DragStartPos.X, DragStartPos.Y);
+					bIsDraggingBox = false;
+					
 					NOVA_LOG(Log, "Input_Select detected during Skill mode. Calling LocalInputConfirm for PC: %s", *GetName());
 					
 					ASC->LocalInputConfirm();
