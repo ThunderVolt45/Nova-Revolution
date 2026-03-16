@@ -368,4 +368,24 @@ public:
 	virtual void OnSpawnFromPool_Implementation() override;
 	virtual void OnReturnToPool_Implementation() override;
 #pragma endregion
+	
+#pragma region Material Overlay
+public:
+	/** 유닛의 모든 파츠에 하이라이트 효과를 적용합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Unit|Effects")
+	void SetHighlight(bool bEnable, FLinearColor HighlightColor = FLinearColor::White);
+
+protected:
+	/** 에디터에서 할당할 하이라이트 마스터 머티리얼 (M_Highlight) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects")
+	TObjectPtr<UMaterialInterface> HighlightMasterMaterial;
+
+	/** 런타임에 색상을 바꾸기 위한 동적 인스턴스 */
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> HighlightDynamicMaterial;
+
+	/** 현재 하이라이트가 활성화된 상태인지 여부 */
+	bool bIsHighlightActive = false;
+	
+#pragma endregion
 };
