@@ -104,15 +104,6 @@ private:
 	/** 마지막으로 위치를 체크했던 좌표 */
 	FVector LastStuckCheckLocation = FVector::ZeroVector;
 
-	/** 공중 유닛 수동 이동 제어를 위한 변수 */
-	bool bIsManualMoving = false;
-	FVector ManualMoveGoal = FVector::ZeroVector;
-	TWeakObjectPtr<AActor> ManualMoveTargetActor;
-	float ManualAcceptanceRadius = 50.f;
-
-	/** 공중 유닛 수동 이동 처리 로직 (Tick에서 호출) */
-	void UpdateManualMovement(float DeltaTime);
-
 	/** 블랙보드 키 이름 정의 */
 	static const FName TargetLocationKey;
 	static const FName TargetActorKey;

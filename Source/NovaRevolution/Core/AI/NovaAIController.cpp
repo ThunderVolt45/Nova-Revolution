@@ -35,11 +35,6 @@ void ANovaAIController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (bIsManualMoving)
-	{
-		UpdateManualMovement(DeltaTime);
-	}
-
 	bool bIsMoving = IsMoveInProgress();
 
 	// 이동 중일 때만 Stuck 감지 로직 실행
@@ -255,9 +250,6 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 	// 이동 시작 시 타이머 초기화
 	StuckTimer = 0.0f;
 	LastStuckCheckLocation = MyPawn->GetActorLocation();
-
-	// 수동 이동 플래그 해제
-	bIsManualMoving = false;
 	
 	// [추가] 공중 유닛인 경우 목적지의 Z값을 가상 평면(하늘 NavMesh) 높이로 강제 보정합니다.
 	FVector FinalDest = Dest;
@@ -293,9 +285,6 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 	ANovaUnit* TargetUnit = Cast<ANovaUnit>(TargetActor);
 	bool bIsTargetAir = TargetUnit && (TargetUnit->GetMovementType() == ENovaMovementType::Air);
 
-	// 수동 이동 해제
-	bIsManualMoving = false;
-
 	// 지상 유닛이 공중 타겟을 쫓는 경우: 타겟의 수평 위치 기반 NavMesh 지점으로 이동
 	if (MyUnit && MyUnit->GetMovementType() == ENovaMovementType::Ground && bIsTargetAir)
 	{
@@ -318,8 +307,6 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 
 bool ANovaAIController::IsMoveInProgress() const
 {
-	if (bIsManualMoving) return true;
-	
 	if (UPathFollowingComponent* PFollow = GetPathFollowingComponent())
 	{
 		return PFollow->GetStatus() != EPathFollowingStatus::Idle;
@@ -330,13 +317,8 @@ bool ANovaAIController::IsMoveInProgress() const
 
 void ANovaAIController::StopMovementOptimized()
 {
-	bIsManualMoving = false;
-	ManualMoveTargetActor = nullptr;
-	
 	if (APawn* MyPawn = GetPawn())
 	{
-		ManualMoveGoal = MyPawn->GetActorLocation();
-
 		if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
 		{
 			MyUnit->SetNavigationObstacle(true);
@@ -347,63 +329,6 @@ void ANovaAIController::StopMovementOptimized()
 	
 	// Stuck 감지 상태 해제
 	StuckTimer = 0.0f;
-}
-
-void ANovaAIController::UpdateManualMovement(float DeltaSeconds)
-{
-	APawn* MyPawn = GetPawn();
-	if (!MyPawn)
-	{
-		bIsManualMoving = false;
-		return;
-	}
-
-	// 1. 타겟 액터 추적 중인 경우 유효성 및 사망 여부 검사
-	if (ManualMoveTargetActor.IsValid())
-	{
-		bool bTargetInvalid = false;
-		
-		// 유닛인 경우 사망 상태 확인
-		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(ManualMoveTargetActor.Get()))
-		{
-			if (TargetUnit->IsDead()) bTargetInvalid = true;
-		}
-
-		if (bTargetInvalid || ManualMoveTargetActor->IsPendingKillPending())
-		{
-			StopMovementOptimized();
-			return;
-		}
-		
-		ManualMoveGoal = ManualMoveTargetActor->GetActorLocation();
-	}
-
-	FVector CurrentLocation = MyPawn->GetActorLocation();
-	FVector Direction = (ManualMoveGoal - CurrentLocation);
-	Direction.Z = 0.0f;
-
-	float Distance = Direction.Size();
-
-	if (Distance <= ManualAcceptanceRadius)
-	{
-		bIsManualMoving = false;
-
-		// 목적지 도착 시 장애물 상태 활성화
-		if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
-		{
-			MyUnit->SetNavigationObstacle(true);
-		}
-		return;
-	}
-
-	Direction.Normalize();
-	MyPawn->AddMovementInput(Direction, 1.0f);
-
-	// 회전 보간
-	FRotator CurrentRotation = MyPawn->GetActorRotation();
-	FRotator TargetRotation = Direction.Rotation();
-	FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaSeconds, 5.0f);
-	MyPawn->SetActorRotation(NewRotation);
 }
 
 void ANovaAIController::UpdateStuckDetection(float DeltaTime)
