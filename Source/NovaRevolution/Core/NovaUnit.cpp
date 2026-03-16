@@ -23,6 +23,7 @@
 #include "NovaNavArea_Unit.h"
 #include "AI/Navigation/NavigationDataResolution.h"
 // #include "Commandlets/GatherTextFromAssetsCommandlet.h"
+#include "NavigationSystem.h"
 #include "NavAreas/NavArea_Default.h"
 #include "UI/NovaHealthBarComponent.h"
 #include "UI/NovaSelectionComponent.h"
@@ -231,8 +232,26 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 		if (Dist < 0.1f)
 		{
 			FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
-			// 초당 120.0f 속도로 밀어냄
-			AddActorWorldOffset(RandomDir * (120.0f * DeltaTime), false);
+			FVector Offset = RandomDir * (120.0f * DeltaTime);
+			
+			// [개선] NavMesh 레이캐스트 체크
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			if (NavSys)
+			{
+				const ANavigationData* NavData = NavSys->GetNavDataForProps(GetNavAgentPropertiesRef());
+				if (NavData)
+				{
+					FVector HitLocation;
+					// [수정] NavData의 Raycast를 직접 호출
+					if (NavData->Raycast(MyLoc, MyLoc + Offset, HitLocation, NavData->GetDefaultQueryFilter()))
+					{
+						Offset = HitLocation - MyLoc;
+					}
+				}
+			}
+
+			// 보정된 오프셋만큼 밀어냄
+			AddActorWorldOffset(Offset, false);
 			continue;
 		}
 
@@ -255,8 +274,26 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 				PushDir = (PushDir * 0.6f + TangentDir * 0.4f).GetSafeNormal();
 			}
 
-			// 초당 90.0f 속도로 밀어냄
-			AddActorWorldOffset(PushDir * (90.0f * DeltaTime), false);
+			FVector Offset = PushDir * (90.0f * DeltaTime);
+
+			// [개선] NavMesh 레이캐스트 체크
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			if (NavSys)
+			{
+				const ANavigationData* NavData = NavSys->GetNavDataForProps(GetNavAgentPropertiesRef());
+				if (NavData)
+				{
+					FVector HitLocation;
+					// [수정] NavData의 Raycast를 직접 호출
+					if (NavData->Raycast(MyLoc, MyLoc + Offset, HitLocation, NavData->GetDefaultQueryFilter()))
+					{
+						Offset = HitLocation - MyLoc;
+					}
+				}
+			}
+
+			// 보정된 오프셋만큼 밀어냄
+			AddActorWorldOffset(Offset, false);
 		}
 
 		// --- 아군 길막힘 방지 밀어내기 로직 ---
@@ -1125,9 +1162,30 @@ void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
 	// 최대 연쇄 밀림 횟수 제한 (무한 루프 및 프레임 드랍 방지)
 	if (Depth > 4 || bIsDead) return;
 
+	FVector CurrentLoc = GetActorLocation();
+	FVector DesiredOffset = PushDir * PushAmount;
+	FVector TargetLoc = CurrentLoc + DesiredOffset;
+
+	// [개선] NavMesh 레이캐스트를 통해 맵 밖으로 나가는지 확인
+	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (NavSys)
+	{
+		const ANavigationData* NavData = NavSys->GetNavDataForProps(GetNavAgentPropertiesRef());
+		if (NavData)
+		{
+			FVector HitLocation;
+			// [수정] NavData의 Raycast를 직접 호출 (true 반환 시 경계에 부딪힘)
+			if (NavData->Raycast(CurrentLoc, TargetLoc, HitLocation, NavData->GetDefaultQueryFilter()))
+			{
+				DesiredOffset = HitLocation - CurrentLoc;
+			}
+		}
+	}
+
 	FHitResult Hit;
-	// 스윕(Sweep)을 켜서 다른 유닛/지형과 부딪히는지 확인하며 이동
-	AddActorWorldOffset(PushDir * PushAmount, true, &Hit);
+	
+	// 보정된 오프셋만큼 이동
+	AddActorWorldOffset(DesiredOffset, true, &Hit);
 
 	// 다른 무언가에 부딪혀서 이동이 막혔다면 연쇄 밀어내기 시도
 	if (Hit.bBlockingHit)
