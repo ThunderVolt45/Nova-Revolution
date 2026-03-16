@@ -35,11 +35,6 @@ void ANovaAIController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (bIsManualMoving)
-	{
-		UpdateManualMovement(DeltaTime);
-	}
-
 	bool bIsMoving = IsMoveInProgress();
 
 	// 이동 중일 때만 Stuck 감지 로직 실행
@@ -255,9 +250,6 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 	// 이동 시작 시 타이머 초기화
 	StuckTimer = 0.0f;
 	LastStuckCheckLocation = MyPawn->GetActorLocation();
-
-	// 수동 이동 플래그 해제
-	bIsManualMoving = false;
 	
 	// [추가] 공중 유닛인 경우 목적지의 Z값을 가상 평면(하늘 NavMesh) 높이로 강제 보정합니다.
 	FVector FinalDest = Dest;
@@ -293,9 +285,6 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 	ANovaUnit* TargetUnit = Cast<ANovaUnit>(TargetActor);
 	bool bIsTargetAir = TargetUnit && (TargetUnit->GetMovementType() == ENovaMovementType::Air);
 
-	// 수동 이동 해제
-	bIsManualMoving = false;
-
 	// 지상 유닛이 공중 타겟을 쫓는 경우: 타겟의 수평 위치 기반 NavMesh 지점으로 이동
 	if (MyUnit && MyUnit->GetMovementType() == ENovaMovementType::Ground && bIsTargetAir)
 	{
@@ -318,8 +307,6 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 
 bool ANovaAIController::IsMoveInProgress() const
 {
-	if (bIsManualMoving) return true;
-	
 	if (UPathFollowingComponent* PFollow = GetPathFollowingComponent())
 	{
 		return PFollow->GetStatus() != EPathFollowingStatus::Idle;
@@ -330,13 +317,8 @@ bool ANovaAIController::IsMoveInProgress() const
 
 void ANovaAIController::StopMovementOptimized()
 {
-	bIsManualMoving = false;
-	ManualMoveTargetActor = nullptr;
-	
 	if (APawn* MyPawn = GetPawn())
 	{
-		ManualMoveGoal = MyPawn->GetActorLocation();
-
 		if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
 		{
 			MyUnit->SetNavigationObstacle(true);
@@ -347,63 +329,6 @@ void ANovaAIController::StopMovementOptimized()
 	
 	// Stuck 감지 상태 해제
 	StuckTimer = 0.0f;
-}
-
-void ANovaAIController::UpdateManualMovement(float DeltaSeconds)
-{
-	APawn* MyPawn = GetPawn();
-	if (!MyPawn)
-	{
-		bIsManualMoving = false;
-		return;
-	}
-
-	// 1. 타겟 액터 추적 중인 경우 유효성 및 사망 여부 검사
-	if (ManualMoveTargetActor.IsValid())
-	{
-		bool bTargetInvalid = false;
-		
-		// 유닛인 경우 사망 상태 확인
-		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(ManualMoveTargetActor.Get()))
-		{
-			if (TargetUnit->IsDead()) bTargetInvalid = true;
-		}
-
-		if (bTargetInvalid || ManualMoveTargetActor->IsPendingKillPending())
-		{
-			StopMovementOptimized();
-			return;
-		}
-		
-		ManualMoveGoal = ManualMoveTargetActor->GetActorLocation();
-	}
-
-	FVector CurrentLocation = MyPawn->GetActorLocation();
-	FVector Direction = (ManualMoveGoal - CurrentLocation);
-	Direction.Z = 0.0f;
-
-	float Distance = Direction.Size();
-
-	if (Distance <= ManualAcceptanceRadius)
-	{
-		bIsManualMoving = false;
-
-		// 목적지 도착 시 장애물 상태 활성화
-		if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
-		{
-			MyUnit->SetNavigationObstacle(true);
-		}
-		return;
-	}
-
-	Direction.Normalize();
-	MyPawn->AddMovementInput(Direction, 1.0f);
-
-	// 회전 보간
-	FRotator CurrentRotation = MyPawn->GetActorRotation();
-	FRotator TargetRotation = Direction.Rotation();
-	FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaSeconds, 5.0f);
-	MyPawn->SetActorRotation(NewRotation);
 }
 
 void ANovaAIController::UpdateStuckDetection(float DeltaTime)
@@ -509,8 +434,44 @@ void ANovaAIController::HandleStuckStatus()
 	{
 		if (bIsDisposableCommand)
 		{
-			// 이동/산개 명령은 목표 지점이 꽉 차있으면 중단 (명령 완료로 간주)
-			NOVA_LOG(Log, "AIController: Goal is occupied. Terminating disposable command [%d] for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
+			// [개선] 목표 지점이 점유되었을 때, 단순히 NavMesh만 체크하는 게 아니라 실제 유닛 충돌체도 감지하여 빈 공간 검색
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			if (NavSys)
+			{
+				FNavLocation ProjectedLocation;
+				// 목표 지점 주변으로 탐색 반경 설정 (EarlyArrivalDistance 활용)
+				float SearchRadius = EarlyArrivalDistance;
+				
+				if (NavSys->ProjectPointToNavigation(GoalLocation, ProjectedLocation, FVector(SearchRadius, SearchRadius, 500.f)))
+				{
+					// 찾은 지점이 실제로 비어 있는지 충돌 검사 (내 자신과 타겟 액터는 제외)
+					FCollisionQueryParams OccupyParams;
+					OccupyParams.AddIgnoredActor(MyPawn);
+					if (TargetActor) OccupyParams.AddIgnoredActor(TargetActor);
+
+					bool bIsNewLocOccupied = GetWorld()->OverlapAnyTestByChannel(
+						ProjectedLocation.Location, FQuat::Identity, ECC_Pawn, 
+						FCollisionShape::MakeSphere(CheckRadius), OccupyParams);
+
+					if (!bIsNewLocOccupied)
+					{
+						float NewDistSq = FVector::DistSquared(ProjectedLocation.Location, GoalLocation);
+						float CurrentDistSq = FVector::DistSquared(CurrentLocation, GoalLocation);
+
+						// 현재 위치보다 목표에 유의미하게(약 50유닛 이상) 더 가까운 빈 공간일 때만 이동 갱신
+						// 이를 통해 아주 미세한 위치 차이로 인한 무한 루프(Infinite Rerouting) 방지
+						if (NewDistSq < CurrentDistSq - FMath::Square(50.f))
+						{
+							NOVA_LOG(Log, "AIController: Goal occupied. Rerouting to empty space for [%s]", *MyPawn->GetName());
+							MoveToLocationOptimized(ProjectedLocation.Location);
+							return;
+						}
+					}
+				}
+			}
+
+			// 더 이상 갈 수 있는 빈 공간이 없거나 이미 최선으로 근접했다면 명령 완료 처리
+			NOVA_LOG(Log, "AIController: No better empty space found. Terminating command [%d] for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
 			BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)ECommandType::None);
 			StopMovementOptimized();
 		}
@@ -519,38 +480,6 @@ void ANovaAIController::HandleStuckStatus()
 			// 순찰/공격 등은 멈추지 않고 주변에서 대기하며 기회를 봄 (순찰의 경우 BTTask에서 즉시 목적지 반전됨)
 			NOVA_LOG(Log, "AIController: Goal occupied but persistent command [%d] remains. Waiting for [%s]", (uint8)CurrentCommand, *MyPawn->GetName());
 			StopMovementOptimized(); 
-		}
-		return;
-	}
-
-	// 3. 목표 지점은 비어있는데 끼어있는 경우 -> 옆으로 우회 시도
-	NOVA_LOG(Log, "AIController: Goal clear but stuck. Attempting bypass for [%s]", *MyPawn->GetName());
-
-	FVector MoveDirection = (GoalLocation - CurrentLocation).GetSafeNormal();
-	FVector BypassDirection = FVector::CrossProduct(MoveDirection, FVector::UpVector);
-	
-	if (FMath::RandBool()) BypassDirection *= -1.0f;
-
-	FVector DetourPoint = CurrentLocation + BypassDirection * BypassDistance;
-
-	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-	if (NavSys)
-	{
-		FNavLocation ProjectedLocation;
-		// 투영 범위도 우회 거리에 비례하여 설정
-		if (NavSys->ProjectPointToNavigation(DetourPoint, ProjectedLocation, FVector(BypassDistance, BypassDistance, 300.f)))
-		{
-			// 일시적으로 우회 지점으로 이동
-			MoveToLocationOptimized(ProjectedLocation.Location, 50.0f);
-		}
-		else
-		{
-			// 우회 지점조차 없다면 중단 가능한 명령만 종료
-			if (bIsDisposableCommand)
-			{
-				BlackboardComponent->SetValueAsEnum(CommandTypeKey, (uint8)ECommandType::None);
-			}
-			StopMovementOptimized();
 		}
 	}
 }

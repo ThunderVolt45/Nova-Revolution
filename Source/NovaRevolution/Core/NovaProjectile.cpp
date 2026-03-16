@@ -56,8 +56,11 @@ void ANovaProjectile::Tick(float DeltaTime)
 	{
 		float DistanceToTarget = FVector::Dist(GetActorLocation(), TargetLocation);
 
-		// 충돌 체크 없이 거리상으로 도달했다면 즉시 폭발
-		if (DistanceToTarget <= HitToTargetRange)
+		// 이번 프레임의 이동 거리를 계산하여 저프레임 관통 방지
+		float StepDistance = ProjectileMovement->Velocity.Size() * DeltaTime;
+
+		// 충돌 체크 없이 거리상으로 도달했거나, 이번 프레임 내에 도달할 수 있는 거리라면 즉시 폭발
+		if (DistanceToTarget <= HitToTargetRange || DistanceToTarget <= StepDistance)
 		{
 			Explode(TargetActor, TargetLocation);
 		}

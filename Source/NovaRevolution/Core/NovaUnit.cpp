@@ -191,13 +191,13 @@ void ANovaUnit::Tick(float DeltaTime)
 	UpdateWeaponAiming(DeltaTime);
 
 	// 3. 완벽히 겹쳤을 때 이동 불가가 되는 현상 방지 (Anti-Overlap) 및 아군 길막힘 방지 밀어내기
-	HandleUnitOverlaps();
+	HandleUnitOverlaps(DeltaTime);
 
 	// 4. 체력바 위젯 위치 업데이트
 	UpdateUIComponents();
 }
 
-void ANovaUnit::HandleUnitOverlaps()
+void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 {
 	if (bIsDead || !GetCapsuleComponent()) return;
 
@@ -227,7 +227,8 @@ void ANovaUnit::HandleUnitOverlaps()
 		if (Dist < 0.1f)
 		{
 			FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
-			AddActorWorldOffset(RandomDir * 2.0f, false);
+			// 초당 120.0f 속도로 밀어냄
+			AddActorWorldOffset(RandomDir * (120.0f * DeltaTime), false);
 			continue;
 		}
 
@@ -250,7 +251,8 @@ void ANovaUnit::HandleUnitOverlaps()
 				PushDir = (PushDir * 0.6f + TangentDir * 0.4f).GetSafeNormal();
 			}
 
-			AddActorWorldOffset(PushDir * 1.5f, false);
+			// 초당 90.0f 속도로 밀어냄
+			AddActorWorldOffset(PushDir * (90.0f * DeltaTime), false);
 		}
 
 		// --- 아군 길막힘 방지 밀어내기 로직 ---
@@ -269,7 +271,8 @@ void ANovaUnit::HandleUnitOverlaps()
 			OtherCommand == ECommandType::Patrol)
 		{
 			// 상대를 밀어낼 방향 (-Diff는 OtherUnit이 나에게서 멀어지는 방향)
-			OtherUnit->PushUnit(-Diff.GetSafeNormal(), 2.0f, 0);
+			// 초당 120.0f 속도로 밀어냄
+			OtherUnit->PushUnit(-Diff.GetSafeNormal(), 120.0f * DeltaTime, 0);
 		}
 	}
 }
@@ -651,11 +654,16 @@ void ANovaUnit::InitializeAttributesFromParts()
 		MoveComp->BrakingDecelerationFlying = TotalSpeed * 10.0f;
 		MoveComp->BrakingFrictionFactor = 2.0f;
 		MoveComp->FallingLateralFriction = 8.0f;
+		
+		// Z축 이동을 완벽히 차단하기 위한 평면 제한 설정
 		MoveComp->bConstrainToPlane = true;
 		MoveComp->bSnapToPlaneAtStart = true;
+		MoveComp->SetPlaneConstraintNormal(FVector(0.0f, 0.0f, 1.0f));
+		MoveComp->SetPlaneConstraintOrigin(FVector(0.0f, 0.0f, DefaultAirZ));
 
+		// 현재 위치에서 Z값만 공중 고도로 강제 조정 (텔레포트 판정으로 물리 엔진에 의한 밀림 방지)
 		FVector CurrentLoc = GetActorLocation();
-		SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ));
+		SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ), false, nullptr, ETeleportType::TeleportPhysics);
 	}
 	else
 	{

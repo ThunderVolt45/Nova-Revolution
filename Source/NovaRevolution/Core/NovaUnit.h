@@ -274,7 +274,7 @@ protected:
 
 protected:
 	/** 유닛 간 겹침 방지 및 밀어내기 처리 */
-	void HandleUnitOverlaps();
+	void HandleUnitOverlaps(float DeltaTime);
 
 	/** UI 관련 컴포넌트(체력바 등) 위치 업데이트 */
 	void UpdateUIComponents();

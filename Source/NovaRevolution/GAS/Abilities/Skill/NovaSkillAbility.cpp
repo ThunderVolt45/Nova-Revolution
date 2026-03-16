@@ -66,7 +66,6 @@ bool UNovaSkillAbility::CheckSkillCost()
 	return true;
 }
 
-
 void UNovaSkillAbility::ApplySkillCost()
 {
 	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
