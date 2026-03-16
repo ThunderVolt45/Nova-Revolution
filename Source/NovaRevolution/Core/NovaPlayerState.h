@@ -76,6 +76,9 @@ public:
 	// INovaSkillInterface 구현: 특정 태그의 사령관 스킬 실행 
 	virtual void ActivateSkillAbility_Implementation(FGameplayTag AbilityTag) override;
 	
+	//  INovaSkillInterface 구현: 슬롯 기반 사령관 스킬 실행
+	virtual void ActivateSkillSlot_Implementation(int32 SlotIndex) override;
+	
 	/** 플레이어의 메인 기지(Base)를 등록합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
 	void SetPlayerBase(class ANovaBase* InBase);
@@ -132,4 +135,8 @@ protected:
 	// 테스트 및 초기 부여용 어빌리티 리스트
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|GAS")
 	TArray<TSubclassOf<class UGameplayAbility>> SkillAbilities;
+	
+	// 각 슬롯(0~9)에 할당된 스킬 태그 배열 (에디터에서 설정 가능)
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Skill")
+	TArray<FGameplayTag> SkillSlotTags;
 };

@@ -198,6 +198,10 @@ public:
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Skill")
 	void ActivateSkillAbility(FGameplayTag AbilityTag);
+	
+	/** [추가] 슬롯 인덱스(0~9)로 스킬 실행 (단축키 1~0번 연동에 최적화) */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Skill")
+	void ActivateSkillSlot(int32 SlotIndex);
 };
 
 // --- 오브젝트 풀링 인터페이스 ---
