@@ -11,6 +11,7 @@
 #include "Core/Production/NovaUnitFactory.h"
 #include "NovaRevolution.h"
 #include "Components/BoxComponent.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "Components/WidgetComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Player/NovaPlayerController.h"
@@ -53,6 +54,28 @@ ANovaBase::ANovaBase()
 	// 초기 설정
 	TeamID = NovaTeam::None;
 	RallyPoint = FVector::ZeroVector;
+	
+	// 캡처 컴포넌트 생성
+	PortraitCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("PortraitCapture"));
+	PortraitCapture->SetupAttachment(RootComponent);
+
+	// 자기 자신만 찍도록 설정 (배경 제거 효과)
+	PortraitCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
+	PortraitCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+
+	// 포스트 프로세스 끄기
+	PortraitCapture->ShowFlags.SetPostProcessing(false); // 포스트 프로세스 끄기
+	PortraitCapture->ShowFlags.SetAtmosphere(false); // 대기 효과 끄기
+	PortraitCapture->ShowFlags.SetFog(false); // 안개 끄기
+
+	// 3. 성능을 위해 기본적으로 꺼둠
+	PortraitCapture->bCaptureEveryFrame = false;
+	PortraitCapture->bCaptureOnMovement = false;
+
+	// 4. 위치 조정 (기본적으로 유닛 앞쪽 위)
+	PortraitCapture->SetRelativeLocation(PortraitCaptureLocation);
+	PortraitCapture->SetRelativeRotation(PortraitCaptureRotation);
+	// PortraitCapture->FOVAngle = PortraitCaptureFOVAngle;
 }
 
 void ANovaBase::BeginPlay()
@@ -89,6 +112,15 @@ void ANovaBase::BeginPlay()
 		// 체력 변경 콜백 등록
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
 		                      .AddUObject(this, &ANovaBase::OnHealthChanged);
+	}
+	
+	// 렌더 타겟 연결
+	if (PortraitRenderTarget && PortraitCapture)
+	{
+		PortraitCapture->TextureTarget = PortraitRenderTarget;
+		PortraitCapture->SetRelativeLocationAndRotation(PortraitCaptureLocation, PortraitCaptureRotation);
+		// ShowOnlyList에 자기 자신 추가
+		PortraitCapture->ShowOnlyActors.Add(this);
 	}
 }
 
@@ -161,6 +193,11 @@ void ANovaBase::OnSelected()
 		SelectionComponent->SetTeamColor(CachedUIColor);
 	}
 	UE_LOG(LogTemp, Log, TEXT("Base Selected: %s (TeamID: %d)"), *GetName(), TeamID);
+	
+	if (PortraitCapture)
+	{
+		PortraitCapture->bCaptureEveryFrame = true;	// 선택 시 캡처 시작
+	}
 }
 
 void ANovaBase::OnDeselected()
@@ -168,6 +205,11 @@ void ANovaBase::OnDeselected()
 	bIsSelected = false;
 	if (SelectionComponent) SelectionComponent->SetSelectionVisible(false);
 	UE_LOG(LogTemp, Log, TEXT("Base Deselected: %s"), *GetName());
+	
+	if (PortraitCapture)
+	{
+		PortraitCapture->bCaptureEveryFrame = false;	// 선택 해제 시 캡처 시중단
+	}
 }
 
 void ANovaBase::IssueCommand(const FCommandData& CommandData)
@@ -320,6 +362,11 @@ void ANovaBase::OnHealthChanged(const FOnAttributeChangeData& Data)
 
 	// 실시간 업데이트 호출
 	UpdateHealthBar();
+	
+	if (OnBaseAttributeChanged.IsBound())
+	{
+		OnBaseAttributeChanged.Broadcast(this);
+	}
 }
 
 void ANovaBase::UpdateHealthBar()

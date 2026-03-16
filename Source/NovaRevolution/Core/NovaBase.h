@@ -9,6 +9,8 @@
 #include "Core/NovaTypes.h"
 #include "NovaBase.generated.h"
 
+class USceneCaptureComponent2D;
+class UTextureRenderTarget2D;
 class UNovaSelectionComponent;
 class UNovaHealthBarComponent;
 class UBoxComponent;
@@ -16,6 +18,8 @@ class UWidgetComponent;
 class UAbilitySystemComponent;
 class UNovaAttributeSet;
 struct FOnAttributeChangeData;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBaseAttributeChanged, ANovaBase*, Base);
 
 /**
  * 플레이어의 거점 기지 클래스
@@ -117,11 +121,42 @@ protected:
 
 	// TeamID를 확인하여 UI 색상을 결정하는 함수
 	void InitializeUIColors();
-	
+
 	// 현재 안개에 의해 보이는 상태인지 여부
 	bool bIsVisibleByFog = true;
-	
+
 public:
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
+
+	// UI에서 바인딩할 수 있도록 선언
+	UPROPERTY(BlueprintAssignable, Category="Nova|UI")
+	FOnBaseAttributeChanged OnBaseAttributeChanged;
+
+	// UI에서 기지 이름을 표시하기 위한 함수
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
+	FString GetBaseName() const { return TEXT("중앙 기지"); }
+
+	// UI에서 속성(체력 등)을 읽어갈 수 있도록 Getter 추가
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
+	UNovaAttributeSet* GetAttributeSet() const { return AttributeSet; }
+
+protected:
+	// --- UI 포트레이트 관련 컴포넌트 ---
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
+	TObjectPtr<USceneCaptureComponent2D> PortraitCapture;
+
+	/** 캡처한 이미지를 저장할 렌더 타겟 (유닛과 동일한 에셋을 사용하거나 전용 에셋 사용) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
+	TObjectPtr<UTextureRenderTarget2D> PortraitRenderTarget;
+
+	// 카메라 위치 설정을 위한 변수들 (기지는 유닛보다 크므로 값이 다를 수 있음)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
+	FVector PortraitCaptureLocation = FVector(300.0f, 0.f, 100.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
+	FRotator PortraitCaptureRotation = FRotator(-30.f, -180.f, 0.f);
+	
+	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
+	// float PortraitCaptureFOVAngle = 90.f;
 };

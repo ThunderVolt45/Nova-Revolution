@@ -162,6 +162,7 @@ void ANovaUnit::BeginPlay()
 	if (PortraitRenderTarget && PortraitCapture)
 	{
 		PortraitCapture->TextureTarget = PortraitRenderTarget;
+		PortraitCapture->SetRelativeLocationAndRotation(PortraitCaptureLocation, PortraitCaptureRotation);	// 카메라 조정
 		// ShowOnlyList에 자기 자신 추가
 		PortraitCapture->ShowOnlyActors.Add(this);
 	}
