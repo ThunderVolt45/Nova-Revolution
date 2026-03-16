@@ -138,6 +138,9 @@ protected:
 private:
 	// 속성 변경 시 호출될 콜백 함수 (UI 업데이트 등)
 	void OnHealthChanged(const FOnAttributeChangeData& Data);
+	
+	/** 속도(Speed) 속성이 변경될 때 호출될 콜백, 유닛에 적용될 저주프리즈 스킬을 위해 함수 추가 */
+	void OnSpeedChanged(const FOnAttributeChangeData& Data);
 
 	/** 체력 변화에 따른 데미지 연출(연기, 불길 등) 업데이트 */
 	void UpdateDamageEffects(float CurrentHealth, float MaxHealth);
