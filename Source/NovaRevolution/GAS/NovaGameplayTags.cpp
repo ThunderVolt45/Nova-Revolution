@@ -63,6 +63,10 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_Overwork, "Ability.Skill.Overwork");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_Recall, "Ability.Skill.Recall");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_Recycle, "Ability.Skill.Recycle");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_CurseFreeze, "Ability.Skill.CurseFreeze");
+	
+	// --- 스킬 사용에 의한 상태 표시 태그 ---
+	UE_DEFINE_GAMEPLAY_TAG(State_Unit_Frozen, "State.Unit.Frozen");
 	
 	// --- 게임플레이 큐 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Damage_Smoke, "GameplayCue.Unit.Damage.Smoke");
