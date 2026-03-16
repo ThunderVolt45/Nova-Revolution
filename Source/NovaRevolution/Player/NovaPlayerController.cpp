@@ -3,6 +3,7 @@
 
 #include "Player/NovaPlayerController.h"
 
+#include "AbilitySystemComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NovaPawn.h"
@@ -159,6 +160,36 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift)) bIsShiftDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Ctrl)) bIsCtrlDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Alt)) bIsAltDown = true;
+	
+	
+	// 사령관 Skill 관련 로직 추가 : 스킬 타겟팅 모드인 경우 입력을 가로채서 GAS에만 전달하고 함수를 끝냅니다.
+	if (PendingCommandType == ECommandType::Skill)
+	{
+		if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+		{
+			UAbilitySystemComponent* ASC = PS->GetAbilitySystemComponent();
+			if (ASC)
+			{
+				// 좌클릭 -> Confirm
+				if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
+				{
+					NOVA_LOG(Log, "Input_Select detected during Skill mode. Calling LocalInputConfirm for PC: %s", *GetName());
+					
+					ASC->LocalInputConfirm();
+					return; // 기존의 드래그/선택 로직을 실행하지 않고 나갑니다.
+				}
+				// 우클릭 -> Cancel
+				else if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
+				{
+					NOVA_LOG(Warning, "Input_Command detected during Skill mode. Calling LocalInputCancel for PC: %s", *GetName());
+					
+					ASC->LocalInputCancel();
+					return; // 기존의 이동 명령을 실행하지 않고 나갑니다.
+				}
+			}
+		}
+	}
+	
 
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Toggle_HealthBar))
 	{

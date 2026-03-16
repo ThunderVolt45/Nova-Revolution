@@ -35,6 +35,9 @@ public:
 
 	// 외부에서 메시를 가져오기 위한 유틸리티 함수
 	UPrimitiveComponent* GetMainMesh() const;
+	
+	// Overlay Material 설정 및 세팅 : 선택된 유닛이 하이라이트 될 때 적용될 Material 세팅 함수
+	void SetHighlight(UMaterialInterface* HighlightMaterial);
 
 	// 데이터 테이블 기반 스펙을 가져오는 함수
 	const FNovaPartSpecRow& GetPartSpec() const { return PartSpec; }
