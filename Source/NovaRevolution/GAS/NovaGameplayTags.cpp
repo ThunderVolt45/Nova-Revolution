@@ -62,6 +62,7 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_ResourceLevelUp_SP, "Ability.Skill.ResourceLevelUp.SP");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_Overwork, "Ability.Skill.Overwork");
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_Recall, "Ability.Skill.Recall");
+	UE_DEFINE_GAMEPLAY_TAG(Ability_Skill_Recycle, "Ability.Skill.Recycle");
 	
 	// --- 게임플레이 큐 태그 ---
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Damage_Smoke, "GameplayCue.Unit.Damage.Smoke");
