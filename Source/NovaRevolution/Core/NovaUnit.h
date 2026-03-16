@@ -10,6 +10,7 @@
 #include "Core/NovaTypes.h"
 #include "Core/NovaAssemblyTypes.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "GAS/NovaAttributeSet.h"
 #include "GAS/NovaGameplayTags.h"
 #include "NovaUnit.generated.h"
 
@@ -33,6 +34,7 @@ public:
 	ANovaUnit();
 
 #pragma region Engine Overrides
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -48,6 +50,7 @@ public:
 #pragma endregion
 
 #pragma region Unit Assembly & Initialization
+
 public:
 	/** 팩토리로부터 조립 설계도를 전달받아 멤버 변수 초기화 */
 	void SetAssemblyData(const FNovaUnitAssemblyData& Data);
@@ -119,6 +122,7 @@ protected:
 #pragma endregion
 
 #pragma region Ability System (GAS)
+
 public:
 	// --- IAbilitySystemInterface ---
 	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
@@ -137,7 +141,7 @@ private:
 
 	/** 체력 변화에 따른 데미지 연출(연기, 불길 등) 업데이트 */
 	void UpdateDamageEffects(float CurrentHealth, float MaxHealth);
-	
+
 	/** 모든 부품에서 데미지 GameplayCue를 제거 */
 	void ClearDamageEffects();
 
@@ -178,13 +182,14 @@ protected:
 	/** 불길 효과가 시작되는 체력 비율 (0.0 ~ 1.0) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "1.0"))
 	float FireThreshold = 0.3f;
-	
+
 	// 유닛이 사망한 후 제거(폭발) 될 때까지 걸리는 시간
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Unit|Effects", meta = (ClampMin = "0.0", ClampMax = "3.0"))
 	float TimeToDestroy = 2.f;
 #pragma endregion
 
 #pragma region Combat & Commands
+
 public:
 	// --- INovaCommandInterface ---
 	virtual void IssueCommand(const FCommandData& CommandData) override;
@@ -224,6 +229,7 @@ protected:
 #pragma endregion
 
 #pragma region Movement & AI Rotation Logic
+
 public:
 	/** 유닛의 이동 타입을 반환합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
@@ -293,6 +299,7 @@ private:
 #pragma endregion
 
 #pragma region Selection & UI
+
 public:
 	// --- INovaSelectableInterface ---
 	virtual void OnSelected() override;
@@ -300,14 +307,35 @@ public:
 	virtual bool IsSelectable() const override;
 	virtual ENovaSelectableType GetSelectableType() const override { return ENovaSelectableType::Unit; }
 
+	// --- UI 데이터 Getter ---
 	/** 유닛의 이름을 반환합니다. */
-	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
 	FString GetUnitName() const { return UnitName; }
+
+	/** 현재 체력 값을 반환 */
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
+	float GetHealth() const { return AttributeSet ? AttributeSet->GetHealth() : 0.0f; }
+
+	/** 최대 체력 값을 반환 */
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
+	float GetMaxHealth() const { return AttributeSet ? AttributeSet->GetMaxHealth() : 0.0f; }
+
+	/** 공격력 값을 반환 */
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
+	float GetAttack() const { return AttributeSet ? AttributeSet->GetAttack() : 0.0f; }
+
+	/** 방어력 값을 반환 */
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
+	float GetDefense() const { return AttributeSet ? AttributeSet->GetDefense() : 0.0f; }
+
+	/** 이동 속도 값을 반환 */
+	UFUNCTION(BlueprintPure, Category = "Nova|UI")
+	float GetSpeed() const { return AttributeSet ? AttributeSet->GetSpeed() : 0.0f; }
 
 protected:
 	// TeamID를 확인하여 UI 색상을 결정하는 함수
 	void InitializeUIColors();
-	
+
 	// 체력바 업데이트 함수
 	void UpdateHealthBar();
 
@@ -315,11 +343,11 @@ protected:
 	// 선택 시 UI적 요소를 표시할 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
 	TObjectPtr<UNovaSelectionComponent> SelectionComponent;
-	
+
 	// 상단 체력바 위젯 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
 	TObjectPtr<UNovaHealthBarComponent> HealthBarComponent;
-	
+
 	// 캐싱된 UI 색상 (성능 최적화용)
 	FLinearColor CachedUIColor = FLinearColor::White;
 
@@ -332,6 +360,7 @@ protected:
 #pragma endregion
 
 #pragma region Navigation & Fog of War
+
 public:
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
@@ -363,6 +392,7 @@ protected:
 #pragma endregion
 
 #pragma region Object Pooling
+
 public:
 	// --- INovaObjectPoolable ---
 	virtual void OnSpawnFromPool_Implementation() override;

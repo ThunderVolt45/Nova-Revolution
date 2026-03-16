@@ -8,7 +8,11 @@
 #include "GameFramework/PlayerController.h"
 #include "NovaPlayerController.generated.h"
 
+// 인 게임 내 유닛 하단의 체력바용
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShowHealthBarsChanged, bool, bShow);
+
+// 유닛 선택 시 정보를 표시할 UI용
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSelectionChanged, const TArray<AActor*>&, SelectedUnits);
 
 struct FInputActionValue;
 class UNovaInputConfig;
@@ -167,14 +171,15 @@ public:
 
 	// 대상이 죽거나(파괴되거나) 안개 속으로 숨겨졌을 때 호출되는 알림 함수
 	void NotifyTargetUnselectable(AActor* SelectedTargets);
-	
+
 	// 델리게이트 인스턴스
 	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")
 	FOnShowHealthBarsChanged OnShowHealthBarsChanged;
-	
+
 	// 현재 체력바 표시 옵션 Getter(유닛/기지 초기화용)
 	UFUNCTION(BlueprintPure, Category = "Nova|UI")
 	bool GetShowHealthBars() const { return bShowHealthBars; }
+
 	
 	// 추가) GA에서 사용하기 위한 PendingCommandType Getter/Setter 함수
 	// 명령 대기 상태를 설정합니다. (GA에서 호출)
@@ -193,15 +198,24 @@ protected:
 	/** 생성된 HUD 인스턴스 저장용 */
 	UPROPERTY()
 	UUserWidget* MainHUDInstance;
-	
+
 	// 이동 명령 시 생성할 이펙트
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI|Command")
 	TObjectPtr<UNiagaraSystem> MoveCommandEffect;
-	
+
 	// 공격 명령 시 생성할 이펙트
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI|Command")
 	TObjectPtr<UNiagaraSystem> AttackCommandEffect;
-	
+
 	// 명령 종류에 따른 시각화 실행 함수
-	void SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType);
+	void SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor = nullptr);
+
+public:
+	/** 선택된 유닛 배열이 변경될 때 호출되는 델리게이트 */
+	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")
+	FOnSelectionChanged OnSelectionChanged;
+
+	/** 현재 선택된 유닛 리스트를 직접 가져오는 Getter */
+	UFUNCTION(BlueprintPure, Category = "Nova|Selection")
+	const TArray<AActor*>& GetSelectedUnits() const { return SelectedUnits; }
 };
