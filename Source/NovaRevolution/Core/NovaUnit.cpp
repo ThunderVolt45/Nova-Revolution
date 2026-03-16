@@ -654,11 +654,16 @@ void ANovaUnit::InitializeAttributesFromParts()
 		MoveComp->BrakingDecelerationFlying = TotalSpeed * 10.0f;
 		MoveComp->BrakingFrictionFactor = 2.0f;
 		MoveComp->FallingLateralFriction = 8.0f;
+		
+		// Z축 이동을 완벽히 차단하기 위한 평면 제한 설정
 		MoveComp->bConstrainToPlane = true;
 		MoveComp->bSnapToPlaneAtStart = true;
+		MoveComp->SetPlaneConstraintNormal(FVector(0.0f, 0.0f, 1.0f));
+		MoveComp->SetPlaneConstraintOrigin(FVector(0.0f, 0.0f, DefaultAirZ));
 
+		// 현재 위치에서 Z값만 공중 고도로 강제 조정 (텔레포트 판정으로 물리 엔진에 의한 밀림 방지)
 		FVector CurrentLoc = GetActorLocation();
-		SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ));
+		SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ), false, nullptr, ETeleportType::TeleportPhysics);
 	}
 	else
 	{
