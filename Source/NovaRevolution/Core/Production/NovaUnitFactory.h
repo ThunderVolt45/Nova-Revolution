@@ -14,7 +14,8 @@ UCLASS()
 class NOVAREVOLUTION_API UNovaUnitFactory : public UWorldSubsystem
 {
 	GENERATED_BODY()
-	public:
+
+public:
 	/**
       * 덱 슬롯 번호를 이용한 유닛 생산 요청
       * @param SlotIndex: GameMode의 덱 정보 중 생산할 슬롯 번호 (0~9)
@@ -27,10 +28,11 @@ class NOVAREVOLUTION_API UNovaUnitFactory : public UWorldSubsystem
 	/** 조립 데이터를 기반으로 유닛의 총 와트 비용을 계산합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|Factory")
 	float CalculateTotalWattCost(const FNovaUnitAssemblyData& AssemblyData) const;
-	
-	private:
+
+private:
 	/** 실제 유닛 생성 및 조립 데이터 주입 */
-	class ANovaUnit* ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData, const FTransform& SpawnTransform,  int32 TeamID, const FVector& RallyPoint);
+	class ANovaUnit* ExecuteUnitProduction(const FNovaUnitAssemblyData& AssemblyData, const FTransform& SpawnTransform,
+	                                       int32 TeamID, const FVector& RallyPoint, int32 SlotIndex);
 	/** 자원(Watt) 확인 및 차감 로직 */
 	bool CheckAndConsumeResources(class ANovaPlayerState* PS, float Cost);
 
