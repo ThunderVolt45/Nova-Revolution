@@ -30,10 +30,14 @@ ANovaPlayerController::ANovaPlayerController()
 void ANovaPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	bShowMouseCursor = true;
 	DefaultMouseCursor = EMouseCursor::Default;
-	
+
+	// 마우스 오버 및 클릭 이벤트 활성화
+	bEnableClickEvents = true;
+	bEnableMouseOverEvents = true;
+
 	// 입력 모드 설정 (Game : 게임 월드 입력(클릭, 드래그) 지원 | UI : UI 마우스 오버 등 지원)
 	FInputModeGameAndUI InputMode;
 
@@ -160,8 +164,8 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Shift)) bIsShiftDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Ctrl)) bIsCtrlDown = true;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Modifier_Alt)) bIsAltDown = true;
-	
-	
+
+
 	// 사령관 Skill 관련 로직 추가 : 스킬 타겟팅 모드인 경우 입력을 가로채서 GAS에만 전달하고 함수를 끝냅니다.
 	if (PendingCommandType == ECommandType::Skill)
 	{
@@ -178,31 +182,33 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 					// 이렇게 해야 함수가 리턴된 후 실행될 Held/Released 로직이 '이전' 좌표를 참조하지 않습니다.
 					GetMousePosition(DragStartPos.X, DragStartPos.Y);
 					bIsDraggingBox = false;
-					
-					NOVA_LOG(Log, "Input_Select detected during Skill mode. Calling LocalInputConfirm for PC: %s", *GetName());
-					
+
+					NOVA_LOG(Log, "Input_Select detected during Skill mode. Calling LocalInputConfirm for PC: %s",
+					         *GetName());
+
 					ASC->LocalInputConfirm();
 					return; // 기존의 드래그/선택 로직을 실행하지 않고 나갑니다.
 				}
 				// 우클릭 -> Cancel
 				else if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
 				{
-					NOVA_LOG(Warning, "Input_Command detected during Skill mode. Calling LocalInputCancel for PC: %s", *GetName());
-					
+					NOVA_LOG(Warning, "Input_Command detected during Skill mode. Calling LocalInputCancel for PC: %s",
+					         *GetName());
+
 					ASC->LocalInputCancel();
 					return; // 기존의 이동 명령을 실행하지 않고 나갑니다.
 				}
 			}
 		}
 	}
-	
+
 
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Toggle_HealthBar))
 	{
 		ToggleHealthBar(InputTag);
 		return;
 	}
-	
+
 	// 명령 차단 로직 (아군 유닛이 아닐 때)
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Input"))))
 	{
@@ -314,7 +320,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 					SkillInterface->Execute_ActivateSkillSlot(GetPlayerState<ANovaPlayerState>(), SlotIndex);
 
 					NOVA_SCREEN(Warning, "Request Commander Skill: Slot %d", SlotIndex + 1);
-        
+
 					// 스킬 실행 명령을 보냈으므로 일반 유닛 생산/명령 로직으로 넘어가지 않도록 리턴합니다.
 					return;
 				}
@@ -517,6 +523,19 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 		{
 			// 드래그 선택 수행
 			PerformBoxSelection();
+
+			TArray<AActor*> AllSelectable;
+			UGameplayStatics::GetAllActorsWithInterface(GetWorld(), UNovaSelectableInterface::StaticClass(),
+			                                            AllSelectable);
+
+			// 모든 대상의 드래그 하이라이트 상태를 false로 초기화
+			for (AActor* Actor : AllSelectable)
+			{
+				if (INovaHighlightInterface* Highlighter = Cast<INovaHighlightInterface>(Actor))
+				{
+					Highlighter->SetHighlightStatus(ENovaHighlightPriority::Drag, false);
+				}
+			}
 			bIsDraggingBox = false;
 		}
 		else
@@ -582,12 +601,12 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 						NewSelectable->OnSelected();
 						SelectedUnits.Add(HitActor);
 					}
-					}
+				}
 
-					// 선택 변경 알림
-					OnSelectionChanged.Broadcast(SelectedUnits);
-					}
-					}
+				// 선택 변경 알림
+				OnSelectionChanged.Broadcast(SelectedUnits);
+			}
+		}
 		// TODO: 나중에 여기에 HUD->DragSelectUpdate(..., false) 호출을 추가합니다.
 	}
 
@@ -606,14 +625,43 @@ void ANovaPlayerController::Input_AbilityInputTagHeld(FGameplayTag InputTag)
 		FVector2D CurrentPosition;
 		GetMousePosition(CurrentPosition.X, CurrentPosition.Y);
 
-		// 시작점과 현재점의 거리가 일정 이상(예: 5픽셀)이면 드래그로 간주
-		if (FVector2D::Distance(DragStartPos, CurrentPosition) > 5.f)
+		// 시작점과 현재점의 거리가 일정 이상(단위: 픽셀)이면 드래그로 간주
+		if (FVector2D::Distance(DragStartPos, CurrentPosition) > 1.f)
 		{
 			bIsDraggingBox = true;
-			// TODO: 나중에 여기에 HUD->DragSelectUpdate(...) 호출을 추가합니다.
 			if (ANovaHUD* NovaHUD = Cast<ANovaHUD>(GetHUD()))
 			{
 				NovaHUD->UpdateDragRect(DragStartPos, CurrentPosition, true);
+			}
+			// 2. 실시간 하이라이트 계산을 위한 영역 좌표 추출
+			float MinX = FMath::Min(DragStartPos.X, CurrentPosition.X);
+			float MaxX = FMath::Max(DragStartPos.X, CurrentPosition.X);
+			float MinY = FMath::Min(DragStartPos.Y, CurrentPosition.Y);
+			float MaxY = FMath::Max(DragStartPos.Y, CurrentPosition.Y);
+
+			// 월드 내의 모든 선택 가능 대상(Interface 구현체) 가져오기
+			TArray<AActor*> AllSelectable;
+			UGameplayStatics::GetAllActorsWithInterface(GetWorld(), UNovaSelectableInterface::StaticClass(),
+			                                            AllSelectable);
+
+			for (AActor* Actor : AllSelectable)
+			{
+				if (INovaHighlightInterface* Highlitghter = Cast<INovaHighlightInterface>(Actor))
+				{
+					FVector2D ScreenPos;
+					bool bInBox = false;
+
+					// 객체의 위치를 화면 좌표로 투영하여 사각형 안에 있는지 체크
+					if (ProjectWorldLocationToScreen(Actor->GetActorLocation(), ScreenPos))
+					{
+						bInBox = (ScreenPos.X >= MinX && ScreenPos.X <= MaxX &&
+							ScreenPos.Y >= MinY && ScreenPos.Y <= MaxY);
+					}
+
+					// 드래그 상태 전달
+					// bInBox가 true면 켜지고, false면 꺼짐
+					Highlitghter->SetHighlightStatus(ENovaHighlightPriority::Drag, bInBox, FLinearColor::White);
+				}
 			}
 		}
 	}

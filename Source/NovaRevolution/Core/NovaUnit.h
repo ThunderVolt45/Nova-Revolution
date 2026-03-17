@@ -30,7 +30,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUnitAttributeChanged, ANovaUnit*,
  */
 UCLASS()
 class NOVAREVOLUTION_API ANovaUnit : public ACharacter, public IAbilitySystemInterface, public INovaSelectableInterface,
-                                     public INovaCommandInterface, public INovaTeamInterface, public INovaObjectPoolable
+                                     public INovaCommandInterface, public INovaTeamInterface,
+                                     public INovaObjectPoolable, public INovaHighlightInterface
 {
 	GENERATED_BODY()
 
@@ -142,7 +143,7 @@ protected:
 private:
 	// 속성 변경 시 호출될 콜백 함수 (UI 업데이트 등)
 	void OnHealthChanged(const FOnAttributeChangeData& Data);
-	
+
 	/** 속도(Speed) 속성이 변경될 때 호출될 콜백, 유닛에 적용될 저주프리즈 스킬을 위해 함수 추가 */
 	void OnSpeedChanged(const FOnAttributeChangeData& Data);
 
@@ -318,6 +319,11 @@ public:
 	virtual bool IsSelectable() const override;
 	virtual ENovaSelectableType GetSelectableType() const override { return ENovaSelectableType::Unit; }
 
+	// --- INovaHighlightInterface 구현 ---
+	virtual void SetHighlightStatus(ENovaHighlightPriority Priority, bool bActive,
+	                                FLinearColor Color = FLinearColor::White) override;
+	virtual void UpdateHighlight() override;
+
 	// 유닛이 Base의 몇번 슬롯에서 나왔는지 기억하기 위한 Setter
 	void SetProductionSlotIndex(int32 InIndex) { ProductionSlotIndex = InIndex; }
 
@@ -335,13 +341,16 @@ public:
 	int32 GetProductionSlotIndex() const { return ProductionSlotIndex; }
 
 protected:
+	// --- 마우스 오버 이벤트(하이라이트 처리) ---
+	virtual void NotifyActorBeginCursorOver() override;
+	virtual void NotifyActorEndCursorOver() override;
+
 	// TeamID를 확인하여 UI 색상을 결정하는 함수
 	void InitializeUIColors();
 
 	// 체력바 업데이트 함수
 	void UpdateHealthBar();
 
-protected:
 	// 선택 시 UI적 요소를 표시할 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
 	TObjectPtr<UNovaSelectionComponent> SelectionComponent;
@@ -356,7 +365,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Unit")
 	FString UnitName;
 
-	// 선택 여부 (팀원 B가 하이라이트 로직 구현 시 사용)
+	// 선택 여부
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Unit")
 	bool bIsSelected = false;
 
@@ -374,13 +383,20 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
 	FVector PortraitCaptureLocation = FVector(200.0f, 0.f, 30.f);
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
 	FRotator PortraitCaptureRotation = FRotator(-20.f, -180.f, 0.f);
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
 	float PortraitCaptureFOVAngle = 45.f;
-	
+
+private:
+	// 각 상태별 플래그
+	bool bIsHovered = false;
+	bool bIsDragHighlighted = false;
+	bool bIsSkillHighlighted = false;
+	FLinearColor SkillHighlightColor = FLinearColor::White;
+
 #pragma endregion
 
 #pragma region Navigation & Fog of War

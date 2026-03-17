@@ -149,10 +149,10 @@ void ANovaUnit::BeginPlay()
 		// 속성 변경 콜백 등록
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
 		                      .AddUObject(this, &ANovaUnit::OnHealthChanged);
-		
+
 		// 속도 변경 콜백 등록 : 저주프리즈 스킬 관련 로직
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetSpeedAttribute())
-			.AddUObject(this, &ANovaUnit::OnSpeedChanged);
+		                      .AddUObject(this, &ANovaUnit::OnSpeedChanged);
 	}
 
 	// 초기 Yaw 설정
@@ -162,7 +162,7 @@ void ANovaUnit::BeginPlay()
 	if (PortraitRenderTarget && PortraitCapture)
 	{
 		PortraitCapture->TextureTarget = PortraitRenderTarget;
-		PortraitCapture->SetRelativeLocationAndRotation(PortraitCaptureLocation, PortraitCaptureRotation);	// 카메라 조정
+		PortraitCapture->SetRelativeLocationAndRotation(PortraitCaptureLocation, PortraitCaptureRotation); // 카메라 조정
 		// ShowOnlyList에 자기 자신 추가
 		PortraitCapture->ShowOnlyActors.Add(this);
 	}
@@ -270,7 +270,7 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 		{
 			FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
 			FVector Offset = RandomDir * (120.0f * DeltaTime);
-			
+
 			// [개선] NavMesh 레이캐스트 체크
 			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 			if (NavSys)
@@ -741,7 +741,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 		MoveComp->BrakingDecelerationFlying = TotalSpeed * 10.0f;
 		MoveComp->BrakingFrictionFactor = 2.0f;
 		MoveComp->FallingLateralFriction = 8.0f;
-		
+
 		// Z축 이동을 완벽히 차단하기 위한 평면 제한 설정
 		MoveComp->bConstrainToPlane = true;
 		MoveComp->bSnapToPlaneAtStart = true;
@@ -750,7 +750,8 @@ void ANovaUnit::InitializeAttributesFromParts()
 
 		// 현재 위치에서 Z값만 공중 고도로 강제 조정 (텔레포트 판정으로 물리 엔진에 의한 밀림 방지)
 		FVector CurrentLoc = GetActorLocation();
-		SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ), false, nullptr, ETeleportType::TeleportPhysics);
+		SetActorLocation(FVector(CurrentLoc.X, CurrentLoc.Y, DefaultAirZ), false, nullptr,
+		                 ETeleportType::TeleportPhysics);
 	}
 	else
 	{
@@ -1232,7 +1233,7 @@ void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
 	}
 
 	FHitResult Hit;
-	
+
 	// 보정된 오프셋만큼 이동
 	AddActorWorldOffset(DesiredOffset, true, &Hit);
 
@@ -1414,6 +1415,67 @@ bool ANovaUnit::IsSelectable() const
 	if (TeamID == LocalPlayerTeamID) return true;
 
 	return bIsVisibleByFog;
+}
+
+void ANovaUnit::SetHighlightStatus(ENovaHighlightPriority Priority, bool bActive,
+                                   FLinearColor Color)
+{
+	switch (Priority)
+	{
+	case ENovaHighlightPriority::Hover:
+		bIsHovered = bActive;
+		break;
+	case ENovaHighlightPriority::Drag:
+		bIsDragHighlighted = bActive;
+		break;
+	case ENovaHighlightPriority::SkillRange:
+		bIsSkillHighlighted = bActive;
+		break;
+	}
+	UpdateHighlight();
+}
+
+void ANovaUnit::UpdateHighlight()
+{
+	// 1. 현재 플레이어 컨트롤러의 명령 상태 확인
+	bool bIsSkillMode = false;
+	if (auto* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		// PendingCommandType이 Skill인 경우를 체크합니다.
+		bIsSkillMode = (PC->GetPendingCommandType() == ECommandType::Skill);
+	}
+
+	// 2. 우선순위에 따른 최종 하이라이트 결정
+	// [우선순위 1] 스킬 범위 내 하이라이트 (스킬 모드여도 범위 안에 닿으면 표시되어야 함)
+	if (bIsSkillHighlighted)
+	{
+		SetHighlight(true, SkillHighlightColor);
+	}
+	// [우선순위 2] 드래그 하이라이트
+	else if (bIsDragHighlighted)
+	{
+		SetHighlight(true, SkillHighlightColor);
+	}
+	// [우선순위 3] 호버 하이라이트
+	else if (bIsHovered && !bIsSkillMode)
+	{
+		SetHighlight(true, SkillHighlightColor);
+	}
+	else
+	{
+		// 모든 조건에 해당하지 않거나, 스킬 모드 중인데 범위 밖에서 호버 중인 경우
+		SetHighlight(false);
+	}
+}
+
+void ANovaUnit::NotifyActorBeginCursorOver()
+{
+	SetHighlightStatus(ENovaHighlightPriority::Hover, true);
+}
+
+void ANovaUnit::NotifyActorEndCursorOver()
+{
+	SetHighlightStatus(ENovaHighlightPriority::Hover, false);
 }
 
 void ANovaUnit::InitializeUIColors()
