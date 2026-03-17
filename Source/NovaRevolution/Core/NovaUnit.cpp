@@ -905,17 +905,6 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 	}
 
 	// NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
-
-	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
-	if (CommandData.CommandType != ECommandType::Attack) return;
-
-	for (ANovaPart* WeaponPart : CurrentWeaponParts)
-	{
-		if (WeaponPart)
-		{
-			WeaponPart->PlayAttackAnimation();
-		}
-	}
 }
 
 void ANovaUnit::Die()
