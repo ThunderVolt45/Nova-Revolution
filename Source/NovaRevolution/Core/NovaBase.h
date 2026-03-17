@@ -27,7 +27,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBaseAttributeChanged, ANovaBase*,
 UCLASS()
 class NOVAREVOLUTION_API ANovaBase : public AActor, public IAbilitySystemInterface, public INovaSelectableInterface,
                                      public INovaTeamInterface, public INovaCommandInterface,
-                                     public INovaProductionInterface
+                                     public INovaProductionInterface, public INovaHighlightInterface
 {
 	GENERATED_BODY()
 
@@ -156,7 +156,36 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
 	FRotator PortraitCaptureRotation = FRotator(-30.f, -180.f, 0.f);
-	
+
 	// UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
 	// float PortraitCaptureFOVAngle = 90.f;
+
+public:
+	// 하이라이트 효과 적용
+	void SetHighlight(bool bEnable, FLinearColor HighlightColor = FLinearColor::White);
+
+	// --- INovaHighlightInterface 구현 ---
+	virtual void SetHighlightStatus(ENovaHighlightPriority Priority, bool bActive,
+	                                FLinearColor Color = FLinearColor::White) override;
+	virtual void UpdateHighlight() override;
+
+protected:
+	// --- 엔진 마우스 이벤트 오버라이드 ---
+	virtual void NotifyActorBeginCursorOver() override;
+	virtual void NotifyActorEndCursorOver() override;
+
+	/** 에디터에서 할당할 하이라이트 마스터 머티리얼 (M_Highlight) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Base|Effects")
+	TObjectPtr<UMaterialInterface> HighlightMasterMaterial;
+
+	/** 런타임에 색상을 바꾸기 위한 동적 인스턴스 */
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> HighlightDynamicMaterial;
+
+private:
+	// 하이라이트 상태 플래그
+	bool bIsHovered = false;
+	bool bIsDragHighlighted = false;
+	bool bIsSkillHighlighted = false;
+	FLinearColor SkillHighlightColor = FLinearColor::White;
 };

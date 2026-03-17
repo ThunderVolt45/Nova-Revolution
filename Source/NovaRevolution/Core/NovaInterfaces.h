@@ -198,7 +198,7 @@ public:
 	 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Skill")
 	void ActivateSkillAbility(FGameplayTag AbilityTag);
-	
+
 	/** [추가] 슬롯 인덱스(0~9)로 스킬 실행 (단축키 1~0번 연동에 최적화) */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Skill")
 	void ActivateSkillSlot(int32 SlotIndex);
@@ -226,4 +226,37 @@ public:
 	/** 풀로 돌아갈 때 호출됩니다. 상태를 리셋하거나 비활성화합니다. (풀에 들어가기 직전 호출됨) */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|ObjectPool")
 	void OnReturnToPool();
+};
+
+/** 하이라이트 원인에 따른 우선순위 (높을수록 우선 적용) */
+UENUM(BlueprintType)
+enum class ENovaHighlightPriority : uint8
+{
+	None = 0,
+	Hover, // 마우스 오버 (가장 낮음)
+	Drag, // 드래그 박스 선택 중
+	SkillRange // 스킬 범위 타겟팅 (가장 높음)
+};
+
+UINTERFACE(MinimalAPI)
+class UNovaHighlightInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+class NOVAREVOLUTION_API INovaHighlightInterface
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * 특정 원인에 의한 하이라이트 상태를 설정합니다.
+	 * Priority: 하이라이트 원인
+	 * bActive: 활성화 여부
+	 * Color : 적용 색상
+	 */
+	virtual void SetHighlightStatus(ENovaHighlightPriority Priority, bool bActive, FLinearColor Color = FLinearColor::White) = 0;
+
+	/** 모든 상태를 종합하여 최종 하이라이트 효과를 갱신합니다. */
+	virtual void UpdateHighlight() = 0;
 };

@@ -54,7 +54,7 @@ ANovaBase::ANovaBase()
 	// 초기 설정
 	TeamID = NovaTeam::None;
 	RallyPoint = FVector::ZeroVector;
-	
+
 	// 캡처 컴포넌트 생성
 	PortraitCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("PortraitCapture"));
 	PortraitCapture->SetupAttachment(RootComponent);
@@ -113,7 +113,7 @@ void ANovaBase::BeginPlay()
 		AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(AttributeSet->GetHealthAttribute())
 		                      .AddUObject(this, &ANovaBase::OnHealthChanged);
 	}
-	
+
 	// 렌더 타겟 연결
 	if (PortraitRenderTarget && PortraitCapture)
 	{
@@ -121,6 +121,12 @@ void ANovaBase::BeginPlay()
 		PortraitCapture->SetRelativeLocationAndRotation(PortraitCaptureLocation, PortraitCaptureRotation);
 		// ShowOnlyList에 자기 자신 추가
 		PortraitCapture->ShowOnlyActors.Add(this);
+	}
+
+	// 하이라이트 머티리얼 초기화
+	if (HighlightMasterMaterial)
+	{
+		HighlightDynamicMaterial = UMaterialInstanceDynamic::Create(HighlightMasterMaterial, this);
 	}
 }
 
@@ -193,10 +199,10 @@ void ANovaBase::OnSelected()
 		SelectionComponent->SetTeamColor(CachedUIColor);
 	}
 	UE_LOG(LogTemp, Log, TEXT("Base Selected: %s (TeamID: %d)"), *GetName(), TeamID);
-	
+
 	if (PortraitCapture)
 	{
-		PortraitCapture->bCaptureEveryFrame = true;	// 선택 시 캡처 시작
+		PortraitCapture->bCaptureEveryFrame = true; // 선택 시 캡처 시작
 	}
 }
 
@@ -205,10 +211,10 @@ void ANovaBase::OnDeselected()
 	bIsSelected = false;
 	if (SelectionComponent) SelectionComponent->SetSelectionVisible(false);
 	UE_LOG(LogTemp, Log, TEXT("Base Deselected: %s"), *GetName());
-	
+
 	if (PortraitCapture)
 	{
-		PortraitCapture->bCaptureEveryFrame = false;	// 선택 해제 시 캡처 시중단
+		PortraitCapture->bCaptureEveryFrame = false; // 선택 해제 시 캡처 시중단
 	}
 }
 
@@ -362,7 +368,7 @@ void ANovaBase::OnHealthChanged(const FOnAttributeChangeData& Data)
 
 	// 실시간 업데이트 호출
 	UpdateHealthBar();
-	
+
 	if (OnBaseAttributeChanged.IsBound())
 	{
 		OnBaseAttributeChanged.Broadcast(this);
@@ -433,4 +439,87 @@ void ANovaBase::SetFogVisibility(bool bVisible)
 	{
 		SelectionComponent->SetSelectionVisible(false);
 	}
+}
+
+void ANovaBase::SetHighlight(bool bEnable, FLinearColor HighlightColor)
+{
+	UMaterialInterface* MaterialToApply = nullptr;
+	if (bEnable && HighlightDynamicMaterial)
+	{
+		HighlightDynamicMaterial->SetVectorParameterValue(TEXT("OverlayColor"), HighlightColor);
+		MaterialToApply = HighlightDynamicMaterial;
+	}
+
+	// 기지에 포함된 모든 메시 컴포넌트에 적용
+	TArray<UMeshComponent*> MeshComponents;
+	GetComponents<UMeshComponent>(MeshComponents);
+
+	for (UMeshComponent* MeshComp : MeshComponents)
+	{
+		if (MeshComp)
+		{
+			MeshComp->SetOverlayMaterial(MaterialToApply);
+		}
+	}
+}
+
+void ANovaBase::SetHighlightStatus(ENovaHighlightPriority Priority, bool bActive, FLinearColor Color)
+{
+	switch (Priority)
+	{
+	case ENovaHighlightPriority::Hover:
+		bIsHovered = bActive;
+		break;
+	case ENovaHighlightPriority::Drag:
+		bIsDragHighlighted = bActive;
+		break;
+	case ENovaHighlightPriority::SkillRange:
+		bIsSkillHighlighted = bActive;
+		SkillHighlightColor = Color;
+		break;
+	}
+	UpdateHighlight();
+}
+
+void ANovaBase::UpdateHighlight()
+{
+	// 1. 현재 플레이어 컨트롤러의 명령 상태 확인
+	bool bIsSkillMode = false;
+	if (auto* PC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		// PendingCommandType이 Skill인 경우를 체크합니다.
+		bIsSkillMode = (PC->GetPendingCommandType() == ECommandType::Skill);
+	}
+
+	// 2. 우선순위에 따른 최종 하이라이트 결정
+	// [우선순위 1] 스킬 범위 내 하이라이트 (스킬 모드여도 범위 안에 닿으면 표시되어야 함)
+	if (bIsSkillHighlighted)
+	{
+		SetHighlight(true, SkillHighlightColor);
+	}
+	// [우선순위 2] 드래그 하이라이트
+	else if (bIsDragHighlighted)
+	{
+		SetHighlight(true, SkillHighlightColor);
+	}
+	// [우선순위 3] 호버 하이라이트
+	else if (bIsHovered && !bIsSkillMode)
+	{
+		SetHighlight(true, SkillHighlightColor);
+	}
+	else
+	{
+		// 모든 조건에 해당하지 않거나, 스킬 모드 중인데 범위 밖에서 호버 중인 경우
+		SetHighlight(false);
+	}
+}
+
+void ANovaBase::NotifyActorBeginCursorOver()
+{
+	SetHighlightStatus(ENovaHighlightPriority::Hover, true);
+}
+
+void ANovaBase::NotifyActorEndCursorOver()
+{
+	SetHighlightStatus(ENovaHighlightPriority::Hover, false);
 }
