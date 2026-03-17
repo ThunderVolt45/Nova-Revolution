@@ -11,6 +11,7 @@ class UTextBlock;
 class UProgressBar;
 class UWidgetSwitcher;
 class ANovaUnit;
+class ANovaBase;
 class UNovaMultiSelectionWidget;
 
 /**
@@ -30,10 +31,15 @@ protected:
 
 	// 유닛의 속성이 변경되었을 때 호출될 함수 (실시간 갱신용)
 	UFUNCTION()
-	void OnAttributeChanged(ANovaUnit* Unit);
+	void OnUnitAttributeChanged(ANovaUnit* Unit);
+	
+	// 기지의 속성이 변경되었을 때 호출될 함수 (실시간 갱신용)
+	UFUNCTION()
+	void OnBaseAttributeChanged(ANovaBase* Base);
 
 	// UI 갱신 로직
 	void UpdateUnitInfo(ANovaUnit* Unit);
+	void UpdateBaseInfo(ANovaBase* Base);
 
 	// --- UI 바인딩 ---
 	/** 단일/다중 선택 UI 전환을 위한 스위처 */
@@ -63,4 +69,8 @@ private:
 	// 현재 감시 중인 유닛 (델리게이트 해제용)
 	UPROPERTY()
 	TObjectPtr<ANovaUnit> CurrentObservedUnit;
+	
+	// 현재 감시 중인 기지 (델리게이트 해제용)
+	UPROPERTY()
+	TObjectPtr<ANovaBase> CurrentObservedBase;
 };

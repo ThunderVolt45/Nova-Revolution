@@ -376,7 +376,7 @@ protected:
 	FVector PortraitCaptureLocation = FVector(200.0f, 0.f, 30.f);
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
-	FRotator PortraitCaptureRotation = FRotator(0.f, -180.f, -20.f);
+	FRotator PortraitCaptureRotation = FRotator(-20.f, -180.f, 0.f);
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
 	float PortraitCaptureFOVAngle = 45.f;
