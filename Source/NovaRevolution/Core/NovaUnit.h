@@ -407,6 +407,8 @@ public:
 
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
+	
+	bool GetFogVisibility() const { return bIsVisibleByFog; }
 
 	/** 유닛이 NavMesh 상에서 장애물로 작동할지 여부를 설정합니다. */
 	void SetNavigationObstacle(bool bIsObstacle);
