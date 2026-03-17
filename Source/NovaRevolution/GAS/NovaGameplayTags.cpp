@@ -76,4 +76,6 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rifle_Hit, "GameplayCue.Weapon.Rifle.Hit");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rocketeer_Fire, "GameplayCue.Weapon.Rocketeer.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rocketeer_Hit, "GameplayCue.Weapon.Rocketeer.Hit");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_SkyKiller_Fire, "GameplayCue.Weapon.SkyKiller.Fire");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_SkyKiller_Hit, "GameplayCue.Weapon.SkyKiller.Hit");
 }
