@@ -319,14 +319,9 @@ void ANovaPart::ExplodeAndDetach(FVector Impulse)
 	{
 		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		MeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
-		
-		// 중요: 유닛(Pawn)의 이동을 방해하지 않도록 Pawn 채널 충돌은 무시합니다.
 		MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-		
-		// 추가: 내비게이션 메쉬에 영향을 주지 않도록 설정하여 경로를 방해하지 않게 함
-		MeshComp->SetCanEverAffectNavigation(false);
-
 		MeshComp->SetSimulatePhysics(true);
+		MeshComp->SetCanEverAffectNavigation(false);
 		
 		// 튕겨나가는 힘 적용
 		MeshComp->AddImpulse(Impulse, NAME_None, true);
