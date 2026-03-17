@@ -184,3 +184,14 @@ void ANovaPlayerState::ActivateSkillAbility_Implementation(FGameplayTag AbilityT
 		AbilitySystemComponent->TryActivateAbilitiesByTag(FGameplayTagContainer(AbilityTag));
 	}
 }
+
+void ANovaPlayerState::ActivateSkillSlot_Implementation(int32 SlotIndex)
+{
+	// 1. 슬롯 인덱스 유효성 검사 (0~9 범위 내에 있는지) 및 할당된 태그 존재 확인
+	if (SkillSlotTags.IsValidIndex(SlotIndex) && SkillSlotTags[SlotIndex].IsValid())
+	{
+		// 2. 이미 구현된 태그 기반 스킬 실행 함수(ActivateSkillAbility)를 호출합니다.
+		// 인터페이스 함수이므로 Execute_ 접두사를 사용하여 안전하게 호출합니다.
+		Execute_ActivateSkillAbility(this, SkillSlotTags[SlotIndex]);
+	}
+}

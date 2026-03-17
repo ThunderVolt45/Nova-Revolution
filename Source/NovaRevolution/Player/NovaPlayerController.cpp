@@ -305,12 +305,19 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			// 즉시 스킬 시전 (Alt + Slot)
 			if (bIsAltDown)
 			{
-				// TODO: 스킬 관련 Interface 추가 시 작업할 공간
+				// 1. 현재 PlayerState를 인터페이스로 가져옵니다.
+				// 캐스팅을 통해 인터페이스 구현 여부를 확인합니다.
+				if (INovaSkillInterface* SkillInterface = Cast<INovaSkillInterface>(GetPlayerState<ANovaPlayerState>()))
+				{
+					// 2. 인터페이스 함수 호출 (예: Alt + 1 키 입력 시 SlotIndex 0 전달)
+					// 인터페이스 함수이므로 Execute_ 접두사를 사용하여 안전하게 호출합니다.
+					SkillInterface->Execute_ActivateSkillSlot(GetPlayerState<ANovaPlayerState>(), SlotIndex);
 
-				// 현재 구현된 스킬 인터페이스가 없음. 로그만 출력
-				NOVA_SCREEN(Warning, "Request Commander Skill: Slot %d (Not Implemented Yet)", SlotIndex + 1);
-
-				return;
+					NOVA_SCREEN(Warning, "Request Commander Skill: Slot %d", SlotIndex + 1);
+        
+					// 스킬 실행 명령을 보냈으므로 일반 유닛 생산/명령 로직으로 넘어가지 않도록 리턴합니다.
+					return;
+				}
 			}
 
 			// 부대 호출
