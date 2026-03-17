@@ -711,6 +711,13 @@ void ANovaUnit::InitializeAttributesFromParts()
 		if (Spec.PartType == ENovaPartType::Legs) ApplyLegsSpec(Spec);
 		else if (Spec.PartType == ENovaPartType::Weapon) TargetType = Spec.TargetType;
 	}
+	
+	// 주요 스탯들의 최소치 이하로 내려가지 않도록 보정
+	if (TotalHealth < 1.f) TotalHealth = 1.0f;
+	if (TotalAttack < 0.f) TotalAttack = 0.0f;
+	if (TotalDefense < 0.f) TotalDefense = 0.0f;
+	if (TotalSpeed < 0.f) TotalSpeed = 0.0f;
+	if (TotalFireRate < 25.f) TotalFireRate = 25.0f;
 
 	// AttributeSet 초기화
 	AttributeSet->InitWatt(TotalWatt);
@@ -899,17 +906,6 @@ void ANovaUnit::IssueCommand(const FCommandData& CommandData)
 	}
 
 	// NOVA_LOG(Log, "Unit Received Command: Type %d", (int32)CommandData.CommandType);
-
-	// 2. 무기(Weapon) 애니메이션 재생: 공격 명령 시
-	if (CommandData.CommandType != ECommandType::Attack) return;
-
-	for (ANovaPart* WeaponPart : CurrentWeaponParts)
-	{
-		if (WeaponPart)
-		{
-			WeaponPart->PlayAttackAnimation();
-		}
-	}
 }
 
 void ANovaUnit::Die()

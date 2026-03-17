@@ -32,6 +32,9 @@ public:
 	// GameplayEffect가 실행된 후 데미지 처리 등의 최종 연산을 수행
 	virtual void PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data) override;
 
+	// 속성이 실제로 변경된 후 최종적으로 호출되는 함수 (클램핑 보장용)
+	virtual void PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue) override;
+
 	// 체력 (Health Points)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Attributes")
 	FGameplayAttributeData Health;

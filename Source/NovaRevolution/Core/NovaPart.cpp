@@ -2,7 +2,6 @@
 
 #include "Core/NovaPart.h"
 #include "Core/NovaPartData.h"
-#include "Core/Animation/NovaWeaponAnimInstance.h"
 #include "Core/Animation/NovaAnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "AbilitySystemComponent.h"
@@ -40,7 +39,7 @@ void ANovaPart::OnReturnToPool_Implementation()
 	// 1. 부모로부터 분리
 	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 
-	// 2. 모든 메시 컴포넌트의 물리 및 트랜스폼 리셋
+	// 2. 모든 메시 컴포넌트의 물리 중지 및 초기화
 	TArray<UPrimitiveComponent*> Meshes;
 	GetComponents<UPrimitiveComponent>(Meshes);
 
@@ -48,24 +47,35 @@ void ANovaPart::OnReturnToPool_Implementation()
 	{
 		if (MeshComp && MeshComp != RootComponent)
 		{
-			// 물리 시뮬레이션 완전 중지 및 속도 초기화
 			MeshComp->SetSimulatePhysics(false);
 			MeshComp->PutAllRigidBodiesToSleep();
 			MeshComp->SetAllPhysicsLinearVelocity(FVector::ZeroVector);
 			MeshComp->SetAllPhysicsAngularVelocityInDegrees(FVector::ZeroVector);
-
-			// 충돌 비활성화
 			MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-			// 중요: 물리 시뮬레이션으로 인해 끊어졌을 수 있는 계층 구조를 복구합니다.
-			MeshComp->AttachToComponent(RootComponent, FAttachmentTransformRules::SnapToTargetIncludingScale);
-
-			// 튕겨나가면서 변한 상대 트랜스폼을 루트 기준으로 리셋
-			MeshComp->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+			// Charred 효과 초기화
+			int32 NumMaterials = MeshComp->GetNumMaterials();
+			for (int32 i = 0; i < NumMaterials; ++i)
+			{
+				if (UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(MeshComp->GetMaterial(i)))
+				{
+					MID->SetScalarParameterValue(TEXT("Charred"), 0.0f);
+				}
+			}
 		}
 	}
 
-	// 3. 애니메이션 중지 및 상태 초기화
+	// 3. 저장된 초기 계층 구조 및 트랜스폼 복구
+	for (const FNovaPartMeshAttachment& Attachment : InitialAttachments)
+	{
+		if (Attachment.Component.IsValid() && Attachment.Parent.IsValid())
+		{
+			Attachment.Component->AttachToComponent(Attachment.Parent.Get(), FAttachmentTransformRules::SnapToTargetIncludingScale, Attachment.SocketName);
+			Attachment.Component->SetRelativeTransform(Attachment.RelativeTransform);
+		}
+	}
+
+	// 4. 애니메이션 중지 및 상태 초기화
 	if (SkeletalMesh)
 	{
 		if (UAnimInstance* AnimInst = SkeletalMesh->GetAnimInstance())
@@ -79,16 +89,9 @@ void ANovaPart::UpdateAiming(float DeltaTime)
 {
 	// 1. 목표 각도로 부드럽게 보간 (FInterpTo)
 	CurrentPitch = FMath::FInterpTo(CurrentPitch, TargetPitch, DeltaTime, AimInterpSpeed);
-
-	// 2. SkeletalMesh가 있고 애니메이션 인스턴스가 생성한 UNovaWeaponAnimInstance라면 값 전달
-	if (SkeletalMesh)
-	{
-		if (UNovaWeaponAnimInstance* WeaponAnim = Cast<UNovaWeaponAnimInstance>(SkeletalMesh->GetAnimInstance()))
-		{
-			// C++ 변수에 보간된 값을 대입 -> ABP가 이 값을 보고 뼈를 움직임, pitch 입력값이 0일 때 하늘을 바라보기 때문에 값 보정 수행
-			WeaponAnim->AimPitch = 90.f - CurrentPitch ;
-		}
-	}
+	
+	// 2. ABP 연동 대신 액터 자체의 상대 회전을 제어
+	SetActorRelativeRotation(FRotator(0.f, 0.f, -CurrentPitch));
 }
 
 void ANovaPart::BeginPlay()
@@ -97,6 +100,23 @@ void ANovaPart::BeginPlay()
 
 	// 데이터 테이블로부터 스펙 초기화
 	InitializePartSpec();
+
+	// 초기 계층 구조 저장 (나중에 풀로 돌아갈 때 복구용)
+	TArray<USceneComponent*> AllComponents;
+	GetComponents<USceneComponent>(AllComponents);
+
+	for (USceneComponent* Comp : AllComponents)
+	{
+		if (Comp && Comp != RootComponent)
+		{
+			FNovaPartMeshAttachment Attachment;
+			Attachment.Component = Comp;
+			Attachment.Parent = Comp->GetAttachParent();
+			Attachment.SocketName = Comp->GetAttachSocketName();
+			Attachment.RelativeTransform = Comp->GetRelativeTransform();
+			InitialAttachments.Add(Attachment);
+		}
+	}
 }
 
 void ANovaPart::InitializePartSpec()
@@ -252,6 +272,7 @@ void ANovaPart::PlayFireEffects()
 						Params.Normal = Mesh->GetSocketRotation(SocketName).Vector();
 						Params.Instigator = AbilityOwner;
 						Params.EffectCauser = this;
+						Params.TargetAttachComponent = Mesh; // 소켓을 찾을 대상 컴포넌트를 명시
 						
 						ASC->ExecuteGameplayCue(FireCueTag, Params);
 					}
@@ -263,6 +284,7 @@ void ANovaPart::PlayFireEffects()
 					Params.Normal = GetActorForwardVector();
 					Params.Instigator = AbilityOwner;
 					Params.EffectCauser = this;
+					Params.TargetAttachComponent = Mesh;
 					
 					ASC->ExecuteGameplayCue(FireCueTag, Params);
 				}
@@ -299,11 +321,6 @@ void ANovaPart::SetCharredAlpha(float Alpha)
 			if (MID)
 			{
 				MID->SetScalarParameterValue(TEXT("Charred"), Alpha);
-				
-				// 서서히 검은색으로 변하는 연출 (FLinearColor::Black은 0,0,0)
-				FLinearColor BlackColor = FLinearColor::Black;
-				MID->SetVectorParameterValue(TEXT("BaseColor"), FLinearColor::LerpUsingHSV(FLinearColor::White, BlackColor, Alpha));
-				MID->SetVectorParameterValue(TEXT("Color"), FLinearColor::LerpUsingHSV(FLinearColor::White, BlackColor, Alpha));
 			}
 		}
 	}
@@ -314,22 +331,23 @@ void ANovaPart::ExplodeAndDetach(FVector Impulse)
 	// 1. 부모로부터 분리 (월드 변환 유지)
 	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 
-	// 2. 물리 설정 활성화
-	if (UPrimitiveComponent* MeshComp = GetMainMesh())
-	{
-		MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		MeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
-		
-		// 중요: 유닛(Pawn)의 이동을 방해하지 않도록 Pawn 채널 충돌은 무시합니다.
-		MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-		
-		// 추가: 내비게이션 메쉬에 영향을 주지 않도록 설정하여 경로를 방해하지 않게 함
-		MeshComp->SetCanEverAffectNavigation(false);
+	// 2. 모든 메시 컴포넌트에 물리 설정 활성화 및 임펄스 적용
+	TArray<UPrimitiveComponent*> PrimitiveComps;
+	GetComponents<UPrimitiveComponent>(PrimitiveComps);
 
-		MeshComp->SetSimulatePhysics(true);
-		
-		// 튕겨나가는 힘 적용
-		MeshComp->AddImpulse(Impulse, NAME_None, true);
+	for (UPrimitiveComponent* MeshComp : PrimitiveComps)
+	{
+		if (MeshComp && MeshComp != RootComponent)
+		{
+			MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			MeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
+			MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+			MeshComp->SetSimulatePhysics(true);
+			MeshComp->SetCanEverAffectNavigation(false);
+			
+			// 튕겨나가는 힘 적용
+			MeshComp->AddImpulse(Impulse, NAME_None, true);
+		}
 	}
 
 	// 3. 일정 시간 후 오브젝트 풀로 반납 (자가 반납)
