@@ -79,7 +79,7 @@ void ANovaProjectile::Tick(float DeltaTime)
 	}
 }
 
-void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius, AActor* InTargetActor, FVector InTargetLocation, bool bInHoming)
+void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius, AActor* InTargetActor, FVector InTargetLocation, bool bInHoming, FVector InSpawnLocation)
 {
 	DamageSpecHandle = InSpecHandle;
 	ImpactCueTag = InImpactTag;
@@ -87,6 +87,7 @@ void ANovaProjectile::InitializeProjectile(const FGameplayEffectSpecHandle& InSp
 	TargetActor = InTargetActor;
 	TargetLocation = InTargetLocation;
 	bHoming = bInHoming;
+	SpawnLocation = InSpawnLocation;
 
 	// 유도 기능 설정
 	if (ProjectileMovement && IsValid(TargetActor) && bHoming)
@@ -134,6 +135,8 @@ void ANovaProjectile::OnReturnToPool_Implementation()
 		ProjectileMovement->bIsHomingProjectile = false;
 		ProjectileMovement->Deactivate();
 	}
+ 
+	SpawnLocation = FVector::ZeroVector;
 
 	SetActorTickEnabled(false);
 }
@@ -145,6 +148,14 @@ void ANovaProjectile::Explode(AActor* InTargetActor, const FVector& ImpactLocati
 	{
 		FGameplayCueParameters Params;
 		Params.Location = ImpactLocation;
+
+		// FGameplayCueParameters에는 Origin 필드가 없으므로, EffectContext를 통해 전달합니다.
+		if (DamageSpecHandle.Data.IsValid())
+		{
+			Params.EffectContext = DamageSpecHandle.Data->GetContext();
+			Params.EffectContext.AddOrigin(SpawnLocation);
+		}
+
 		Params.Instigator = GetInstigator();
 		Params.EffectCauser = this;
 		

@@ -25,7 +25,7 @@ public:
 	ANovaProjectile();
 
 	/** 발사체 초기화 정보를 설정합니다. */
-	void InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius = 0.0f, AActor* InTargetActor = nullptr, FVector InTargetLocation = FVector::ZeroVector, bool bInHoming = true);
+	void InitializeProjectile(const FGameplayEffectSpecHandle& InSpecHandle, const FGameplayTag& InImpactTag, float InSplashRadius = 0.0f, AActor* InTargetActor = nullptr, FVector InTargetLocation = FVector::ZeroVector, bool bInHoming = true, FVector InSpawnLocation = FVector::ZeroVector);
 
 	// --- INovaObjectPoolable ---
 	virtual void OnSpawnFromPool_Implementation() override;
@@ -71,4 +71,8 @@ protected:
 
 	/** 어빌리티로부터 전달받은 데미지 스펙 */
 	FGameplayEffectSpecHandle DamageSpecHandle;
+ 
+	/** 발사 지점 (타격 GCN의 Origin으로 전달용) */
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Projectile")
+	FVector SpawnLocation;
 };
