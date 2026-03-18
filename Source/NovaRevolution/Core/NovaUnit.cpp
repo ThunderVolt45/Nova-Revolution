@@ -1200,6 +1200,66 @@ bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 
 	return true;
 }
+
+bool ANovaUnit::IsTargetTooClose(const AActor* Target) const
+{
+	if (!IsValid(Target)) return false;
+
+	float MinRange = 0.0f;
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		MinRange = ASC->GetNumericAttribute(UNovaAttributeSet::GetMinRangeAttribute());
+	}
+
+	if (MinRange <= 0.0f) return false;
+
+	FVector MyLoc = GetActorLocation();
+	FVector TargetLoc = Target->GetActorLocation();
+	float DistXY = FVector::DistXY(MyLoc, TargetLoc);
+
+	float TargetRadius = 0.0f;
+	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
+	{
+		TargetRadius = Capsule->GetScaledCapsuleRadius();
+	}
+
+	// [수정] 최소 사거리 판정도 Range와 동일하게 TargetRadius를 더해주는 방식으로 변경 (일관성 유지)
+	float AdjustedMinRange = MinRange + TargetRadius;
+	if (DistXY < AdjustedMinRange)
+	{
+		return true; // 수평 거리가 최소 사거리보다 작으므로 너무 가까움
+	}
+
+	return false;
+}
+
+float ANovaUnit::GetRequiredRetreatDistance(const AActor* Target) const
+{
+	if (!IsValid(Target)) return 0.0f;
+
+	float MinRange = 0.0f;
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		MinRange = ASC->GetNumericAttribute(UNovaAttributeSet::GetMinRangeAttribute());
+	}
+
+	if (MinRange <= 0.0f) return 0.0f;
+
+	FVector MyLoc = GetActorLocation();
+	FVector TargetLoc = Target->GetActorLocation();
+	float DistXY = FVector::DistXY(MyLoc, TargetLoc);
+
+	float TargetRadius = 0.0f;
+	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
+	{
+		TargetRadius = Capsule->GetScaledCapsuleRadius();
+	}
+
+	float AdjustedMinRange = MinRange + TargetRadius;
+	
+	// 부족한 후퇴 거리 계산 (값이 양수이면 물러나야 함)
+	return FMath::Max(0.0f, AdjustedMinRange - DistXY);
+}
 #pragma endregion
 
 #pragma region Movement & AI Rotation Logic

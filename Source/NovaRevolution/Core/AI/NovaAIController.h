@@ -43,6 +43,9 @@ public:
 	/** 모든 방식의 이동을 즉시 중단합니다. */
 	void StopMovementOptimized();
 
+	/** 타겟으로부터 일정 거리만큼 멀어지는 후퇴 이동을 수행합니다. (최소 사거리 대응용) */
+	void RetreatFromTarget(AActor* Target, float Distance = 200.f);
+
 	/** 태그를 통해 빙의된 유닛의 어빌리티를 발동합니다. (중복 로직 통합) */
 	UFUNCTION(BlueprintCallable, Category = "Nova|AI")
 	void ActivateAbilityByTag(const FGameplayTag& AbilityTag, AActor* Target);

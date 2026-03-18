@@ -78,27 +78,33 @@ void UNovaBTTask_Hold::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMe
 		// [수정] 캡슐 기반 사거리 판정 함수 활용
 		if (MyUnit->IsTargetInRange(Target, Range))
 		{
-			float CurrentTime = GetWorld()->GetTimeSeconds();
-
-			// FireRate 연동
-			float CurrentAttackInterval = AttackInterval;
-			if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+			// [추가] 최소 사거리 내에 있는 경우 공격 무시
+			if (MyUnit->IsTargetTooClose(Target))
 			{
-				float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
-				if (FireRateValue > 0.0f)
-				{
-					CurrentAttackInterval = FireRateValue / 100.0f;
-				}
+				return;
 			}
 
-			if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
-			{
-				AIC->ActivateAbilityByTag(AbilityTag, Target);
-				LastAttackTime = CurrentTime;
+			float CurrentTime = GetWorld()->GetTimeSeconds();
+
+				// FireRate 연동
+				float CurrentAttackInterval = AttackInterval;
+				if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+				{
+					float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
+					if (FireRateValue > 0.0f)
+					{
+						CurrentAttackInterval = FireRateValue / 100.0f;
+					}
+				}
+
+				if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
+				{
+					AIC->ActivateAbilityByTag(AbilityTag, Target);
+					LastAttackTime = CurrentTime;
+				}
 			}
 		}
 	}
-}
 
 float UNovaBTTask_Hold::GetAttackRange(ANovaUnit* Unit) const
 {
