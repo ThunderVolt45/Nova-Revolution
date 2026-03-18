@@ -732,6 +732,23 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitMinRange(TotalMinRange);
 	AttributeSet->InitSplashRange(TotalSplashRange);
 
+	// ★ 버그 수정: 오브젝트 풀링 시 기존 시스템에 남아있는 Aggregator 값까지 완전히 갱신 처리
+	// ASC가 유효하다면 SetNumericAttributeBase를 호출하여 정상적으로 값이 동기화되게 합니다.
+	if (AbilitySystemComponent)
+	{
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetWattAttribute(), TotalWatt);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetMaxHealthAttribute(), TotalHealth);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetHealthAttribute(), TotalHealth);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetAttackAttribute(), TotalAttack);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetDefenseAttribute(), TotalDefense);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSpeedAttribute(), TotalSpeed);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetFireRateAttribute(), TotalFireRate);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSightAttribute(), TotalSight);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetRangeAttribute(), TotalRange);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetMinRangeAttribute(), TotalMinRange);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSplashRangeAttribute(), TotalSplashRange);
+	}
+
 	// 이동 속도 및 AI 설정 반영
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 	if (!MoveComp) return;
