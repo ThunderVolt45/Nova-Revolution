@@ -34,6 +34,21 @@ void UNovaMinimapWidget::NativeConstruct()
 		// M_Minimap에서 설정한 파라미터 이름 'FogTexture'에 CurrentFogRT를 전달
 		MinimapMaterialInst->SetTextureParameterValue(FName("FogTexture"), FogManager->GetCurrentFogRT());
 	}
+
+	if (MinimapMaterial && MapManager)
+	{
+		MinimapMaterialInst = UMaterialInstanceDynamic::Create(MinimapMaterial, this);
+
+		// 1. 안개 텍스처 연결
+		if (FogManager)
+			MinimapMaterialInst->SetTextureParameterValue(FName("FogTexture"), FogManager->GetCurrentFogRT());
+
+		// 2. 캡처된 배경 지형 텍스처 연결 (머터리얼 파라미터 이름: 'TerrainTexture')
+		if (UTextureRenderTarget2D* BackgroundRT = MapManager->GetMinimapBackgroundRT())
+		{
+			MinimapMaterialInst->SetTextureParameterValue(FName("TerrainTexture"), BackgroundRT);
+		}
+	}
 }
 
 void UNovaMinimapWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
@@ -61,34 +76,27 @@ int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 	// 1. 배경(지형 + 안개) 그리기
 	if (MinimapMaterialInst)
 	{
-		// FSlateDrawElement::MakeBox(
-		// 	OutDrawElements,
-		// 	LayerId,
-		// 	AllottedGeometry.ToPaintGeometry(),
-		// 	&UnitIconBrush, // 기본 브러시
-		// 	ESlateDrawEffect::None,
-		// 	FLinearColor::White
-		// );
-
 		// 실제로는 머터리얼을 입힌 박스를 그려야 하므로 SlateBrush를 머터리얼로 설정하여 그립니다.
 		FSlateBrush MinimapBrush;
 		MinimapBrush.SetResourceObject(MinimapMaterialInst);
 		FSlateDrawElement::MakeBox(OutDrawElements, LayerId, AllottedGeometry.ToPaintGeometry(), &MinimapBrush);
 	}
 
-	if (!FogManager) return LayerId;
+	// 매니저들이 없으면 중단
+	if (!FogManager || !MapManager || !NovaPC) return LayerId;
+
+	ANovaPlayerState* PS = NovaPC->GetPlayerState<ANovaPlayerState>();
+	if (!PS) return LayerId;
 
 	FVector2D WidgetSize = AllottedGeometry.GetLocalSize();
 	int32 UnitLayer = LayerId + 1;
 
-	// 2. 유닛/기지 그리기
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsWithInterface(GetWorld(), UNovaTeamInterface::StaticClass(), FoundActors);
+	// 2. 등록된 액터들만 순회
+	const TArray<TWeakObjectPtr<AActor>>& RegisteredActors = MapManager->GetRegisteredActors();
 
-	for (AActor* Actor : FoundActors)
+	for (const TWeakObjectPtr<AActor>& WeakActor : RegisteredActors)
 	{
-		// PlayerState 등 제외
-		if (!Actor || Actor->IsA<APlayerState>()) continue;
+		AActor* Actor = WeakActor.Get();
 
 		// 유닛의 가시성 확인 (안개 속에 있으면 안 그림 - 적군인 경우)
 		// 아군은 항상 그리고, 적군은 FogManager가 설정한 Visibility를 따름
@@ -102,11 +110,17 @@ int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 		bool bVisibleOnMinimap = bIsFriendly;
 		if (!bIsFriendly)
 		{
-			if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor)) bVisibleOnMinimap = Unit->GetFogVisibility();
-			else if (ANovaBase* Base = Cast<ANovaBase>(Actor)) bVisibleOnMinimap = Base->GetFogVisibility();
+			if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+			{
+				bVisibleOnMinimap = Unit->GetFogVisibility();
+			}
+			if (ANovaBase* Base = Cast<ANovaBase>(Actor))
+			{
+				bVisibleOnMinimap = Base->GetFogVisibility();
+			}
 		}
 
-		if (bVisibleOnMinimap && MapManager)
+		if (bVisibleOnMinimap)
 		{
 			FVector2D UV = MapManager->WorldToMapUV(Actor->GetActorLocation());
 
@@ -117,15 +131,15 @@ int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 			PaintPos.X = UV.Y * WidgetSize.X; // 월드 Y가 가로축
 			PaintPos.Y = (1.0f - UV.X) * WidgetSize.Y; // 월드 X가 세로축 (반전 적용)
 
-			FLinearColor IconColor = bIsFriendly ? FLinearColor::Blue : FLinearColor::Red;
+			FLinearColor IconColor =
+				bIsFriendly ? FLinearColor(0.f, 1.f, 0.f, 1.0f) : FLinearColor(1.f, 0.f, 0.f, 1.0f);
 
 			// 점(아이콘) 그리기
 			FSlateDrawElement::MakeBox(
 				OutDrawElements,
 				UnitLayer,
 				AllottedGeometry.ToPaintGeometry(FVector2D(UnitIconSize), FSlateLayoutTransform(
-					                                 PaintPos - (UnitIconSize *
-						                                 0.5f))),
+					                                 PaintPos - (UnitIconSize * 0.5f))),
 				&UnitIconBrush,
 				ESlateDrawEffect::None,
 				IconColor

@@ -348,6 +348,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nova|UI")
 	int32 GetProductionSlotIndex() const { return ProductionSlotIndex; }
 
+	// PortraitCapture Getter(PlayerController에게 권한 위임)
+	TObjectPtr<USceneCaptureComponent2D> GetPortraitCapture() const { return PortraitCapture; }
+	
 protected:
 	// --- 마우스 오버 이벤트(하이라이트 처리) ---
 	virtual void NotifyActorBeginCursorOver() override;

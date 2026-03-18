@@ -5,6 +5,7 @@
 
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
+#include "HairStrandsInterface.h"
 #include "NovaBase.h"
 #include "NovaInterfaces.h"
 #include "NovaMapManager.h"
@@ -84,10 +85,8 @@ void ANovaFogManager::UpdateFog()
 	// INovaTeamInterface를 통해 플레이어의 팀 확인
 	int32 PlayerTeamID = PS->GetTeamID();
 
-	// 월드 내 모든 아군 유닛/건물 순회 -> 나중에 최적화할 부분. 유닛이 생산될 때 FogManager에 올리는 방법 권장.
-	// 직접 순회해서 찾는건 성능에 영향을 미칠 수 있음
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsWithInterface(GetWorld(), UNovaTeamInterface::StaticClass(), FoundActors);
+	// --- [최적화 적용] 등록된 액터 리스트 사용 ---
+	const TArray<TWeakObjectPtr<AActor>>& RegisteredActors = MapManager->GetRegisteredActors();;
 
 	// 시야 계산을 위한 임시 저장소
 	struct FSightSource
@@ -110,12 +109,14 @@ void ANovaFogManager::UpdateFog()
 	float WorldWidth = Bounds.Max.X - Bounds.Min.X;
 
 	// --- 1차 순회 : 아군 시야 그리기 및 정보 수집 ---
-	for (AActor* Actor : FoundActors)
+	for (const TWeakObjectPtr<AActor>& WeakActor : RegisteredActors)
 	{
+		AActor* Actor = WeakActor.Get();
 		// PlayerState에 의해 생긴 유령시야 해결 (INovaTeamInterface를 상속받았기 때문에 생긴 문제)
 		if (Actor->IsA<APlayerState>()) continue;
 
 		INovaTeamInterface* TeamActor = Cast<INovaTeamInterface>(Actor);
+
 		if (TeamActor && TeamActor->GetTeamID() == PlayerTeamID)
 		{
 			float SightRadius = 800.f; // 기본 시야 값
@@ -162,10 +163,7 @@ void ANovaFogManager::UpdateFog()
 		// 적군인 경우: 일단 리스트에 담아둠 (2차 순회에 한꺼번에 체크)
 		else
 		{
-			if (Actor->IsA<ANovaUnit>() || Actor->IsA<ANovaBase>())
-			{
-				EnemyActors.Add(Actor); // EnemyUnits가 TArray<AActor*>라고 가정
-			}
+			EnemyActors.Add(Actor);
 		}
 	}
 	Canvas.Flush_GameThread();
@@ -179,8 +177,7 @@ void ANovaFogManager::UpdateFog()
 		// 모든 아군 시야 범위와 비교
 		for (const auto& Sight : FriendlySights)
 		{
-			float DistSq = FVector::DistSquared(EnemyLoc, Sight.Location);
-			if (DistSq < Sight.RadiusSq)
+			if (FVector::DistSquared(EnemyLoc, Sight.Location) < Sight.RadiusSq)
 			{
 				bIsVisible = true;
 				break; // 하나라도 겹치면 더 볼 필요 없음
@@ -207,7 +204,7 @@ FVector2D ANovaFogManager::WorldToFogUV(const FVector& WorldLocation) const
 		// MapManager가 제공하는 공용 좌표 변환 함수 사용
 		return MapManager->WorldToMapUV(WorldLocation);
 	}
-	
+
 	return FVector2D(0.5f, 0.5f);
 }
 
