@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "NativeGameplayTags.h"
@@ -58,6 +58,9 @@ namespace NovaGameplayTags
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen_Watt);
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Regen_SP);
 	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Resource_Block_Watt); 
+	
+	// --- 데미지 관련 효과 태그 ---
+	NOVAREVOLUTION_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(Effect_Damage_IgnoreDefense); // 방어력 무시
 	
 	// --- 어빌리티 태그 ---
 	// 유닛

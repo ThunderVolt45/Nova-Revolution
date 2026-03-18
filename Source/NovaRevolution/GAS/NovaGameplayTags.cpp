@@ -1,4 +1,4 @@
-﻿#include "NovaGameplayTags.h"
+#include "NovaGameplayTags.h"
 
 namespace NovaGameplayTags
 {
@@ -51,6 +51,9 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_Watt, "Effect.Resource.Regen.Watt");
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_SP, "Effect.Resource.Regen.SP");
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Block_Watt, "Effect.Resource.Block.Watt");
+	
+	// --- 데미지 관련 효과 ---
+	UE_DEFINE_GAMEPLAY_TAG(Effect_Damage_IgnoreDefense, "Effect.Damage.IgnoreDefense");
 	
 	// --- 어빌리티 태그 ---
 	// 유닛

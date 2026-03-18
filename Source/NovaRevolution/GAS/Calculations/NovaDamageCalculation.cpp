@@ -2,6 +2,7 @@
 
 #include "GAS/Calculations/NovaDamageCalculation.h"
 #include "GAS/NovaAttributeSet.h"
+#include "GAS/NovaGameplayTags.h"
 
 UNovaDamageCalculation::UNovaDamageCalculation()
 {
@@ -37,7 +38,15 @@ float UNovaDamageCalculation::CalculateBaseMagnitude_Implementation(const FGamep
 	GetCapturedAttributeMagnitude(AttackDef, Spec, EvaluationParameters, Attack);
 
 	float Defense = 0.0f;
-	GetCapturedAttributeMagnitude(DefenseDef, Spec, EvaluationParameters, Defense);
+	// 방어력 무시 태그(Effect.Damage.IgnoreDefense)가 있는지 확인
+	if (Spec.CapturedSourceTags.GetAggregatedTags()->HasTag(NovaGameplayTags::Effect_Damage_IgnoreDefense))
+	{
+		Defense = 0.0f;
+	}
+	else
+	{
+		GetCapturedAttributeMagnitude(DefenseDef, Spec, EvaluationParameters, Defense);
+	}
 
 	// 공식: 최종 데미지 = Max(0, 공격력 - 방어력)
 	const float FinalDamage = FMath::Max(0.0f, Attack - Defense);
