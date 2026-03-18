@@ -1814,6 +1814,33 @@ void ANovaUnit::OnReturnToPool_Implementation()
 		CurrentWeaponParts.Empty();
 	}
 
+	// 6. GAS 상태 초기화 (풀에 들어갈 때 모든 수치/상태 리셋)
+	if (AbilitySystemComponent)
+	{
+		// 모든 활성 GameplayEffect 제거 (루프를 통해 확실하게 제거)
+		const FActiveGameplayEffectsContainer& ActiveGEs = AbilitySystemComponent->GetActiveGameplayEffects();
+		TArray<FActiveGameplayEffectHandle> AllHandles = ActiveGEs.GetAllActiveEffectHandles();
+		
+		for (const FActiveGameplayEffectHandle& Handle : AllHandles)
+		{
+			AbilitySystemComponent->RemoveActiveGameplayEffect(Handle);
+		}
+		
+		NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
+		
+		// 모든 어빌리티 및 큐 제거
+		AbilitySystemComponent->ClearAllAbilities();
+		AbilitySystemComponent->RemoveAllGameplayCues();
+
+		// 태그 초기화 (Loose Tag들 모두 제거)
+		FGameplayTagContainer AllTags;
+		AbilitySystemComponent->GetOwnedGameplayTags(AllTags);
+		if (!AllTags.IsEmpty())
+		{
+			AbilitySystemComponent->RemoveLooseGameplayTags(AllTags);
+		}
+	}
+
 	LegsPartClass = nullptr;
 	BodyPartClass = nullptr;
 	WeaponPartClass = nullptr;
