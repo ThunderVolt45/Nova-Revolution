@@ -27,7 +27,7 @@ UNovaAttributeSet::UNovaAttributeSet()
 void UNovaAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
 	Super::PreAttributeChange(Attribute, NewValue);
-
+	
 	// 체력이 MaxHealth를 초과하지 않도록, 그리고 0보다 작아지지 않도록 제한
 	if (Attribute == GetHealthAttribute())
 	{
@@ -40,10 +40,15 @@ void UNovaAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, 
 	}
 	// 주요 전투 스탯들의 최소치 제한 (0 미만으로 떨어지지 않게 보호)
 	else if (Attribute == GetAttackAttribute() || Attribute == GetDefenseAttribute() || 
-			 Attribute == GetSpeedAttribute() || Attribute == GetFireRateAttribute() ||
+			 Attribute == GetSpeedAttribute() || 
 			 Attribute == GetSightAttribute() || Attribute == GetRangeAttribute())
 	{
 		NewValue = FMath::Max(NewValue, 0.0f);
+	}
+	// 연사 속도는 최소 25 이상 유지 (연사력이 너무 빨라지지 않도록)
+	else if (Attribute == GetFireRateAttribute())
+	{
+		NewValue = FMath::Max(NewValue, 25.0f);
 	}
 }
 
@@ -66,7 +71,7 @@ void UNovaAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 			const float NewHealth = GetHealth() - LocalDamageDone;
 			SetHealth(FMath::Clamp(NewHealth, 0.0f, GetMaxHealth()));
 
-			// 데미지 출력 로그
+			// 데미지 로그 출력
 			NOVA_LOG(Log, "Unit Damaged: %f. Remaining HP: %f/%f", LocalDamageDone, GetHealth(), GetMaxHealth());
 
 			// 사망 처리 호출
@@ -87,5 +92,49 @@ void UNovaAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 	else if (Data.EvaluatedData.Attribute == GetMaxHealthAttribute())
 	{
 		SetHealth(FMath::Clamp(GetHealth(), 0.0f, GetMaxHealth()));
+	}
+	// 주요 전투 스탯들의 최소치 제한 (0 미만으로 떨어지지 않게 보호)
+	else if (Data.EvaluatedData.Attribute == GetDefenseAttribute())
+	{
+		SetDefense(FMath::Max(GetDefense(), 0.0f));
+	}
+	else if (Data.EvaluatedData.Attribute == GetAttackAttribute())
+	{
+		SetAttack(FMath::Max(GetAttack(), 0.0f));
+	}
+	else if (Data.EvaluatedData.Attribute == GetSpeedAttribute())
+	{
+		SetSpeed(FMath::Max(GetSpeed(), 0.0f));
+	}
+	else if (Data.EvaluatedData.Attribute == GetFireRateAttribute())
+	{
+		SetFireRate(FMath::Max(GetFireRate(), 25.0f));
+	}
+}
+
+void UNovaAttributeSet::PostAttributeChange(const FGameplayAttribute& Attribute, float OldValue, float NewValue)
+{
+	Super::PostAttributeChange(Attribute, OldValue, NewValue);
+
+	// 최종 계산된 속성값이 최소치 미만으로 내려가지 않도록 최후의 보호 장치
+	if (Attribute == GetDefenseAttribute() && NewValue < 0.0f)
+	{
+		SetDefense(0.0f);
+	}
+	else if (Attribute == GetAttackAttribute() && NewValue < 0.0f)
+	{
+		SetAttack(0.0f);
+	}
+	else if (Attribute == GetSpeedAttribute() && NewValue < 0.0f)
+	{
+		SetSpeed(0.0f);
+	}
+	else if (Attribute == GetFireRateAttribute() && NewValue < 25.0f)
+	{
+		SetFireRate(25.0f);
+	}
+	else if (Attribute == GetSightAttribute() && NewValue < 0.0f)
+	{
+		SetSight(0.0f);
 	}
 }

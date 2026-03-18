@@ -9,6 +9,18 @@
 #include "Core/NovaInterfaces.h"
 #include "NovaPart.generated.h"
 
+// 초기 부착 정보를 저장하기 위한 구조체
+USTRUCT()
+struct FNovaPartMeshAttachment
+{
+	GENERATED_BODY()
+	
+	TWeakObjectPtr<USceneComponent> Component;
+	TWeakObjectPtr<USceneComponent> Parent;
+	FName SocketName;
+	FTransform RelativeTransform;
+};
+
 /**
  * Nova Revolution의 유닛 부품(Legs, Body, Weapon 등)의 베이스 클래스
  */
@@ -138,7 +150,11 @@ protected:
 	// 유닛 본체로부터 전달받은 목표 각도
 	float TargetPitch = 0.0f;
 
-	// 조준 회전 속도 (값이 클수록 타겟을 빠르게 쫓습니다.)
+	/** 조준 회전 속도 (값이 클수록 타겟을 빠르게 쫓습니다.) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Part|Rotation")
 	float AimInterpSpeed = 40.0f;
+
+private:
+	// 시작 시점의 모든 메시 부착 상태를 저장
+	TArray<FNovaPartMeshAttachment> InitialAttachments;
 };
