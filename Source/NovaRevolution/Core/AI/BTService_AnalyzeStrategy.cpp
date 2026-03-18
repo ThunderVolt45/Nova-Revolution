@@ -81,10 +81,7 @@ void UBTService_AnalyzeStrategy::CalculateUnitPerformance(const FNovaUnitAssembl
 			}
 		}
 
-		// 실패 시 클래스 이름으로 시도 (블루프린트 접미사 제거)
-		FString ClassName = PartClass->GetName();
-		ClassName.RemoveFromEnd(TEXT("_C"));
-		return PartSpecDataTable->FindRow<FNovaPartSpecRow>(FName(*ClassName), TEXT("AnalyzeStrategy"));
+		return nullptr;
 	};
 
 	const FNovaPartSpecRow* Legs = GetSpec(AssemblyData.LegsClass);
@@ -148,7 +145,20 @@ int32 UBTService_AnalyzeStrategy::AnalyzeProduction(ANovaAIPlayerController* AIC
 		}
 	}
 
-	// 2. 슬롯별 점수 산정
+	// 2. 현재 필드 유닛 상태 집계 (슬롯별 보유 수)
+	TMap<int32, int32> CurrentUnitCounts;
+	for (int32 i = 0; i < 10; ++i) CurrentUnitCounts.Add(i, 0);
+
+	for (AActor* Actor : AllUnits)
+	{
+		ANovaUnit* Unit = Cast<ANovaUnit>(Actor);
+		if (Unit && Unit->GetTeamID() == PS->GetTeamID() && !Unit->IsDead())
+		{
+			CurrentUnitCounts[Unit->GetProductionSlotIndex()]++;
+		}
+	}
+
+	// 3. 슬롯별 점수 산정
 	TArray<float> SlotScores;
 	SlotScores.Init(0.0f, AISlotInfo.Units.Num());
 	const FNovaAIUnitComposition& FavoredComp = AIC->GetSelectedComposition();
@@ -158,8 +168,25 @@ int32 UBTService_AnalyzeStrategy::AnalyzeProduction(ANovaAIPlayerController* AIC
 		FNovaPartSpecRow SlotStats;
 		CalculateUnitPerformance(AISlotInfo.Units[i], SlotStats);
 
-		// 가중치 A: 선호 구성 (Profile Base)
-		if (FavoredComp.SlotTargetWeights.Contains(i)) SlotScores[i] += FavoredComp.SlotTargetWeights[i] * 20.0f;
+		// 가중치 A: 선호 구성 (고정 수량 목표 방식)
+		int32 TargetCount = 0;
+		if (FavoredComp.SlotTargetCounts.Contains(i))
+		{
+			TargetCount = FavoredComp.SlotTargetCounts[i];
+		}
+
+		int32 CurrentCount = CurrentUnitCounts[i];
+
+		if (CurrentCount < TargetCount)
+		{
+			// 부족할수록 높은 점수 부여 (기본 50점 + 부족분 가중치)
+			SlotScores[i] += 50.0f + (TargetCount - CurrentCount) * 10.0f;
+		}
+		else
+		{
+			// 목표 달성 시 낮은 가중치
+			SlotScores[i] += 1.0f;
+		}
 
 		// 가중치 B: 대공 대응 (적 공중 있을 시 대공 가능 유닛 가점)
 		if (bEnemyHasAir)
@@ -168,7 +195,7 @@ int32 UBTService_AnalyzeStrategy::AnalyzeProduction(ANovaAIPlayerController* AIC
 				SlotScores[i] += 50.0f;
 		}
 
-		// 가중치 C: 방어력 카운터 (고방어 적 타입 타격 가능 + 고공격력 가점)
+		// 가중치 C: 방어력 카운터
 		bool bCanHitToughest = (ToughestType == ENovaMovementType::Air) ? 
 			(SlotStats.TargetType == ENovaTargetType::AirOnly || SlotStats.TargetType == ENovaTargetType::All) :
 			(SlotStats.TargetType == ENovaTargetType::GroundOnly || SlotStats.TargetType == ENovaTargetType::All);
@@ -260,7 +287,11 @@ int32 UBTService_AnalyzeStrategy::AnalyzeSkills(ANovaAIPlayerController* AIC, AN
 	}
 
 	// 4. 기지 소환: 공격 부대 손실 50% 이상
-	if (bIsAttacking && PS->GetCurrentPopulation() < LastAttackStartedUnitCount * 0.5f) return BaseSummonSkillSlot;
+	if (bIsAttacking && PS->GetCurrentPopulation() < LastAttackStartedUnitCount * 0.5f)
+	{
+		bIsAttacking = false;
+		return BaseSummonSkillSlot;
+	}
 
 	// 5. 자원 강화: 와트 자산 20% 우세 시 발동
 	if (EnemyPS && PS->GetCurrentWatt() > EnemyPS->GetCurrentWatt() * 1.2f) return ResourceBoostSkillSlot;
@@ -270,18 +301,51 @@ int32 UBTService_AnalyzeStrategy::AnalyzeSkills(ANovaAIPlayerController* AIC, AN
 
 bool UBTService_AnalyzeStrategy::ShouldStartAttack(ANovaAIPlayerController* AIC, ANovaPlayerState* PS)
 {
-	// 현재 인구수가 최대 인구수의 70% 이상이면 공격 개시
-	if (!bIsAttacking && PS->GetCurrentPopulation() > PS->GetMaxPopulation() * 0.7f)
+	if (bIsAttacking)
+	{
+		// 공격 중에는 모든 유닛을 잃을 때까지 지속 (혹은 기지 소환 전까지)
+		if (PS->GetCurrentPopulation() <= 0) return false;
+		return true;
+	}
+
+	// 1. 현재 필드 유닛 상태 집계
+	TMap<int32, int32> CurrentUnitCounts;
+	for (int32 i = 0; i < 10; ++i) CurrentUnitCounts.Add(i, 0);
+
+	TArray<AActor*> AllUnits;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANovaUnit::StaticClass(), AllUnits);
+
+	for (AActor* Actor : AllUnits)
+	{
+		ANovaUnit* Unit = Cast<ANovaUnit>(Actor);
+		if (Unit && Unit->GetTeamID() == PS->GetTeamID() && !Unit->IsDead())
+		{
+			CurrentUnitCounts[Unit->GetProductionSlotIndex()]++;
+		}
+	}
+
+	// 2. 목표 조합 달성 여부 체크
+	const FNovaAIUnitComposition& FavoredComp = AIC->GetSelectedComposition();
+	bool bCompositionComplete = true;
+
+	for (auto& Elem : FavoredComp.SlotTargetCounts)
+	{
+		int32 SlotIdx = Elem.Key;
+		int32 TargetCount = Elem.Value;
+
+		if (CurrentUnitCounts[SlotIdx] < TargetCount)
+		{
+			bCompositionComplete = false;
+			break;
+		}
+	}
+
+	// 3. 조합이 완료되면 즉시 공격 개시
+	if (bCompositionComplete && FavoredComp.SlotTargetCounts.Num() > 0)
 	{
 		LastAttackStartedUnitCount = PS->GetCurrentPopulation();
 		return true;
 	}
-	
-	// 공격 중에는 모든 유닛을 잃을 때까지 지속 (혹은 기지 소환 전까지)
-	if (bIsAttacking && PS->GetCurrentPopulation() <= 0)
-	{
-		return false;
-	}
 
-	return bIsAttacking;
+	return false;
 }

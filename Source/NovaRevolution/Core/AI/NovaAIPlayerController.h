@@ -22,9 +22,9 @@ struct FNovaAIUnitComposition
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
 	FString ProfileName;
 
-	// 각 슬롯(0~9) 별 목표 비율 (총합은 전략 분석기에서 정규화하여 사용)
+	// 각 슬롯(0~9) 별 목표 생산 수량
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
-	TMap<int32, float> SlotTargetWeights;
+	TMap<int32, int32> SlotTargetCounts;
 };
 
 /**
@@ -53,6 +53,9 @@ public:
 	/** 현재 선택된 유닛 구성 프로필을 반환합니다. */
 	const FNovaAIUnitComposition& GetSelectedComposition() const { return SelectedComposition; }
 
+	/** 팀 내 모든 유닛을 찾아 명령을 전달합니다. */
+	void IssueCommandToAllUnits(const struct FCommandData& CommandData);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -66,6 +69,7 @@ protected:
 	static const FName RecommendedUnitSlotKey;
 	static const FName RecommendedSkillSlotKey;
 	static const FName EnemyBaseLocationKey;
+	static const FName MyBaseLocationKey;
 
 private:
 	/** AI 전략용 Behavior Tree 컴포넌트 */
