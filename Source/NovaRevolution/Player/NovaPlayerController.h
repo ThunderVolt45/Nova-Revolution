@@ -210,6 +210,8 @@ protected:
 	// 명령 종류에 따른 시각화 실행 함수
 	void SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor = nullptr);
 
+	// 유닛의 PortraitCapture를 조절해줄 헬퍼 함수
+	void UpdatePortraitCaptures();
 public:
 	/** 선택된 유닛 배열이 변경될 때 호출되는 델리게이트 */
 	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")

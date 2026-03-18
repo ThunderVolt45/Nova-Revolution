@@ -5,8 +5,10 @@
 
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
+#include "HairStrandsInterface.h"
 #include "NovaBase.h"
 #include "NovaInterfaces.h"
+#include "NovaMapManager.h"
 #include "NovaPlayerState.h"
 #include "NovaUnit.h"
 #include "Components/BoxComponent.h"
@@ -20,10 +22,6 @@ ANovaFogManager::ANovaFogManager()
 {
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
-
-	// FogVolume
-	FogVolume = CreateDefaultSubobject<UBoxComponent>(TEXT("FogVolume"));
-	RootComponent = FogVolume;
 }
 
 // Called when the game starts or when spawned
@@ -31,6 +29,12 @@ void ANovaFogManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 월드에서 맵 매니저 찾기
+	MapManager = Cast<ANovaMapManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass()));
+	if (!MapManager)
+	{
+		UE_LOG(LogTemp, Error, TEXT("FogManager: MapManager NOT FOUND in World!"));
+	}
 	// 시작 시 모든 RT 초기화 (검은색)
 	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
 	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), HistoryFogRT, FLinearColor::White);
@@ -52,10 +56,10 @@ void ANovaFogManager::BeginPlay()
 
 void ANovaFogManager::UpdateFog()
 {
-	if (!CurrentFogRT || !HistoryFogRT || !FogVolume) return;
+	if (!CurrentFogRT || !HistoryFogRT || !MapManager) return;
 
 	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
-	
+
 	// 1. Standalone 안전장치: 첫 번째 유효한 프레임에 초기화 수행
 	if (!bIsFogInitialized)
 	{
@@ -81,10 +85,8 @@ void ANovaFogManager::UpdateFog()
 	// INovaTeamInterface를 통해 플레이어의 팀 확인
 	int32 PlayerTeamID = PS->GetTeamID();
 
-	// 월드 내 모든 아군 유닛/건물 순회 -> 나중에 최적화할 부분. 유닛이 생산될 때 FogManager에 올리는 방법 권장.
-	// 직접 순회해서 찾는건 성능에 영향을 미칠 수 있음
-	TArray<AActor*> FoundActors;
-	UGameplayStatics::GetAllActorsWithInterface(GetWorld(), UNovaTeamInterface::StaticClass(), FoundActors);
+	// --- [최적화 적용] 등록된 액터 리스트 사용 ---
+	const TArray<TWeakObjectPtr<AActor>>& RegisteredActors = MapManager->GetRegisteredActors();;
 
 	// 시야 계산을 위한 임시 저장소
 	struct FSightSource
@@ -102,15 +104,19 @@ void ANovaFogManager::UpdateFog()
 	               GetWorld()->GetFeatureLevel()
 	);
 
-	float WorldWidth = FogVolume->Bounds.GetBox().Max.X - FogVolume->Bounds.GetBox().Min.X;
+	// 월드 너비 계산 방식 변경
+	FBox Bounds = MapManager->GetMapBounds();
+	float WorldWidth = Bounds.Max.X - Bounds.Min.X;
 
 	// --- 1차 순회 : 아군 시야 그리기 및 정보 수집 ---
-	for (AActor* Actor : FoundActors)
+	for (const TWeakObjectPtr<AActor>& WeakActor : RegisteredActors)
 	{
+		AActor* Actor = WeakActor.Get();
 		// PlayerState에 의해 생긴 유령시야 해결 (INovaTeamInterface를 상속받았기 때문에 생긴 문제)
 		if (Actor->IsA<APlayerState>()) continue;
 
 		INovaTeamInterface* TeamActor = Cast<INovaTeamInterface>(Actor);
+
 		if (TeamActor && TeamActor->GetTeamID() == PlayerTeamID)
 		{
 			float SightRadius = 800.f; // 기본 시야 값
@@ -157,10 +163,7 @@ void ANovaFogManager::UpdateFog()
 		// 적군인 경우: 일단 리스트에 담아둠 (2차 순회에 한꺼번에 체크)
 		else
 		{
-			if (Actor->IsA<ANovaUnit>() || Actor->IsA<ANovaBase>())
-			{
-				EnemyActors.Add(Actor); // EnemyUnits가 TArray<AActor*>라고 가정
-			}
+			EnemyActors.Add(Actor);
 		}
 	}
 	Canvas.Flush_GameThread();
@@ -174,8 +177,7 @@ void ANovaFogManager::UpdateFog()
 		// 모든 아군 시야 범위와 비교
 		for (const auto& Sight : FriendlySights)
 		{
-			float DistSq = FVector::DistSquared(EnemyLoc, Sight.Location);
-			if (DistSq < Sight.RadiusSq)
+			if (FVector::DistSquared(EnemyLoc, Sight.Location) < Sight.RadiusSq)
 			{
 				bIsVisible = true;
 				break; // 하나라도 겹치면 더 볼 필요 없음
@@ -197,30 +199,23 @@ void ANovaFogManager::UpdateFog()
 
 FVector2D ANovaFogManager::WorldToFogUV(const FVector& WorldLocation) const
 {
-	if (!FogVolume)
+	if (MapManager)
 	{
-		return FVector2D(0.5f, 0.5f);
+		// MapManager가 제공하는 공용 좌표 변환 함수 사용
+		return MapManager->WorldToMapUV(WorldLocation);
 	}
 
-	FBox Bounds = FogVolume->Bounds.GetBox();
-
-	// 월드 X, Y를 0~1 범위의 UV로 변환
-	float U = (WorldLocation.X - Bounds.Min.X) / (Bounds.Max.X - Bounds.Min.X);
-	float V = (WorldLocation.Y - Bounds.Min.Y) / (Bounds.Max.Y - Bounds.Min.Y);
-
-	// Y축(V) 반전 여부는 머터리얼 설정에 따라 다를 수 있지만 기본적으로는 0~1 클램핑만 수행
-	return FVector2D(FMath::Clamp(U, 0.f, 1.f), FMath::Clamp(V, 0.f, 1.f));
+	return FVector2D(0.5f, 0.5f);
 }
 
 void ANovaFogManager::UpdateMPCParameters()
 {
-	if (!FogVolume || !FogMPC) return;
+	if (!MapManager || !FogMPC) return;
 
-	// FogVolume(BoxComponent)의 월드 좌표 바운드 가져오기
-	FBox Bounds = FogVolume->Bounds.GetBox();
+	// 월드 바운드 가져오기
+	FBox Bounds = MapManager->GetMapBounds();
 
 	// FogOrigin: 박스의 왼쪽 아래 (Min) 좌표
-	// PostProcess 머터리얼에서 (WorldPos - Origin) / Size 계산을 위해 필요
 	UKismetMaterialLibrary::SetVectorParameterValue(GetWorld(), FogMPC, "FogOrigin", FLinearColor(Bounds.Min));
 
 	// FogSize: 박스의 가로(X) 크기 (정사각형 맵 기준)

@@ -348,6 +348,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nova|UI")
 	int32 GetProductionSlotIndex() const { return ProductionSlotIndex; }
 
+	// PortraitCapture Getter(PlayerController에게 권한 위임)
+	TObjectPtr<USceneCaptureComponent2D> GetPortraitCapture() const { return PortraitCapture; }
+	
 protected:
 	// --- 마우스 오버 이벤트(하이라이트 처리) ---
 	virtual void NotifyActorBeginCursorOver() override;
@@ -415,6 +418,8 @@ public:
 
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
+	
+	bool GetFogVisibility() const { return bIsVisibleByFog; }
 
 	/** 유닛이 NavMesh 상에서 장애물로 작동할지 여부를 설정합니다. */
 	void SetNavigationObstacle(bool bIsObstacle);

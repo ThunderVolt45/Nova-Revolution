@@ -9,6 +9,7 @@
 #include "NovaPawn.h"
 #include "NovaRevolution.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "Core/NovaBase.h"
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaLog.h"
@@ -16,6 +17,7 @@
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
+#include "Core/NovaUnit.h"
 #include "Core/AI/NovaAIController.h"
 #include "GameFramework/HUD.h"
 #include "Kismet/GameplayStatics.h"
@@ -836,6 +838,7 @@ void ANovaPlayerController::PerformBoxSelection()
 
 		// 선택 변경 알림
 		OnSelectionChanged.Broadcast(SelectedUnits);
+		UpdatePortraitCaptures();
 	}
 }
 
@@ -929,6 +932,7 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 
 	// 선택 변경 알림
 	OnSelectionChanged.Broadcast(SelectedUnits);
+	UpdatePortraitCaptures();
 }
 
 void ANovaPlayerController::ToggleHealthBar(FGameplayTag InputTag)
@@ -959,6 +963,7 @@ void ANovaPlayerController::ClearSelection()
 	}
 	SelectedUnits.Empty();
 	OnSelectionChanged.Broadcast(SelectedUnits);
+	UpdatePortraitCaptures();
 }
 
 // 생성된 유닛 자동 부대 편입
@@ -1002,6 +1007,7 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 			ControlGroups[i].Targets.Remove(SelectedTargets);
 		}
 	}
+	UpdatePortraitCaptures();
 }
 
 void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor)
@@ -1029,5 +1035,26 @@ void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, EComman
 		// 지면에서 약간 띄워서 스폰 (Z축 오프셋)
 		FVector SpawnLoc = Loc + FVector(0.f, 0.f, 10.f);
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), EffectToSpawn, SpawnLoc);
+	}
+}
+
+void ANovaPlayerController::UpdatePortraitCaptures()
+{
+	// 1. 선택된 유닛이 1마리일 때만 캡처를 켬
+	bool bShouldCapture = (SelectedUnits.Num() == 1);
+
+	for (TObjectPtr<AActor> Actor : SelectedUnits)
+	{
+		if (!Actor) continue;
+		
+		if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+		{
+			// 유닛의 캡처 컴포넌트를 직접 찾아 제어
+			if (USceneCaptureComponent2D* Capture = Unit->GetPortraitCapture())
+			{
+				Capture->bCaptureEveryFrame = bShouldCapture;
+			}
+		}
+		// 기지는 항상 단일 선택으로 별도로 조취하지 않음.
 	}
 }
