@@ -139,6 +139,9 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 
 			if (!bCanAttack) continue;
 
+			// [추가] 최소 사거리 내에 있는 적은 탐색 대상에서 제외
+			if (MyUnit->IsTargetTooClose(PotentialTarget)) continue;
+
 			// 4. [수정] 최단 거리 적 갱신 시 캡슐 기반 사거리 판정 함수 활용
 			if (MyUnit->IsTargetInRange(PotentialTarget, FinalSearchRadius))
 			{

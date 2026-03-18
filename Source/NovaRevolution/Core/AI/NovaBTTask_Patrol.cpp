@@ -94,26 +94,35 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			// [수정] 캡슐 기반 사거리 판정 함수 활용
 			if (MyUnit->IsTargetInRange(Target, Range))
 			{
-				if (AIC->IsMoveInProgress())
+				// 최소 사거리 제한 추가
+				if (MyUnit->IsTargetTooClose(Target))
 				{
-					AIC->StopMovementOptimized();
+					// 너무 가까우면 뒤로 물러남 (50 유닛 정도의 여유 버퍼)
+					AIC->RetreatFromTarget(Target, 50.0f);
 				}
-				
-				float CurrentTime = GetWorld()->GetTimeSeconds();
-				float CurrentAttackInterval = AttackInterval;
-				if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+				else
 				{
-					float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
-					if (FireRateValue > 0.0f)
+					if (AIC->IsMoveInProgress())
 					{
-						CurrentAttackInterval = FireRateValue / 100.0f;
+						AIC->StopMovementOptimized();
 					}
-				}
+					
+					float CurrentTime = GetWorld()->GetTimeSeconds();
+					float CurrentAttackInterval = AttackInterval;
+					if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+					{
+						float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
+						if (FireRateValue > 0.0f)
+						{
+							CurrentAttackInterval = FireRateValue / 100.0f;
+						}
+					}
 
-				if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
-				{
-					AIC->ActivateAbilityByTag(AbilityTag, Target);
-					LastAttackTime = CurrentTime;
+					if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
+					{
+						AIC->ActivateAbilityByTag(AbilityTag, Target);
+						LastAttackTime = CurrentTime;
+					}
 				}
 			}
 			else
