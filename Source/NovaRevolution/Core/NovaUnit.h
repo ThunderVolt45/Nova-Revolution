@@ -209,6 +209,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
 	bool IsTargetInRange(const AActor* Target, float Range) const;
 
+	/** 타겟이 너무 가까이에 있는지(최소 사거리 이내) 판단합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
+	bool IsTargetTooClose(const AActor* Target) const;
+
+	/** 최소 사거리를 확보하기 위해 후퇴해야 할 정확한 거리를 계산합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
+	float GetRequiredRetreatDistance(const AActor* Target) const;
+
 	/** 유닛의 무기 공격 가능 타입 (대지/대공/모두) */
 	UFUNCTION(BlueprintPure, Category = "Nova|Unit")
 	ENovaTargetType GetTargetType() const { return TargetType; }

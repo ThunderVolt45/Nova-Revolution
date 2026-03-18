@@ -106,30 +106,40 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		// [수정] 캡슐 기반 사거리 판정 함수 활용
 		if (MyUnit->IsTargetInRange(Target, Range))
 		{
-			// 사거리 내라면 즉시 이동 중단 후 공격 수행
-			if (AIC->IsMoveInProgress())
+			// 최소 사거리 제한 추가
+			if (MyUnit->IsTargetTooClose(Target))
 			{
-				AIC->StopMovementOptimized();
+				// 사거리 안이지만 너무 가까움. 타겟과 반대 방향으로 물러나기 (중앙 집중화된 함수 사용)
+				// 이제 정밀 계산이 동반되므로 여유값(Buffer)만 50 유닛 정도로 주면 됨
+				AIC->RetreatFromTarget(Target, 50.0f);
 			}
-			
-			float CurrentTime = GetWorld()->GetTimeSeconds();
-			
-			// FireRate 연동
-			float CurrentAttackInterval = AttackInterval;
-			if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+			else
 			{
-				float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
-				if (FireRateValue > 0.0f)
+				// 사거리 내라면 즉시 이동 중단 후 공격 수행
+				if (AIC->IsMoveInProgress())
 				{
-					CurrentAttackInterval = FireRateValue / 100.0f;
+					AIC->StopMovementOptimized();
 				}
-			}
+				
+				float CurrentTime = GetWorld()->GetTimeSeconds();
+				
+				// FireRate 연동
+				float CurrentAttackInterval = AttackInterval;
+				if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+				{
+					float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
+					if (FireRateValue > 0.0f)
+					{
+						CurrentAttackInterval = FireRateValue / 100.0f;
+					}
+				}
 
-			// 공격 어빌리티 발동
-			if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
-			{
-				AIC->ActivateAbilityByTag(AbilityTag, Target);
-				LastAttackTime = CurrentTime;
+				// 공격 어빌리티 발동
+				if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
+				{
+					AIC->ActivateAbilityByTag(AbilityTag, Target);
+					LastAttackTime = CurrentTime;
+				}
 			}
 			
 			// 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.

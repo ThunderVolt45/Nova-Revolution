@@ -229,11 +229,11 @@ void ANovaPart::PlayAttackAnimation()
 	}
 }
 
-void ANovaPart::PlayFireEffects()
+void ANovaPart::PlayFireEffects(FVector TargetLocation)
 {
 	// 1. 애니메이션 재생
 	PlayAttackAnimation();
-
+ 
 	// 2. GameplayCue 실행 (발사 효과)
 	if (FireCueTag.IsValid())
 	{
@@ -255,7 +255,7 @@ void ANovaPart::PlayFireEffects()
 				CurrentSearch = ParentActor;
 			}
 		}
-
+ 
 		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(AbilityOwner))
 		{
 			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
@@ -270,6 +270,12 @@ void ANovaPart::PlayFireEffects()
 						FGameplayCueParameters Params;
 						Params.Location = Mesh->GetSocketLocation(SocketName);
 						Params.Normal = Mesh->GetSocketRotation(SocketName).Vector();
+						
+						// FGameplayCueParameters에는 Origin 필드가 없으므로, EffectContext를 통해 전달합니다.
+						FGameplayEffectContextHandle ContextHandle = ASC->MakeEffectContext();
+						ContextHandle.AddOrigin(TargetLocation);
+						Params.EffectContext = ContextHandle;
+
 						Params.Instigator = AbilityOwner;
 						Params.EffectCauser = this;
 						Params.TargetAttachComponent = Mesh; // 소켓을 찾을 대상 컴포넌트를 명시
@@ -282,6 +288,11 @@ void ANovaPart::PlayFireEffects()
 					FGameplayCueParameters Params;
 					Params.Location = GetActorLocation();
 					Params.Normal = GetActorForwardVector();
+					
+					FGameplayEffectContextHandle ContextHandle = ASC->MakeEffectContext();
+					ContextHandle.AddOrigin(TargetLocation);
+					Params.EffectContext = ContextHandle;
+
 					Params.Instigator = AbilityOwner;
 					Params.EffectCauser = this;
 					Params.TargetAttachComponent = Mesh;

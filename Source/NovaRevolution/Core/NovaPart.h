@@ -72,7 +72,7 @@ public:
 
 	/** 공격 효과(애니메이션 + 발사 GameplayCue)를 재생합니다. (무기 부품용) */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Effects")
-	void PlayFireEffects();
+	void PlayFireEffects(FVector TargetLocation = FVector::ZeroVector);
 
 	/** 적중 시 사용할 GameplayCue 태그를 반환합니다. */
 	FGameplayTag GetImpactCueTag() const { return ImpactCueTag; }

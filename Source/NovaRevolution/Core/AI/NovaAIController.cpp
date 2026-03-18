@@ -331,6 +331,34 @@ void ANovaAIController::StopMovementOptimized()
 	StuckTimer = 0.0f;
 }
 
+void ANovaAIController::RetreatFromTarget(AActor* Target, float Distance)
+{
+	APawn* MyPawn = GetPawn();
+	ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn);
+	if (!MyUnit || !Target) return;
+
+	FVector MyLoc = MyPawn->GetActorLocation();
+	FVector TargetLoc = Target->GetActorLocation();
+	FVector RetreatDir = MyLoc - TargetLoc;
+	RetreatDir.Z = 0.0f;
+
+	if (RetreatDir.IsNearlyZero())
+	{
+		RetreatDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.0f);
+	}
+	RetreatDir.Normalize();
+
+	// [수정] 부족한 최소 사거리 만큼 계산 + 여유값(Distance)
+	float RequiredDist = MyUnit->GetRequiredRetreatDistance(Target);
+	float TotalRetreatDist = RequiredDist + Distance;
+
+	// 도망칠 목표 위치 계산
+	FVector RetreatLocation = MyLoc + RetreatDir * TotalRetreatDist;
+	
+	// 후퇴 시에는 조금 더 넉넉한 반경으로 이동
+	MoveToLocationOptimized(RetreatLocation, 10.0f);
+}
+
 void ANovaAIController::UpdateStuckDetection(float DeltaTime)
 {
 	APawn* MyPawn = GetPawn();

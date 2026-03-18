@@ -75,6 +75,7 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 	// 2. 발사 및 타격 공통 정보 초기화
 	FGameplayTag ImpactTag;
 	FVector ImpactLocation = Target->GetActorLocation();
+	FVector LastMuzzleLocation = FVector::ZeroVector;
 	bool bSurfaceHit = false;
 
 	const TArray<TObjectPtr<ANovaPart>>& WeaponParts = Unit->GetWeaponParts();
@@ -93,7 +94,7 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 		if (WeaponPart)
 		{
 			// 3-1. 무기 부품 애니메이션 및 발사 효과 (다중 소켓 지원)
-			WeaponPart->PlayFireEffects();
+			WeaponPart->PlayFireEffects(ImpactLocation);
 
 			if (!ImpactTag.IsValid())
 			{
@@ -112,6 +113,8 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 					MuzzleLocation = MainMesh->GetSocketLocation(MuzzleSocketNames[0]);
 				}
 			}
+			LastMuzzleLocation = MuzzleLocation; // Store MuzzleLocation in LastMuzzleLocation
+ 
 			// 4. 발사체 생성 (Projectile 방식)
 			if (ProjectileClass)
 			{
@@ -158,8 +161,8 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 
 					// 부품 스펙에서 유도 여부 가져오기
 					bool bIsHoming = WeaponPart->GetPartSpec().bHomingProjectile;
-
-					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius, Target, Target->GetActorLocation(), bIsHoming);
+ 
+					Projectile->InitializeProjectile(DamageSpecHandle, ImpactTag, SplashRadius, Target, Target->GetActorLocation(), bIsHoming, MuzzleLocation);
 					// NOVA_LOG(Log, "GA_Attack: Projectile Spawned Successfully! (Homing: %s)", bIsHoming ? TEXT("True") : TEXT("False"));
 				}
 				else
@@ -251,6 +254,15 @@ void UNovaGA_Attack::ExecuteAttack(AActor* Target)
 			CorrectedNormal = FRotator(0.f, -90.f, 0.f).RotateVector(CorrectedNormal);
 			
 			Params.Normal = CorrectedNormal;
+			
+			// FGameplayCueParameters에는 Origin 필드가 없으므로, EffectContext를 통해 전달합니다.
+			if (UAbilitySystemComponent* ASC = Unit->GetAbilitySystemComponent())
+			{
+				FGameplayEffectContextHandle ContextHandle = ASC->MakeEffectContext();
+				ContextHandle.AddOrigin(LastMuzzleLocation);
+				Params.EffectContext = ContextHandle;
+			}
+
 			Params.Instigator = Unit;
 			Params.EffectCauser = Unit;
 

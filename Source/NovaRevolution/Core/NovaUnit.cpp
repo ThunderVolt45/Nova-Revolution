@@ -732,6 +732,23 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitMinRange(TotalMinRange);
 	AttributeSet->InitSplashRange(TotalSplashRange);
 
+	// ★ 버그 수정: 오브젝트 풀링 시 기존 시스템에 남아있는 Aggregator 값까지 완전히 갱신 처리
+	// ASC가 유효하다면 SetNumericAttributeBase를 호출하여 정상적으로 값이 동기화되게 합니다.
+	if (AbilitySystemComponent)
+	{
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetWattAttribute(), TotalWatt);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetMaxHealthAttribute(), TotalHealth);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetHealthAttribute(), TotalHealth);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetAttackAttribute(), TotalAttack);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetDefenseAttribute(), TotalDefense);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSpeedAttribute(), TotalSpeed);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetFireRateAttribute(), TotalFireRate);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSightAttribute(), TotalSight);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetRangeAttribute(), TotalRange);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetMinRangeAttribute(), TotalMinRange);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSplashRangeAttribute(), TotalSplashRange);
+	}
+
 	// 이동 속도 및 AI 설정 반영
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 	if (!MoveComp) return;
@@ -1199,6 +1216,66 @@ bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 	}
 
 	return true;
+}
+
+bool ANovaUnit::IsTargetTooClose(const AActor* Target) const
+{
+	if (!IsValid(Target)) return false;
+
+	float MinRange = 0.0f;
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		MinRange = ASC->GetNumericAttribute(UNovaAttributeSet::GetMinRangeAttribute());
+	}
+
+	if (MinRange <= 0.0f) return false;
+
+	FVector MyLoc = GetActorLocation();
+	FVector TargetLoc = Target->GetActorLocation();
+	float DistXY = FVector::DistXY(MyLoc, TargetLoc);
+
+	float TargetRadius = 0.0f;
+	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
+	{
+		TargetRadius = Capsule->GetScaledCapsuleRadius();
+	}
+
+	// [수정] 최소 사거리 판정도 Range와 동일하게 TargetRadius를 더해주는 방식으로 변경 (일관성 유지)
+	float AdjustedMinRange = MinRange + TargetRadius;
+	if (DistXY < AdjustedMinRange)
+	{
+		return true; // 수평 거리가 최소 사거리보다 작으므로 너무 가까움
+	}
+
+	return false;
+}
+
+float ANovaUnit::GetRequiredRetreatDistance(const AActor* Target) const
+{
+	if (!IsValid(Target)) return 0.0f;
+
+	float MinRange = 0.0f;
+	if (UAbilitySystemComponent* ASC = GetAbilitySystemComponent())
+	{
+		MinRange = ASC->GetNumericAttribute(UNovaAttributeSet::GetMinRangeAttribute());
+	}
+
+	if (MinRange <= 0.0f) return 0.0f;
+
+	FVector MyLoc = GetActorLocation();
+	FVector TargetLoc = Target->GetActorLocation();
+	float DistXY = FVector::DistXY(MyLoc, TargetLoc);
+
+	float TargetRadius = 0.0f;
+	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
+	{
+		TargetRadius = Capsule->GetScaledCapsuleRadius();
+	}
+
+	float AdjustedMinRange = MinRange + TargetRadius;
+	
+	// 부족한 후퇴 거리 계산 (값이 양수이면 물러나야 함)
+	return FMath::Max(0.0f, AdjustedMinRange - DistXY);
 }
 #pragma endregion
 
@@ -1752,6 +1829,33 @@ void ANovaUnit::OnReturnToPool_Implementation()
 			if (WeaponPart) PoolSubsystem->ReturnToPool(WeaponPart);
 		}
 		CurrentWeaponParts.Empty();
+	}
+
+	// 6. GAS 상태 초기화 (풀에 들어갈 때 모든 수치/상태 리셋)
+	if (AbilitySystemComponent)
+	{
+		// 모든 활성 GameplayEffect 제거 (루프를 통해 확실하게 제거)
+		const FActiveGameplayEffectsContainer& ActiveGEs = AbilitySystemComponent->GetActiveGameplayEffects();
+		TArray<FActiveGameplayEffectHandle> AllHandles = ActiveGEs.GetAllActiveEffectHandles();
+		
+		for (const FActiveGameplayEffectHandle& Handle : AllHandles)
+		{
+			AbilitySystemComponent->RemoveActiveGameplayEffect(Handle);
+		}
+		
+		NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
+		
+		// 모든 어빌리티 및 큐 제거
+		AbilitySystemComponent->ClearAllAbilities();
+		AbilitySystemComponent->RemoveAllGameplayCues();
+
+		// 태그 초기화 (Loose Tag들 모두 제거)
+		FGameplayTagContainer AllTags;
+		AbilitySystemComponent->GetOwnedGameplayTags(AllTags);
+		if (!AllTags.IsEmpty())
+		{
+			AbilitySystemComponent->RemoveLooseGameplayTags(AllTags);
+		}
 	}
 
 	LegsPartClass = nullptr;
