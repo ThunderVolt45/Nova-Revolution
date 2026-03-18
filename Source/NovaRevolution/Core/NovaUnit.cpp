@@ -1597,6 +1597,14 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 	// 시각적 처리
 	SetActorHiddenInGame(!bVisible);
 
+	// 부품 시각적 처리
+	if (CurrentLegsPart) CurrentLegsPart->SetActorHiddenInGame(!bVisible);
+	if (CurrentBodyPart) CurrentBodyPart->SetActorHiddenInGame(!bVisible);
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
+	{
+		if (WeaponPart) WeaponPart->SetActorHiddenInGame(!bVisible);
+	}
+
 	// 마우스 클릭(Visibility)만 선택적으로 무시
 	if (GetCapsuleComponent())
 	{
