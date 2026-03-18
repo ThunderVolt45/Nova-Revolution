@@ -11,6 +11,8 @@
 #include "Core/NovaObjectPoolSubsystem.h"
 #include "Core/NovaPart.h"
 #include "Player/NovaPlayerController.h"
+#include "GameFramework/GameStateBase.h"
+
 
 bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner, const FVector& RallyPoint)
 {
@@ -29,11 +31,11 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 	UWorld* World = GetWorld();
 	if (World)
 	{
-		for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+		if (AGameStateBase* GameState = World->GetGameState())
 		{
-			if (APlayerController* PC = Iterator->Get())
+			for (APlayerState* PlayerStateObj : GameState->PlayerArray)
 			{
-				if (ANovaPlayerState* TempPS = PC->GetPlayerState<ANovaPlayerState>())
+				if (ANovaPlayerState* TempPS = Cast<ANovaPlayerState>(PlayerStateObj))
 				{
 					if (INovaTeamInterface* PSTeamInterface = Cast<INovaTeamInterface>(TempPS))
 					{
@@ -186,13 +188,24 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
 
 bool UNovaUnitFactory::CheckAndConsumeResources(class ANovaPlayerState* PS, float Cost)
 {
-	if (!PS) return false;
+	if (!PS)
+	{
+		NOVA_LOG(Error, "CheckAndConsumeResources failed: PS is null.");
+		return false;
+	}
 
 	UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>();
-	if (!ResourceComp) return false;
+	if (!ResourceComp)
+	{
+		NOVA_LOG(Error, "CheckAndConsumeResources failed: ResourceComp not found on PS (%s).", *PS->GetName());
+		return false;
+	}
 
 	// 자원 및 인구수 체크 (유닛 생산 시 Watt 비용만 전달)
-	if (ResourceComp->CanAfford(Cost, 0.0f) && ResourceComp->CanSpawnUnit(Cost))
+	bool bCanAfford = ResourceComp->CanAfford(Cost, 0.0f);
+	bool bCanSpawn = ResourceComp->CanSpawnUnit(Cost);
+
+	if (bCanAfford && bCanSpawn)
 	{
 		// 자원 소모
 		ResourceComp->ConsumeResources(Cost, 0.0f);
@@ -202,6 +215,10 @@ bool UNovaUnitFactory::CheckAndConsumeResources(class ANovaPlayerState* PS, floa
 
 		return true;
 	}
-
-	return false;
+	else
+	{
+		NOVA_LOG(Warning, "CheckAndConsumeResources failed: Afford(%d), Spawn(%d). CurrentWatt: %.1f", 
+			bCanAfford, bCanSpawn, PS->GetCurrentWatt());
+		return false;
+	}
 }

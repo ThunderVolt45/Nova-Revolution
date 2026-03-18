@@ -21,7 +21,9 @@
 #include "NavModifierComponent.h"
 #include "NovaNavArea_Unit.h"
 #include "AI/Navigation/NavigationDataResolution.h"
+#include "GameFramework/GameStateBase.h"
 // #include "Commandlets/GatherTextFromAssetsCommandlet.h"
+
 #include "NavigationSystem.h"
 #include "NovaMapManager.h"
 #include "Components/SceneCaptureComponent2D.h"
@@ -1066,23 +1068,23 @@ void ANovaUnit::ReturnResourcesOnDeath() const
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+	if (AGameStateBase* GameState = World->GetGameState())
 	{
-		APlayerController* PC = Iterator->Get();
-		if (!PC) continue;
-
-		ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>();
-		if (!PS) continue;
-
-		// INovaTeamInterface를 통해 팀 ID를 확인합니다.
-		INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
-		if (!TeamInterface || TeamInterface->GetTeamID() != TeamID) continue;
-
-		if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+		for (APlayerState* PlayerStateObj : GameState->PlayerArray)
 		{
-			ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
-			// NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
-			return; // 해당 팀의 자원을 업데이트했으므로 중단
+			ANovaPlayerState* PS = Cast<ANovaPlayerState>(PlayerStateObj);
+			if (!PS) continue;
+
+			// INovaTeamInterface를 통해 팀 ID를 확인합니다.
+			INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
+			if (!TeamInterface || TeamInterface->GetTeamID() != TeamID) continue;
+
+			if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+			{
+				ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
+				// NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
+				return; // 해당 팀의 자원을 업데이트했으므로 중단
+			}
 		}
 	}
 }
