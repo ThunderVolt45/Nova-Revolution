@@ -23,7 +23,9 @@
 #include "AI/Navigation/NavigationDataResolution.h"
 // #include "Commandlets/GatherTextFromAssetsCommandlet.h"
 #include "NavigationSystem.h"
+#include "NovaMapManager.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Kismet/GameplayStatics.h"
 #include "NavAreas/NavArea_Default.h"
 #include "UI/NovaHealthBarComponent.h"
 #include "UI/NovaSelectionComponent.h"
@@ -183,6 +185,13 @@ void ANovaUnit::BeginPlay()
 
 	// 초기 체력바 상태 설정
 	UpdateHealthBar();
+
+	// MapManager에 등록
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->RegisterActor(this);
+	}
 
 	// --- 랠리 포인트 이동 로직 추가 ---
 	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
@@ -711,7 +720,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 		if (Spec.PartType == ENovaPartType::Legs) ApplyLegsSpec(Spec);
 		else if (Spec.PartType == ENovaPartType::Weapon) TargetType = Spec.TargetType;
 	}
-	
+
 	// 주요 스탯들의 최소치 이하로 내려가지 않도록 보정
 	if (TotalHealth < 1.f) TotalHealth = 1.0f;
 	if (TotalAttack < 0.f) TotalAttack = 0.0f;
@@ -971,6 +980,13 @@ void ANovaUnit::Die()
 	{
 		HealthBarComponent->SetVisibility(false);
 		HealthBarComponent->Deactivate();
+	}
+
+	// MapManager에 등록 해제
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->UnregisterActor(this);
 	}
 
 	// 일정 시간 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
@@ -1436,13 +1452,7 @@ void ANovaUnit::OnSelected()
 {
 	bIsSelected = true;
 
-	// 선택되면 카메라 켜기
-	if (PortraitCapture)
-	{
-		PortraitCapture->bCaptureEveryFrame = true;
-	}
-
-	// 가시성 제어를 Component가 수행
+	// 선택 가시성 제어를 Component가 수행
 	if (SelectionComponent)
 	{
 		SelectionComponent->SetSelectionVisible(true);
@@ -1762,6 +1772,13 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	bIsSmokeActive = false;
 	bIsFireActive = false;
 
+	// MapManager에 등록
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->RegisterActor(this);
+	}
+
 	// 8. 랠리 포인트 이동
 	if (!InitialRallyLocation.IsNearlyZero())
 	{
@@ -1805,6 +1822,12 @@ void ANovaUnit::OnReturnToPool_Implementation()
 	if (HealthBarComponent)
 	{
 		HealthBarComponent->SetVisibility(false);
+	}
+	// MapManager에 등록 해제
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->UnregisterActor(this);
 	}
 
 	// 다음 사용 시 SetFogVisibility가 정상 작동하도록 초기값(true)으로 리셋
