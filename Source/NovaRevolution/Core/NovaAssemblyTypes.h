@@ -53,7 +53,7 @@ struct FNovaDeckInfo
 {
 	GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Assembly")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Assembly", meta = (TitleProperty = "UnitName"))
 	TArray<FNovaUnitAssemblyData> Units;
 
 	// 최대 슬롯 제한 (기획상 10개)

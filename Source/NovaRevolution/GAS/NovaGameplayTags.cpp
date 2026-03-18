@@ -1,4 +1,4 @@
-﻿#include "NovaGameplayTags.h"
+#include "NovaGameplayTags.h"
 
 namespace NovaGameplayTags
 {
@@ -52,6 +52,9 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Regen_SP, "Effect.Resource.Regen.SP");
 	UE_DEFINE_GAMEPLAY_TAG(Effect_Resource_Block_Watt, "Effect.Resource.Block.Watt");
 	
+	// --- 데미지 관련 효과 ---
+	UE_DEFINE_GAMEPLAY_TAG(Effect_Damage_IgnoreDefense, "Effect.Damage.IgnoreDefense");
+	
 	// --- 어빌리티 태그 ---
 	// 유닛
 	UE_DEFINE_GAMEPLAY_TAG(Ability_Attack, "Ability.Attack");
@@ -72,6 +75,8 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Damage_Smoke, "GameplayCue.Unit.Damage.Smoke");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Damage_Fire, "GameplayCue.Unit.Damage.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Explosion, "GameplayCue.Unit.Explosion");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_DevilClaw_Fire, "GameplayCue.Weapon.DevilClaw.Fire");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_DevilClaw_Hit, "GameplayCue.Weapon.DevilClaw.Hit");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rifle_Fire, "GameplayCue.Weapon.Rifle.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rifle_Hit, "GameplayCue.Weapon.Rifle.Hit");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Rocketeer_Fire, "GameplayCue.Weapon.Rocketeer.Fire");
