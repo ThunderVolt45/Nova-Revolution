@@ -24,6 +24,9 @@ const FName ANovaAIPlayerController::MyBaseLocationKey = TEXT("MyBaseLocation");
 ANovaAIPlayerController::ANovaAIPlayerController()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	
+	// AI 컨트롤러도 자원 및 팀 관리를 위해 PlayerState를 가지도록 설정
+	bWantsPlayerState = true;
 
 	BehaviorTreeComponent = CreateDefaultSubobject<UBehaviorTreeComponent>(TEXT("BehaviorTreeComponent"));
 	BlackboardComponent = CreateDefaultSubobject<UBlackboardComponent>(TEXT("BlackboardComponent"));

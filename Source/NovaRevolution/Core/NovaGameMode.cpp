@@ -7,6 +7,7 @@
 #include "Core/NovaSaveGame.h"
 #include "Core/NovaDeckPreset.h"
 #include "Core/NovaObjectPoolSubsystem.h"
+#include "Core/AI/NovaAIPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 
@@ -127,6 +128,26 @@ void ANovaGameMode::InitializePlayerBase()
 			TeamBases.Add(AssignedTeamID, NewBase);
 			
 			NOVA_LOG(Warning, "Spawned Base for TeamID: %d at %s", AssignedTeamID, *PlayerStarts[i]->GetName());
+
+			// 적군(TeamID > 1)일 경우 AI 컨트롤러 자동 스폰 및 연동
+			if (AssignedTeamID > 1 && bAutoSpawnAI && AIControllerClass)
+			{
+				FActorSpawnParameters AISpawnParams;
+				AISpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				
+				ANovaAIPlayerController* AIController = GetWorld()->SpawnActor<ANovaAIPlayerController>(AIControllerClass, FVector::ZeroVector, FRotator::ZeroRotator, AISpawnParams);
+				if (AIController)
+				{
+					// AI PlayerState에 명시적으로 TeamID 부여 (팩토리에서 식별 가능하도록)
+					if (ANovaPlayerState* AIPS = AIController->GetPlayerState<ANovaPlayerState>())
+					{
+						AIPS->SetTeamID(AssignedTeamID);
+					}
+
+					AIController->SetManagedBase(NewBase);
+					NOVA_LOG(Log, "Spawned AI Controller and assigned base for TeamID: %d", AssignedTeamID);
+				}
+			}
 		}
 	}
 }
