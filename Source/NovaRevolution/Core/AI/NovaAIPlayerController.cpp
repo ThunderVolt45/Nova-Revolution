@@ -171,6 +171,16 @@ void ANovaAIPlayerController::SetManagedBase(ANovaBase* InBase)
 	}
 }
 
+void ANovaAIPlayerController::StopAI()
+{
+	if (UBehaviorTreeComponent* BTC = Cast<UBehaviorTreeComponent>(BrainComponent))
+	{
+		BTC->StopLogic(TEXT("Base Destroyed"));
+	}
+	
+	NOVA_LOG(Log, "AI Player %s: Stopped logic due to base destruction.", *GetName());
+}
+
 int32 ANovaAIPlayerController::GetTeamID() const
 {
 	if (CachedTeamID != -1) return CachedTeamID;

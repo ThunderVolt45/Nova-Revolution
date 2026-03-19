@@ -148,6 +148,9 @@ public:
 	/** 새로 생성된 아군 유닛을 현재 개더링 중인 웨이브에 소속시킵니다. */
 	void AddUnitToCurrentWave(class ANovaUnit* NewUnit);
 
+	/** 기지 파괴 등 상황에서 AI 로직을 완전히 중지합니다. */
+	void StopAI();
+
 	/** 특정 생산 슬롯 번호에서 생성된 아군 유닛의 총 생존 수를 반환합니다. */
 	int32 CountUnitsOfSlot(int32 TargetSlot) const;
 
