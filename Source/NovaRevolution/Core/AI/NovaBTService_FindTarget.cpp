@@ -32,10 +32,23 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	uint8 CommandTypeValue = BB->GetValueAsEnum(CommandTypeKey.SelectedKeyName);
 	ECommandType CurrentCommand = static_cast<ECommandType>(CommandTypeValue);
 
+	// 기존 타겟 가시성 및 유효성 검사
+	AActor* CurrentTargetActor = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
+	if (CurrentTargetActor)
+	{
+		ANovaUnit* TargetUnit = Cast<ANovaUnit>(CurrentTargetActor);
+		// 보이지 않거나 사망한 경우 타겟 해제
+		if (TargetUnit && (!TargetUnit->GetFogVisibility() || TargetUnit->IsDead()))
+		{
+			BB->ClearValue(TargetActorKey.SelectedKeyName);
+			CurrentTargetActor = nullptr;
+		}
+	}
+
 	// 공격(Attack) 또는 순찰(Patrol) 상태에서는 타겟이 없을 때만 탐색
 	if (CurrentCommand == ECommandType::Attack || CurrentCommand == ECommandType::Patrol)
 	{
-		if (BB->GetValueAsObject(TargetActorKey.SelectedKeyName) != nullptr)
+		if (CurrentTargetActor != nullptr)
 		{
 			return;
 		}
@@ -141,6 +154,9 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 			}
 
 			if (!bCanAttack) continue;
+
+			// [추가] 시야에 보이지 않는 적은 탐색 대상에서 제외
+			if (TargetUnit && !TargetUnit->GetFogVisibility()) continue;
 
 			// [추가] 최소 사거리 내에 있는 적은 탐색 대상에서 제외
 			if (MyUnit->IsTargetTooClose(PotentialTarget)) continue;

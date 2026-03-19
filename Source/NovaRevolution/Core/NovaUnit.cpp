@@ -282,7 +282,7 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 			FVector RandomDir = FVector(FMath::RandRange(-1.f, 1.f), FMath::RandRange(-1.f, 1.f), 0.f).GetSafeNormal();
 			FVector Offset = RandomDir * (120.0f * DeltaTime);
 
-			// [개선] NavMesh 레이캐스트 체크
+			// [개선] NavMesh 레이캐스트 및 고도 보정
 			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 			if (NavSys)
 			{
@@ -290,11 +290,22 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 				if (NavData)
 				{
 					FVector HitLocation;
+					FVector TargetLoc = MyLoc + Offset;
 					// [수정] NavData의 Raycast를 직접 호출
-					if (NavData->Raycast(MyLoc, MyLoc + Offset, HitLocation, NavData->GetDefaultQueryFilter()))
+					if (NavData->Raycast(MyLoc, TargetLoc, HitLocation, NavData->GetDefaultQueryFilter()))
 					{
-						Offset = HitLocation - MyLoc;
+						TargetLoc = HitLocation;
 					}
+
+					// 내비메시 표면에 Z 고도 고정 (지상/공중 통합 처리)
+					FNavLocation ProjectedLoc;
+					if (NavSys->ProjectPointToNavigation(TargetLoc, ProjectedLoc, FVector(10.f, 10.f, 200.f), NavData))
+					{
+						TargetLoc = ProjectedLoc.Location;
+						TargetLoc.Z += GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+					}
+
+					Offset = TargetLoc - MyLoc;
 				}
 			}
 
@@ -324,7 +335,7 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 
 			FVector Offset = PushDir * (90.0f * DeltaTime);
 
-			// [개선] NavMesh 레이캐스트 체크
+			// [개선] NavMesh 레이캐스트 및 고도 보정
 			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 			if (NavSys)
 			{
@@ -332,11 +343,22 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 				if (NavData)
 				{
 					FVector HitLocation;
+					FVector TargetLoc = MyLoc + Offset;
 					// [수정] NavData의 Raycast를 직접 호출
-					if (NavData->Raycast(MyLoc, MyLoc + Offset, HitLocation, NavData->GetDefaultQueryFilter()))
+					if (NavData->Raycast(MyLoc, TargetLoc, HitLocation, NavData->GetDefaultQueryFilter()))
 					{
-						Offset = HitLocation - MyLoc;
+						TargetLoc = HitLocation;
 					}
+
+					// 내비메시 표면에 Z 고도 고정 (지상/공중 통합 처리)
+					FNavLocation ProjectedLoc;
+					if (NavSys->ProjectPointToNavigation(TargetLoc, ProjectedLoc, FVector(10.f, 10.f, 200.f), NavData))
+					{
+						TargetLoc = ProjectedLoc.Location;
+						TargetLoc.Z += GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+					}
+
+					Offset = TargetLoc - MyLoc;
 				}
 			}
 
@@ -1318,8 +1340,18 @@ void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
 			// [수정] NavData의 Raycast를 직접 호출 (true 반환 시 경계에 부딪힘)
 			if (NavData->Raycast(CurrentLoc, TargetLoc, HitLocation, NavData->GetDefaultQueryFilter()))
 			{
-				DesiredOffset = HitLocation - CurrentLoc;
+				TargetLoc = HitLocation;
 			}
+			
+			// 내비메시 표면에 Z 고도 고정 (지상/공중 통합 처리)
+			FNavLocation ProjectedLoc;
+			if (NavSys->ProjectPointToNavigation(TargetLoc, ProjectedLoc, FVector(10.f, 10.f, 200.f), NavData))
+			{
+				TargetLoc = ProjectedLoc.Location;
+				TargetLoc.Z += GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+			}
+			
+			DesiredOffset = TargetLoc - CurrentLoc;
 		}
 	}
 
@@ -1803,6 +1835,9 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 
 void ANovaUnit::OnReturnToPool_Implementation()
 {
+	// [중요] 풀에 들어간 유닛은 논리적으로 사망(비활성화)한 것으로 간주하여 드래그/클릭 선택에 잡히지 않도록 강제합니다.
+	bIsDead = true;
+
 	// 1. 선택 해제
 	if (bIsSelected)
 	{

@@ -101,6 +101,13 @@ void ANovaGameMode::InitializePlayerBase()
 	TArray<AActor*> PlayerStarts;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APlayerStart::StaticClass(), PlayerStarts);
 
+	// PlayerStarts 배열 무작위 셔플
+	for (int32 i = PlayerStarts.Num() - 1; i > 0; --i)
+	{
+		int32 j = FMath::RandRange(0, i);
+		PlayerStarts.Swap(i, j);
+	}
+
 	// 로컬 플레이어의 PlayerState를 가져와서 팀 설정 (RTS 싱글플레이어 기준)
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	ANovaPlayerState* PS = PC ? PC->GetPlayerState<ANovaPlayerState>() : nullptr;
@@ -128,6 +135,18 @@ void ANovaGameMode::InitializePlayerBase()
 			TeamBases.Add(AssignedTeamID, NewBase);
 			
 			NOVA_LOG(Warning, "Spawned Base for TeamID: %d at %s", AssignedTeamID, *PlayerStarts[i]->GetName());
+
+			// 플레이어(Team 1) 기지가 생성되었다면 로컬 플레이어의 카메라 폰을 기지 위치로 이동
+			if (AssignedTeamID == 1 && PC)
+			{
+				if (APawn* PlayerPawn = PC->GetPawn())
+				{
+					FVector BaseLoc = NewBase->GetActorLocation();
+					FVector PawnLoc = PlayerPawn->GetActorLocation();
+					// Z(고도)는 카메라 기존 높이 유지, X/Y만 기지 위치로 이동
+					PlayerPawn->SetActorLocation(FVector(BaseLoc.X, BaseLoc.Y, PawnLoc.Z));
+				}
+			}
 
 			// 적군(TeamID > 1)일 경우 AI 컨트롤러 자동 스폰 및 연동
 			if (AssignedTeamID > 1 && bAutoSpawnAI && AIControllerClass)
