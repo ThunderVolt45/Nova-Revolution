@@ -832,7 +832,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	else
 	{
 		MoveComp->SetMovementMode(MOVE_Walking);
-		MoveComp->bConstrainToPlane = true;
+		MoveComp->bConstrainToPlane = false; // 지상 유닛은 경사로를 타야 하므로 평면 제약 해제
 		MoveComp->MaxAcceleration = TotalSpeed * 10.0f;
 		MoveComp->BrakingDecelerationWalking = TotalSpeed * 10.0f;
 	}
@@ -1781,9 +1781,21 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		// 지상 유닛인 경우 즉시 바닥으로 스냅되도록 유도 (공중 유닛이었을 경우 대비)
 		if (MovementType == ENovaMovementType::Ground)
 		{
-			MoveComp->bConstrainToPlane = true;
-			// 현재 스폰 위치(Z)를 기준으로 평면 제약 설정
-			MoveComp->SetPlaneConstraintOrigin(GetActorLocation());
+			MoveComp->bConstrainToPlane = false; // [수정] 경사로 진입을 위해 제약 해제
+			
+			// 현재 위치를 내비메시 바닥으로 강제 스냅하여 "살짝 뜨는" 현상 방지
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			UCapsuleComponent* Capsule = GetCapsuleComponent();
+			if (NavSys && Capsule)
+			{
+				FNavLocation ProjectedLoc;
+				if (NavSys->ProjectPointToNavigation(GetActorLocation(), ProjectedLoc, FVector(100.f, 100.f, 500.f)))
+				{
+					FVector NewLoc = ProjectedLoc.Location;
+					NewLoc.Z += Capsule->GetScaledCapsuleHalfHeight();
+					SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+				}
+			}
 		}
 	}
 

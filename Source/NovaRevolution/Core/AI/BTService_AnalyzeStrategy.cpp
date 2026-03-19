@@ -140,7 +140,7 @@ void UBTService_AnalyzeStrategy::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 		// [강화] 긴급 방어가 해제되는 시점에 다시 적 기지로 반격 명령
 		if (bOldEmergency)
 		{
-			FVector EnemyBaseLoc = BB->GetValueAsVector(ANovaAIPlayerController::EnemyBaseLocationKey);
+			EnemyBaseLoc = BB->GetValueAsVector(ANovaAIPlayerController::EnemyBaseLocationKey);
 			if (!EnemyBaseLoc.IsZero())
 			{
 				FCommandData AttackCmd;
