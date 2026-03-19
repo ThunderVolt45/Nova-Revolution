@@ -61,7 +61,7 @@ public:
 	void SetAssemblyData(const FNovaUnitAssemblyData& Data);
 
 	/** 팀 식별자 설정을 위한 세터 */
-	void SetTeamID(int32 InTeamID) { TeamID = InTeamID; }
+	void SetTeamID(int32 InTeamID);
 
 	/** 생성 시 초기 이동 목표(랠리 포인트) 설정 */
 	void SetInitialRallyLocation(const FVector& InLocation) { InitialRallyLocation = InLocation; }

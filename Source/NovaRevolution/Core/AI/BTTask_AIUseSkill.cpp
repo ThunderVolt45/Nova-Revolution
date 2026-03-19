@@ -32,7 +32,11 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 
 	// 1. 블랙보드에서 추천 슬롯 번호 가져오기
 	int32 SlotIndex = BB->GetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName);
-	if (SlotIndex == -1) return EBTNodeResult::Succeeded;
+	if (SlotIndex == -1)
+	{
+		NOVA_LOG(Log, "AI Task: No skill recommended (-1)");
+		return EBTNodeResult::Succeeded;
+	}
 
 	// 2. 사령관 스킬 태그 획득
 	// PlayerState에는 각 슬롯별로 할당된 GameplayTag가 있음
@@ -80,5 +84,16 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 	}
 
 	// 발동 실패 시 (자원 부족 등)
+	NOVA_LOG(Warning, "AI Task: Failed to trigger skill slot [%d] with tag [%s] (ASC HandleGameplayEvent returned 0)", SlotIndex, *SkillTag.ToString());
+
+	// 디버깅: 현재 부여된 모든 어빌리티 태그 출력
+	TArray<FGameplayAbilitySpec> Specs = ASC->GetActivatableAbilities();
+	FString AbilityList;
+	for (const FGameplayAbilitySpec& Spec : Specs)
+	{
+		AbilityList += FString::Printf(TEXT("[%s] "), *Spec.Ability->GetClass()->GetName());
+	}
+	NOVA_LOG(Log, "AI Task: Currently granted abilities on PS: %s", *AbilityList);
+
 	return EBTNodeResult::Failed;
 }

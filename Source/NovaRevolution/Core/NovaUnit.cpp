@@ -10,6 +10,7 @@
 #include "NovaPlayerState.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/AI/NovaAIController.h"
+#include "Core/AI/NovaAIPlayerController.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GAS/NovaAttributeSet.h"
@@ -509,6 +510,24 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 	         LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
 	         BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
 	         WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+}
+
+void ANovaUnit::SetTeamID(int32 InTeamID)
+{
+	TeamID = InTeamID;
+
+	// 소속 팀의 AI 사령관이 있다면 현재 웨이브(방어/소집)에 자신을 편입시킵니다.
+	for (FConstControllerIterator Iterator = GetWorld()->GetControllerIterator(); Iterator; ++Iterator)
+	{
+		if (ANovaAIPlayerController* AIC = Cast<ANovaAIPlayerController>(Iterator->Get()))
+		{
+			if (AIC->GetTeamID() == TeamID)
+			{
+				AIC->AddUnitToCurrentWave(this);
+				break;
+			}
+		}
+	}
 }
 
 void ANovaUnit::ConstructUnitParts()

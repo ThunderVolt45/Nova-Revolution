@@ -162,8 +162,10 @@ void ANovaGameMode::InitializePlayerBase()
 					{
 						AIPS->SetTeamID(AssignedTeamID);
 					}
-
+					
+					AIController->CachedTeamID = AssignedTeamID;
 					AIController->SetManagedBase(NewBase);
+					
 					NOVA_LOG(Log, "Spawned AI Controller and assigned base for TeamID: %d", AssignedTeamID);
 				}
 			}

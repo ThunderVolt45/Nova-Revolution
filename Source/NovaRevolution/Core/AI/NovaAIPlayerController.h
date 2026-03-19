@@ -12,19 +12,92 @@ class ANovaBase;
 class ANovaPlayerState;
 
 /**
- * AI가 지향하는 유닛 구성 프로필
+ * AI가 빌드 단계에서 취할 수 있는 행동 타입
+ */
+UENUM(BlueprintType)
+enum class ENovaAIBuildStepType : uint8
+{
+    ProduceUnit,    // 유닛 생산 (TargetCount 도달 시 다음 스텝)
+    UseSkill,       // 스킬 발동 (발동 후 다음 스텝)
+    CommandAttack,  // 공격 개시 (모인 웨이브를 적진으로 진군시킴)
+    Wait            // 대기 시간 (TargetCount 초만큼 대기)
+};
+
+/**
+ * 특정 생산 단계나 행동을 정의
  */
 USTRUCT(BlueprintType)
-struct FNovaAIUnitComposition
+struct FNovaAIBuildStep
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
-	FString ProfileName;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
+    ENovaAIBuildStepType ActionType;
 
-	// 각 슬롯(0~9) 별 목표 생산 수량
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI")
-	TMap<int32, int32> SlotTargetCounts;
+    // 생산할 유닛 슬롯(0~9) 또는 시전할 스킬 슬롯 번호
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
+    int32 TargetSlot;
+
+    // 유닛 생산 시 목표 수량, Wait 시 대기 초 단위 등
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
+    int32 TargetCount;
+};
+
+/**
+ * 빌드 오더 프로필
+ */
+USTRUCT(BlueprintType)
+struct FNovaAIBuildOrder
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
+    FString ProfileName;
+
+    // 1페이즈: 초반 1회만 수행되는 오프닝 빌드
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
+    TArray<FNovaAIBuildStep> OpeningSteps; 
+
+    // 2페이즈: 오프닝 이후 무한 반복되는 후반 운영 빌드 루프
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
+    TArray<FNovaAIBuildStep> MacroLoopSteps; 
+};
+
+/**
+ * 웨이브 지시 상태 
+ */
+UENUM(BlueprintType)
+enum class ENovaAIWaveState : uint8
+{
+    Gathering, // 기지 주변에 모여 방어
+    Attacking  // 목표를 향해 진격
+};
+
+/**
+ * 유닛 웨이브 구조체
+ */
+USTRUCT(BlueprintType)
+struct FNovaAIWave
+{
+    GENERATED_BODY()
+
+    UPROPERTY(VisibleAnywhere, Category = "AI|Wave")
+    TArray<TWeakObjectPtr<class ANovaUnit>> AssignedUnits;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Wave")
+    ENovaAIWaveState CurrentState = ENovaAIWaveState::Gathering;
+};
+
+/**
+ * 데이터 테이블에서 빌드 오더를 관리하기 위한 행 구조체
+ */
+USTRUCT(BlueprintType)
+struct FNovaAIBuildOrderRow : public FTableRowBase
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
+    FNovaAIBuildOrder BuildOrder;
 };
 
 /**
@@ -50,19 +123,47 @@ public:
 	/** AI의 팀 ID를 반환합니다. */
 	int32 GetTeamID() const;
 
-	/** 현재 선택된 유닛 구성 프로필을 반환합니다. */
-	const FNovaAIUnitComposition& GetSelectedComposition() const { return SelectedComposition; }
+	/** 현재 선택된 빌드 오더를 반환합니다. */
+	const FNovaAIBuildOrder& GetSelectedBuildOrder() const { return SelectedBuildOrder; }
+
+	/** 현재 속한 빌드 페이즈 스텝을 가져옵니다. (유효하지 않으면 nullptr) */
+	const FNovaAIBuildStep* GetCurrentBuildStep() const;
+
+	/** 다음 빌드 스텝으로 진행합니다. 오프닝이 끝나면 매크로 루프로 자동 전환됩니다. */
+	void AdvanceBuildStep();
+
+	/** 긴급 방어 상태를 제어합니다. */
+	void SetEmergencyDefenseActive(bool bActive);
+	bool IsEmergencyDefenseActive() const { return bIsEmergencyDefenseActive; }
+
+	/** 현재 오프닝 페이즈인지, मै크로 루프 페이즈인지 확인합니다. */
+	bool IsMacroLooping() const { return bIsMacroLooping; }
 
 	/** 팀 내 모든 유닛을 찾아 명령을 전달합니다. */
 	void IssueCommandToAllUnits(const struct FCommandData& CommandData);
 
+	/** 현재 개더링 중인 웨이브의 모든 유닛을 'Attacking' 웨이브로 전환하고 명령을 하달합니다. */
+	void LaunchGatheringWaves(const struct FCommandData& CommandData);
+
+	/** 새로 생성된 아군 유닛을 현재 개더링 중인 웨이브에 소속시킵니다. */
+	void AddUnitToCurrentWave(class ANovaUnit* NewUnit);
+
+	/** 특정 생산 슬롯 번호에서 생성된 아군 유닛의 총 생존 수를 반환합니다. */
+	int32 CountUnitsOfSlot(int32 TargetSlot) const;
+
 protected:
 	virtual void BeginPlay() override;
 
-	/** 사용 가능한 프로필 중 하나를 무작위로 선택합니다. */
-	void RandomizeComposition();
+	/** 사용 가능한 빌드 오더 중 하나를 무작위로 선택합니다. */
+	void RandomizeBuildOrder();
 
-	/** 블랙보드 키 이름 정의 */
+	
+public: 
+	/** AI 관리 기지 전용 팀 ID (PlayerState가 없거나 초기화 중일 때를 대비한 캐시) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI")
+	int32 CachedTeamID = -1;
+	
+	/** 블랙보드 키 이름 정의 (Behavior Tree 서비스/태스크 등에서 참조) */
 	static const FName WattKey;
 	static const FName PopulationKey;
 	static const FName MaxPopulationKey;
@@ -84,13 +185,29 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UBehaviorTree> StrategyBTAsset;
 
-	/** AI가 선택할 수 있는 유닛 구성 프로필 리스트 */
+	/** AI가 참고할 빌드 오더 데이터 테이블 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
-	TArray<FNovaAIUnitComposition> AvailableCompositions;
+	TObjectPtr<UDataTable> BuildOrderDataTable;
 
-	/** 현재 게임에서 선택된 프로필 */
+	/** 현재 게임에서 선택된 빌드 오더 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
-	FNovaAIUnitComposition SelectedComposition;
+	FNovaAIBuildOrder SelectedBuildOrder;
+
+	/** 현재 속해 있는 웨이브 배열 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
+	TArray<FNovaAIWave> ActiveWaves;
+
+	/** 현재 진행 중인 빌드 스텝 인덱스 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
+	int32 CurrentBuildStepIndex = 0;
+
+	/** 현재 매크로 루프(2페이즈)에 돌입했는지 여부 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
+	bool bIsMacroLooping = false;
+
+	/** 긴급 방어 모드 동작 여부 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
+	bool bIsEmergencyDefenseActive = false;
 
 	/** 관리 중인 기지 (약참조) */
 	UPROPERTY()

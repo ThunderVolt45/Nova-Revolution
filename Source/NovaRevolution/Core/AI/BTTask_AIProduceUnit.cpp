@@ -28,6 +28,7 @@ EBTNodeResult::Type UBTTask_AIProduceUnit::ExecuteTask(UBehaviorTreeComponent& O
 	
 	if (SlotIndex == -1) // 생산할 유닛이 없는 상황 (자원 극심 부족 등)
 	{
+		NOVA_LOG(Log, "AI Task: No unit recommended for production (-1)");
 		return EBTNodeResult::Succeeded;
 	}
 

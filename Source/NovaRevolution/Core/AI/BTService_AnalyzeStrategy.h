@@ -60,18 +60,22 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "AI|Data")
 	TObjectPtr<UDataTable> PartSpecDataTable;
 
+	/** 위협 감지 거리 (긴급 방어용) */
+	UPROPERTY(EditAnywhere, Category = "AI|Threshold")
+	float ThreatDetectionRadius = 4000.0f;
+
 private:
-	/** 유닛 생산 판단 로직 */
-	int32 AnalyzeProduction(class ANovaAIPlayerController* AIC, class ANovaPlayerState* PS);
+	/** 특정 슬롯 번호의 아군 유닛 수를 셉니다. */
+	int32 CountUnitsOfSlot(class ANovaPlayerState* PS, int32 SlotIndex);
+
+	/** 긴급 상황 및 매크로 루프에서 적의 상성을 고려하여 가장 적합한 아군 슬롯을 산출합니다. */
+	int32 AnalyzeDynamicCounter(class ANovaAIPlayerController* AIC, class ANovaPlayerState* PS, bool bIsEmergency, int32 DefaultSlot = -1);
 
 	/** 슬롯 유닛의 예상 성능 데이터를 산출합니다. */
 	void CalculateUnitPerformance(const struct FNovaUnitAssemblyData& AssemblyData, struct FNovaPartSpecRow& OutStats);
 
-	/** 스킬 사용 판단 로직 */
-	int32 AnalyzeSkills(class ANovaAIPlayerController* AIC, class ANovaPlayerState* PS, AActor*& OutTargetActor, FVector& OutTargetLocation, bool bAttackingJustStarted);
-
-	/** 공격 개시 여부 판단 로직 */
-	bool ShouldStartAttack(class ANovaAIPlayerController* AIC, class ANovaPlayerState* PS);
+	/** 스킬 사용 판단 로직 (오프닝/매크로 외 자율 스킬) */
+	void AnalyzeOccasionalSkills(class ANovaAIPlayerController* AIC, class ANovaPlayerState* PS, UBlackboardComponent* BB);
 
 	/** 초기화 시 공격 부대 규모를 기억하기 위한 변수 (기지 소환 판단용) */
 	float LastAttackStartedUnitCount = 0.0f;

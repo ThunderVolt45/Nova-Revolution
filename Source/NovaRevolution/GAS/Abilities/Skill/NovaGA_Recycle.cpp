@@ -29,38 +29,33 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
         return;
     }
 
-    // 2. 컨트롤러에서 현재 선택된 유닛 리스트 가져오기
-    ANovaPlayerController* PC = Cast<ANovaPlayerController>(ActorInfo->PlayerController.Get());
-    if (!PC)
-    {
-        NOVA_SCREEN(Error, "PlayerController를 찾을 수 없습니다.");
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        return;
-    }
-
-    const TArray<AActor*>& SelectedUnits = PC->GetSelectedUnits();
+    // 2. 타겟 유닛 결정 (TriggerEventData 우선, 없으면 PC 선택 유닛)
     ANovaUnit* TargetUnit = nullptr;
 
-    // 플레이어 자신의 팀 ID 확인
-    int32 PlayerTeamID = NovaTeam::None;
-    if (APlayerState* PS = PC->PlayerState)
+    if (TriggerEventData && TriggerEventData->Target)
     {
-        if (INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS))
-        {
-            PlayerTeamID = TeamInterface->GetTeamID();
-        }
+        TargetUnit = const_cast<ANovaUnit*>(Cast<ANovaUnit>(TriggerEventData->Target));
     }
 
-    // 3. 선택된 유닛 중 리싸이클 가능한 아군 유닛 탐색 (첫 번째 유닛 선택)
-    for (AActor* Actor : SelectedUnits)
+    if (!TargetUnit)
     {
-        if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+        ANovaPlayerController* PC = Cast<ANovaPlayerController>(ActorInfo->PlayerController.Get());
+        if (PC)
         {
-            // 팀이 같고, 현재 죽지 않은 상태여야 함
-            if (Unit->GetTeamID() == PlayerTeamID && !Unit->IsDead())
+            const TArray<AActor*>& SelectedUnits = PC->GetSelectedUnits();
+            int32 TeamID = NovaTeam::None;
+            if (INovaTeamInterface* TI = Cast<INovaTeamInterface>(PC->PlayerState)) TeamID = TI->GetTeamID();
+
+            for (AActor* Actor : SelectedUnits)
             {
-                TargetUnit = Unit;
-                break;
+                if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+                {
+                    if (Unit->GetTeamID() == TeamID && !Unit->IsDead())
+                    {
+                        TargetUnit = Unit;
+                        break;
+                    }
+                }
             }
         }
     }
@@ -68,7 +63,7 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
     // 대상이 없으면 스킬 취소
     if (!TargetUnit)
     {
-        NOVA_SCREEN(Warning, "리싸이클할 아군 유닛이 선택되어 있지 않습니다.");
+        NOVA_LOG(Warning, "Recycle Ability: No target unit found (EventData or Selected).");
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
