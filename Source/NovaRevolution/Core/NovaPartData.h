@@ -123,3 +123,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Ability")
 	TArray<TSubclassOf<class UNovaGameplayAbility>> AbilityClasses;
 };
+
+/**
+ * FNovaPartAssetRow
+ * 부품의 에셋 정보 구조체 (로비 및 유닛 조립 전용)
+ * 비주얼 및 성능 데이터와 별개로, 실제 월드에 생성될 클래스 정보를 관리합니다.
+ */
+USTRUCT(BlueprintType)
+struct FNovaPartAssetRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+public:
+	/**
+	 * [핵심] 이 부품의 실제 Blueprint 클래스
+	 * 로비 매니저가 이 정보를 참조하여 프리뷰 액터를 스폰하며, 
+	 * 최종적으로 플레이어의 유닛 덱(Deck) 데이터에 저장될 때 사용됩니다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Asset")
+	TSubclassOf<class ANovaPart> PartClass;
+
+	// 명칭, 설명, 아이콘 등의 UI 데이터는 유저님의 설계 의도에 따라 
+	// SpecRow 또는 별도의 UI 전용 테이블에서 처리하므로 여기서는 제외합니다. (필요시 이후 추가가능)
+};
