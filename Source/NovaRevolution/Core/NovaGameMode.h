@@ -48,6 +48,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TSubclassOf<ANovaBase> BaseClass;
 
+	// 자동 스폰할 AI 컨트롤러 클래스 (BP_NovaAIPlayerController 할당)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
+	TSubclassOf<class ANovaAIPlayerController> AIControllerClass;
+
+	// 게임 시작 시 AI 컨트롤러를 자동 스폰할지 여부
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
+	bool bAutoSpawnAI = true;
+
 	/** 데이터가 없는 경우 사용할 기본 프리셋 덱 에셋 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TObjectPtr<class UNovaDeckPreset> DefaultDeckPreset;

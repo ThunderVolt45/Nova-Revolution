@@ -21,9 +21,13 @@
 #include "NavModifierComponent.h"
 #include "NovaNavArea_Unit.h"
 #include "AI/Navigation/NavigationDataResolution.h"
+#include "GameFramework/GameStateBase.h"
 // #include "Commandlets/GatherTextFromAssetsCommandlet.h"
+
 #include "NavigationSystem.h"
+#include "NovaMapManager.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Kismet/GameplayStatics.h"
 #include "NavAreas/NavArea_Default.h"
 #include "UI/NovaHealthBarComponent.h"
 #include "UI/NovaSelectionComponent.h"
@@ -183,6 +187,13 @@ void ANovaUnit::BeginPlay()
 
 	// 초기 체력바 상태 설정
 	UpdateHealthBar();
+
+	// MapManager에 등록
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->RegisterActor(this);
+	}
 
 	// --- 랠리 포인트 이동 로직 추가 ---
 	// 초기 랠리 포인트가 설정되어 있다면 해당 위치로 이동 명령을 내립니다.
@@ -711,7 +722,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 		if (Spec.PartType == ENovaPartType::Legs) ApplyLegsSpec(Spec);
 		else if (Spec.PartType == ENovaPartType::Weapon) TargetType = Spec.TargetType;
 	}
-	
+
 	// 주요 스탯들의 최소치 이하로 내려가지 않도록 보정
 	if (TotalHealth < 1.f) TotalHealth = 1.0f;
 	if (TotalAttack < 0.f) TotalAttack = 0.0f;
@@ -731,6 +742,23 @@ void ANovaUnit::InitializeAttributesFromParts()
 	AttributeSet->InitRange(TotalRange);
 	AttributeSet->InitMinRange(TotalMinRange);
 	AttributeSet->InitSplashRange(TotalSplashRange);
+
+	// ★ 버그 수정: 오브젝트 풀링 시 기존 시스템에 남아있는 Aggregator 값까지 완전히 갱신 처리
+	// ASC가 유효하다면 SetNumericAttributeBase를 호출하여 정상적으로 값이 동기화되게 합니다.
+	if (AbilitySystemComponent)
+	{
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetWattAttribute(), TotalWatt);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetMaxHealthAttribute(), TotalHealth);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetHealthAttribute(), TotalHealth);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetAttackAttribute(), TotalAttack);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetDefenseAttribute(), TotalDefense);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSpeedAttribute(), TotalSpeed);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetFireRateAttribute(), TotalFireRate);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSightAttribute(), TotalSight);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetRangeAttribute(), TotalRange);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetMinRangeAttribute(), TotalMinRange);
+		AbilitySystemComponent->SetNumericAttributeBase(UNovaAttributeSet::GetSplashRangeAttribute(), TotalSplashRange);
+	}
 
 	// 이동 속도 및 AI 설정 반영
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
@@ -956,6 +984,13 @@ void ANovaUnit::Die()
 		HealthBarComponent->Deactivate();
 	}
 
+	// MapManager에 등록 해제
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->UnregisterActor(this);
+	}
+
 	// 일정 시간 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
 	FTimerHandle ReturnToPoolTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
@@ -1033,23 +1068,23 @@ void ANovaUnit::ReturnResourcesOnDeath() const
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator)
+	if (AGameStateBase* GameState = World->GetGameState())
 	{
-		APlayerController* PC = Iterator->Get();
-		if (!PC) continue;
-
-		ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>();
-		if (!PS) continue;
-
-		// INovaTeamInterface를 통해 팀 ID를 확인합니다.
-		INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
-		if (!TeamInterface || TeamInterface->GetTeamID() != TeamID) continue;
-
-		if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+		for (APlayerState* PlayerStateObj : GameState->PlayerArray)
 		{
-			ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
-			// NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
-			return; // 해당 팀의 자원을 업데이트했으므로 중단
+			ANovaPlayerState* PS = Cast<ANovaPlayerState>(PlayerStateObj);
+			if (!PS) continue;
+
+			// INovaTeamInterface를 통해 팀 ID를 확인합니다.
+			INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS);
+			if (!TeamInterface || TeamInterface->GetTeamID() != TeamID) continue;
+
+			if (UNovaResourceComponent* ResourceComp = PS->FindComponentByClass<UNovaResourceComponent>())
+			{
+				ResourceComp->UpdatePopulation(-1.0f, -UnitWatt);
+				// NOVA_LOG(Log, "Unit %s (Watt: %.f) died. Resources returned to team %d", *GetName(), UnitWatt, TeamID);
+				return; // 해당 팀의 자원을 업데이트했으므로 중단
+			}
 		}
 	}
 }
@@ -1419,13 +1454,7 @@ void ANovaUnit::OnSelected()
 {
 	bIsSelected = true;
 
-	// 선택되면 카메라 켜기
-	if (PortraitCapture)
-	{
-		PortraitCapture->bCaptureEveryFrame = true;
-	}
-
-	// 가시성 제어를 Component가 수행
+	// 선택 가시성 제어를 Component가 수행
 	if (SelectionComponent)
 	{
 		SelectionComponent->SetSelectionVisible(true);
@@ -1569,6 +1598,14 @@ void ANovaUnit::SetFogVisibility(bool bVisible)
 
 	// 시각적 처리
 	SetActorHiddenInGame(!bVisible);
+
+	// 부품 시각적 처리
+	if (CurrentLegsPart) CurrentLegsPart->SetActorHiddenInGame(!bVisible);
+	if (CurrentBodyPart) CurrentBodyPart->SetActorHiddenInGame(!bVisible);
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
+	{
+		if (WeaponPart) WeaponPart->SetActorHiddenInGame(!bVisible);
+	}
 
 	// 마우스 클릭(Visibility)만 선택적으로 무시
 	if (GetCapsuleComponent())
@@ -1745,6 +1782,13 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	bIsSmokeActive = false;
 	bIsFireActive = false;
 
+	// MapManager에 등록
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->RegisterActor(this);
+	}
+
 	// 8. 랠리 포인트 이동
 	if (!InitialRallyLocation.IsNearlyZero())
 	{
@@ -1789,6 +1833,12 @@ void ANovaUnit::OnReturnToPool_Implementation()
 	{
 		HealthBarComponent->SetVisibility(false);
 	}
+	// MapManager에 등록 해제
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->UnregisterActor(this);
+	}
 
 	// 다음 사용 시 SetFogVisibility가 정상 작동하도록 초기값(true)으로 리셋
 	bIsVisibleByFog = true;
@@ -1812,6 +1862,33 @@ void ANovaUnit::OnReturnToPool_Implementation()
 			if (WeaponPart) PoolSubsystem->ReturnToPool(WeaponPart);
 		}
 		CurrentWeaponParts.Empty();
+	}
+
+	// 6. GAS 상태 초기화 (풀에 들어갈 때 모든 수치/상태 리셋)
+	if (AbilitySystemComponent)
+	{
+		// 모든 활성 GameplayEffect 제거 (루프를 통해 확실하게 제거)
+		const FActiveGameplayEffectsContainer& ActiveGEs = AbilitySystemComponent->GetActiveGameplayEffects();
+		TArray<FActiveGameplayEffectHandle> AllHandles = ActiveGEs.GetAllActiveEffectHandles();
+		
+		for (const FActiveGameplayEffectHandle& Handle : AllHandles)
+		{
+			AbilitySystemComponent->RemoveActiveGameplayEffect(Handle);
+		}
+		
+		NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
+		
+		// 모든 어빌리티 및 큐 제거
+		AbilitySystemComponent->ClearAllAbilities();
+		AbilitySystemComponent->RemoveAllGameplayCues();
+
+		// 태그 초기화 (Loose Tag들 모두 제거)
+		FGameplayTagContainer AllTags;
+		AbilitySystemComponent->GetOwnedGameplayTags(AllTags);
+		if (!AllTags.IsEmpty())
+		{
+			AbilitySystemComponent->RemoveLooseGameplayTags(AllTags);
+		}
 	}
 
 	LegsPartClass = nullptr;

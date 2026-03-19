@@ -9,6 +9,7 @@
 #include "NovaPawn.h"
 #include "NovaRevolution.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "Core/NovaBase.h"
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaLog.h"
@@ -16,6 +17,7 @@
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
+#include "Core/NovaUnit.h"
 #include "Core/AI/NovaAIController.h"
 #include "GameFramework/HUD.h"
 #include "Kismet/GameplayStatics.h"
@@ -189,8 +191,9 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 					ASC->LocalInputConfirm();
 					return; // 기존의 드래그/선택 로직을 실행하지 않고 나갑니다.
 				}
+				
 				// 우클릭 -> Cancel
-				else if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
+				if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
 				{
 					NOVA_LOG(Warning, "Input_Command detected during Skill mode. Calling LocalInputCancel for PC: %s",
 					         *GetName());
@@ -362,8 +365,15 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			NOVA_SCREEN(Warning, "Pending Command Canceled.");
 		}
 		// 그렇지 않다면 스마트 명령 (이동 또는 공격)
+		// 선택 대상이 존재할 때
 		else if (SelectedUnits.Num() > 0)
 		{
+			// 로컬 플레이어의 팀 ID 가져오기 (적군 판별용)
+			int32 LocalTeamID = -1;
+			if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+			{
+				LocalTeamID = PS->GetTeamID();
+			}
 			FCommandData CmdData;
 			CmdData.CommandType = ECommandType::Move;
 			CmdData.TargetLocation = CursorHit.Location;
@@ -371,9 +381,20 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			AActor* HitActor = CursorHit.GetActor();
 			if (HitActor)
 			{
-				if (HitActor->GetClass()->ImplementsInterface(UNovaSelectableInterface::StaticClass()))
+				// 인터페이스 캐스팅
+				INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(HitActor);
+				INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(HitActor);
+				
+				// 대상이 선택 가능함
+				if (Selectable && Selectable->IsSelectable())
 				{
+					// 타겟 정보 전달
 					CmdData.TargetActor = HitActor;
+					// 적대적 타겟 선택 시 공격 명령 전달
+					if (TeamInterface && !TeamInterface->IsFriendly(LocalTeamID))
+					{
+						CmdData.CommandType = ECommandType::Attack;
+					}
 				}
 				else
 				{
@@ -836,6 +857,7 @@ void ANovaPlayerController::PerformBoxSelection()
 
 		// 선택 변경 알림
 		OnSelectionChanged.Broadcast(SelectedUnits);
+		UpdatePortraitCaptures();
 	}
 }
 
@@ -929,6 +951,7 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 
 	// 선택 변경 알림
 	OnSelectionChanged.Broadcast(SelectedUnits);
+	UpdatePortraitCaptures();
 }
 
 void ANovaPlayerController::ToggleHealthBar(FGameplayTag InputTag)
@@ -959,6 +982,7 @@ void ANovaPlayerController::ClearSelection()
 	}
 	SelectedUnits.Empty();
 	OnSelectionChanged.Broadcast(SelectedUnits);
+	UpdatePortraitCaptures();
 }
 
 // 생성된 유닛 자동 부대 편입
@@ -1002,6 +1026,7 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 			ControlGroups[i].Targets.Remove(SelectedTargets);
 		}
 	}
+	UpdatePortraitCaptures();
 }
 
 void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor)
@@ -1029,5 +1054,26 @@ void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, EComman
 		// 지면에서 약간 띄워서 스폰 (Z축 오프셋)
 		FVector SpawnLoc = Loc + FVector(0.f, 0.f, 10.f);
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), EffectToSpawn, SpawnLoc);
+	}
+}
+
+void ANovaPlayerController::UpdatePortraitCaptures()
+{
+	// 1. 선택된 유닛이 1마리일 때만 캡처를 켬
+	bool bShouldCapture = (SelectedUnits.Num() == 1);
+
+	for (TObjectPtr<AActor> Actor : SelectedUnits)
+	{
+		if (!Actor) continue;
+		
+		if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+		{
+			// 유닛의 캡처 컴포넌트를 직접 찾아 제어
+			if (USceneCaptureComponent2D* Capture = Unit->GetPortraitCapture())
+			{
+				Capture->bCaptureEveryFrame = bShouldCapture;
+			}
+		}
+		// 기지는 항상 단일 선택으로 별도로 조취하지 않음.
 	}
 }

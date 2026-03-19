@@ -129,6 +129,8 @@ public:
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
 
+	bool GetFogVisibility() const { return bIsVisibleByFog; }
+	
 	// UI에서 바인딩할 수 있도록 선언
 	UPROPERTY(BlueprintAssignable, Category="Nova|UI")
 	FOnBaseAttributeChanged OnBaseAttributeChanged;

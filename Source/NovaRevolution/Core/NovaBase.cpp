@@ -7,6 +7,7 @@
 #include "Core/NovaAssemblyTypes.h"
 #include "AbilitySystemComponent.h"
 #include "AttributeSet.h"
+#include "NovaMapManager.h"
 #include "GAS/NovaAttributeSet.h"
 #include "Core/Production/NovaUnitFactory.h"
 #include "NovaRevolution.h"
@@ -97,6 +98,13 @@ void ANovaBase::BeginPlay()
 		SelectionComponent->SetTeamColor(CachedUIColor);
 	}
 	UpdateHealthBar();
+
+	// MapManager에 등록
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->RegisterActor(this);
+	}
 
 	// 랠리 포인트 초기값 설정 (기지 앞쪽 500 유닛 지점 예시)
 	RallyPoint = GetActorLocation() + GetActorForwardVector() * 500.0f;
@@ -302,6 +310,13 @@ FNovaDeckInfo ANovaBase::GetProductionDeckInfo() const
 
 void ANovaBase::DestroyBase()
 {
+	// MapManager에 등록 해제
+	if (ANovaMapManager* MapManager = Cast<ANovaMapManager>(
+		UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass())))
+	{
+		MapManager->UnregisterActor(this);
+	}
+
 	// 기지 파괴 시 시각적/게임 로직 처리
 	UE_LOG(LogTemp, Error, TEXT("Base Destroyed: %s (TeamID: %d)"), *GetName(), TeamID);
 

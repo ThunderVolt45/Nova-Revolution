@@ -79,6 +79,9 @@ public:
 	//  INovaSkillInterface 구현: 슬롯 기반 사령관 스킬 실행
 	virtual void ActivateSkillSlot_Implementation(int32 SlotIndex) override;
 	
+	/** 전체 스킬 슬롯 태그 정보를 반환합니다. (AI Task 등에서 사용) */
+	const TArray<FGameplayTag>& GetSkillSlotTags() const { return SkillSlotTags; }
+
 	/** 플레이어의 메인 기지(Base)를 등록합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Base")
 	void SetPlayerBase(class ANovaBase* InBase);
