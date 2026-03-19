@@ -27,17 +27,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	FBlackboardKeySelector TargetActorKey;
 
-	/** 공격 시도 간격 (초) */
-	UPROPERTY(EditAnywhere, Category = "Nova|AI")
-	float AttackInterval = 1.0f;
-
 	/** 공격 시 발동할 어빌리티 태그 */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	FGameplayTag AbilityTag;
 
 private:
-	/** 마지막 공격 시간 */
-	float LastAttackTime = 0.0f;
 
 	/** 유닛의 공격 사거리를 가져옵니다. */
 	float GetAttackRange(class ANovaUnit* Unit) const;
