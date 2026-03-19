@@ -34,7 +34,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Nova|Lobby|UI")
 	void ShowPrevPart();
 	
-	//test
+	//플레이 전 에디터에서 변경사항 확인 가능
 	virtual void NativePreConstruct() override;
 	
 	/** 위젯이 처음 생성되거나 초기화될 때 기본으로 표시할 부품 카테고리 (에디터에서 설정 가능) */
@@ -45,30 +45,29 @@ protected:
 	/** 현재 인덱스의 데이터를 읽어와 이름과 표 위젯을 실시간으로 업데이트합니다. */
 	void UpdateDisplay();
 
-	// --- 데이터 테이블 (에디터 디테일 패널에서 할당) ---
+	// --- PartSpec 데이터 테이블 ---
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Data")
 	TObjectPtr<UDataTable> PartSpecTable;
 	
-	/** [추가] 부품 ID로 클래스(BP)를 찾기 위한 에셋 데이터 테이블 (FNovaPartAssetRow 사용) */
+	// --- 부품 ID로 클래스(BP)를 찾기 위한 PartAsset 데이터 테이블 ---
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Data")
 	TObjectPtr<UDataTable> PartAssetTable;
 
 	// --- [추가] 프리뷰 설정 ---
 	/** 맵에 배치된 PreviewActor 인스턴스 (실제 촬영을 담당) */
 	
-	/** [수정] 스포이드 대신, 레벨에 배치된 액터의 '태그' 이름을 넣습니다. (예: Preview_Legs) */
+	// 레벨에 배치된 액터의 '태그' 이름으로 파트별 PartPreviewActor 인스턴스 찾기
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Preview")
 	FName PreviewActorTag;
 	
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Preview")
 	TObjectPtr<ANovaPartPreviewActor> PreviewActor;
 
-	/** 이 위젯 전용 렌더 타겟 (이미지에 바인딩되어 실시간 화면을 출력) */
+	// 해당 위젯 전용 렌더 타겟 (이미지에 바인딩되어 실시간 화면을 출력)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Preview")
 	TObjectPtr<UTextureRenderTarget2D> PreviewRenderTarget;
 
 	// --- 에디터 WBP 위젯 바인딩 (이름 일치 필수) ---
-
 	/** 부품 공식 명칭 표시 (로드런너, 건봇 등) */
 	UPROPERTY(meta = (BindWidget))
 	class UTextBlock* Txt_PartName;

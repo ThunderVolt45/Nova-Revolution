@@ -52,6 +52,8 @@ void UNovaUnitPartProfileWidget::InitCategory(ENovaPartType Category)
     UpdateDisplay();
 }
 
+//버튼 Pressed 이벤트에 연결
+
 void UNovaUnitPartProfileWidget::ShowNextPart()
 {
     if (CategoryPartIDs.Num() == 0) return;
@@ -113,7 +115,7 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
             // PreviewActor 내부에서는 기존 부품을 제거하고 새 부품을 스폰하여 촬영을 시작합니다.
             PreviewActor->UpdatePreview(AssetRow->PartClass, PreviewRenderTarget);
             
-            // B. [추가] 렌더 타겟 영상을 위젯의 이미지 컨트롤에 투사
+            // 렌더 타겟 영상을 위젯의 이미지 컨트롤에 투사
             if (Img_PartPreview)
             {
                 // 렌더 타겟(UTextureRenderTarget2D)을 텍스처로서 브러시 이미지에 할당합니다.
@@ -130,7 +132,6 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
 void UNovaUnitPartProfileWidget::NativePreConstruct()
 {
     Super::NativePreConstruct();
-
     // 에디터 디자인 화면에서도 특정 카테고리(예: Legs)를 미리 불러와서
     // 데이터 테이블의 수치가 UI 표에 정상적으로 들어오는지 즉시 확인할 수 있습니다.
     if (!PartSpecTable) return;

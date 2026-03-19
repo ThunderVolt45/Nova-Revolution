@@ -17,6 +17,7 @@ ANovaPartPreviewActor::ANovaPartPreviewActor()
     CaptureComponent->SetupAttachment(PreviewRoot);
 
     // 카메라 위치 및 각도 설정 (Nova 1492의 쿼터뷰 감성 재현)
+    // BP에서 추가 수정이 있을 수 있습니다
     CaptureComponent->SetRelativeLocation(FVector(200.0f, 0.0f, 40.0f));
     //CaptureComponent->SetRelativeRotation(FRotator(-15.0f, 180.0f, 0.0f));
 
@@ -63,6 +64,23 @@ void ANovaPartPreviewActor::UpdatePreview(TSubclassOf<ANovaPart> PartClass, UTex
     if (CurrentPreviewPart)
     {
         CurrentPreviewPart->AttachToComponent(PreviewRoot, FAttachmentTransformRules::SnapToTargetIncludingScale);
+        
+        ENovaPartType PartType = CurrentPreviewPart->GetPartSpec().PartType;
+        float PreviewScale = 1.0f;
+        
+        if (PartType == ENovaPartType::Legs)
+        {
+            // 다리는 인게임 기본값이 0.25이므로, 프리뷰에서 시원하게 보이기 위해 8배(실질적 2.0배 수준)로 키웁니다.
+            PreviewScale = 8.0f; 
+        }
+        else if (PartType == ENovaPartType::Body || PartType == ENovaPartType::Weapon)
+        {
+            // 몸통과 무기는 기본이 1.0이므로 2배 정도만 키워도 디테일 확인이 충분합니다.
+            PreviewScale = 2.0f;
+        }
+        
+        // 최종 계산된 프리뷰 전용 스케일 적용
+        CurrentPreviewPart->SetActorScale3D(FVector(PreviewScale));
 
         // 4. 부품 교체 시점에 회전값을 초기화하여 정면부터 보여주기 시작
         CurrentPreviewPart->SetActorRelativeRotation(FRotator::ZeroRotator);
