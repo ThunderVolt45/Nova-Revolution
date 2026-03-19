@@ -136,7 +136,7 @@ public:
 	void SetEmergencyDefenseActive(bool bActive);
 	bool IsEmergencyDefenseActive() const { return bIsEmergencyDefenseActive; }
 
-	/** 현재 오프닝 페이즈인지, मै크로 루프 페이즈인지 확인합니다. */
+	/** 현재 오프닝 페이즈인지, 매크로 루프 페이즈인지 확인합니다. */
 	bool IsMacroLooping() const { return bIsMacroLooping; }
 
 	/** 현재 빌드 단계가 시작된 시간을 반환합니다. */

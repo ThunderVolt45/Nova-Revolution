@@ -6,6 +6,7 @@
 #include "NovaRevolution.h"
 #include "Abilities/GameplayAbilityTargetTypes.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "GAS/NovaGameplayTags.h"
 
 UBTTask_AIUseSkill::UBTTask_AIUseSkill()
 {
@@ -52,7 +53,34 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 
 	FGameplayTag SkillTag = SlotTags[SlotIndex];
 
-	// 3. 발동 전 자원 체크 (사전 검증)
+	// 3. 자원 레벨업 스킬의 경우 최대 레벨 체크 (이미 최대면 자동 성공 처리하여 빌드 오더 진행)
+	if (SkillTag.MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp))
+	{
+		bool bIsMaxLevel = false;
+		if (SkillTag.MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_Watt))
+		{
+			if (PS->GetWattLevel() >= 6.0f) bIsMaxLevel = true;
+		}
+		else if (SkillTag.MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_SP))
+		{
+			if (PS->GetSPLevel() >= 6.0f) bIsMaxLevel = true;
+		}
+
+		if (bIsMaxLevel)
+		{
+			NOVA_LOG(Log, "AI Task: Resource Level Up Skill [%s] skipped - Already at MAX level (6)", *SkillTag.ToString());
+			
+			// 블랙보드 키 초기화
+			OwnerComp.GetBlackboardComponent()->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, -1);
+			
+			// 이미 최대치라면 다음 빌드 스텝으로 고!
+			AIC->AdvanceBuildStep();
+
+			return EBTNodeResult::Succeeded;
+		}
+	}
+
+	// 4. 발동 전 자원 체크 (사전 검증)
 	const TArray<FGameplayAbilitySpec>& Specs = ASC->GetActivatableAbilities();
 	for (const FGameplayAbilitySpec& Spec : Specs)
 	{

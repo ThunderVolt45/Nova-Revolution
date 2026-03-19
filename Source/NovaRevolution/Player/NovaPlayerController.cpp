@@ -294,7 +294,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 					// 인터페이스 함수이므로 Execute_ 접두사를 사용하여 안전하게 호출합니다.
 					SkillInterface->Execute_ActivateSkillSlot(GetPlayerState<ANovaPlayerState>(), SlotIndex);
 
-					NOVA_SCREEN(Warning, "Request Commander Skill: Slot %d", SlotIndex + 1);
+					// NOVA_SCREEN(Warning, "Request Commander Skill: Slot %d", SlotIndex + 1);
 
 					// 스킬 실행 명령을 보냈으므로 일반 유닛 생산/명령 로직으로 넘어가지 않도록 리턴합니다.
 					return;
@@ -313,7 +313,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 
 				// 선택 및 카메라 포커스 로직 실행
 				HandleFocusAndSelection(TargetActors, SlotIndex);
-				NOVA_SCREEN(Warning, "Control Group %d Selected", SlotIndex + 1);
+				// NOVA_SCREEN(Warning, "Control Group %d Selected", SlotIndex + 1);
 			}
 			return;
 		}
@@ -444,7 +444,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		IssueCommandToSelectedUnits(CmdData);
 
 		// TODO: 나중에 UI 작업 (커서 모양 변경 등)
-		NOVA_SCREEN(Warning, "Command Executed: %d", (int32)ImmediateCmd);
+		// NOVA_SCREEN(Warning, "Command Executed: %d", (int32)ImmediateCmd);
 		// 다른 대기 중인 명령이 있었다면 취소
 		CancelPendingCommand();
 		// 명령 실행 후 즉시 return
@@ -627,8 +627,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 	}
 
 	// [확인용 로그] 어떤 태그가 들어오는지, 현재 몇 마리가 선택되어 있는지 출력
-	UE_LOG(LogTemp, Warning, TEXT("Tag Pressed: %s | 현재 선택된 유닛 수: %d"),
-	       *InputTag.ToString(), SelectedActors.Num());
+	// NOVA_LOG(Warning, "Tag Pressed: %s | 현재 선택된 유닛 수: %d", *InputTag.ToString(), SelectedActors.Num());
 }
 
 void ANovaPlayerController::Input_AbilityInputTagHeld(FGameplayTag InputTag)
