@@ -1835,6 +1835,9 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 
 void ANovaUnit::OnReturnToPool_Implementation()
 {
+	// [중요] 풀에 들어간 유닛은 논리적으로 사망(비활성화)한 것으로 간주하여 드래그/클릭 선택에 잡히지 않도록 강제합니다.
+	bIsDead = true;
+
 	// 1. 선택 해제
 	if (bIsSelected)
 	{
