@@ -191,7 +191,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 					ASC->LocalInputConfirm();
 					return; // 기존의 드래그/선택 로직을 실행하지 않고 나갑니다.
 				}
-				
+
 				// 우클릭 -> Cancel
 				if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
 				{
@@ -211,36 +211,6 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		ToggleHealthBar(InputTag);
 		return;
 	}
-
-	/*
-	// 명령 차단 로직 (아군 유닛이 아닐 때)
-	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Input"))))
-	{
-		// 선택 (Input.Select)이나 카메라 리셋(Input.Camera.Reset) 등 기본 조작은 제외
-		if (!InputTag.MatchesTag(NovaGameplayTags::Input_Select) &&
-			!InputTag.MatchesTag(NovaGameplayTags::Input_Camera_Reset))
-		{
-			int LocalTeamID = GetPlayerState<ANovaPlayerState>() ? GetPlayerState<ANovaPlayerState>()->GetTeamID() : -1;
-
-			bool bContainsNonMyUnit = false;
-			for (AActor* Unit : SelectedUnits)
-			{
-				INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(Unit);
-				if (!TeamInterface || TeamInterface->GetTeamID() != LocalTeamID)
-				{
-					bContainsNonMyUnit = true;
-					break;
-				}
-			}
-
-			// 적군이 하나라도 선택되어 있다면 모든 명령 단축키 (A, S, H...) 무시
-			if (bContainsNonMyUnit)
-			{
-				return;
-			}
-		}
-	}
-	*/
 
 	// 슬롯(Slot 1~0) 공통 처리
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Input.Slot"))))
@@ -386,7 +356,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				// 인터페이스 캐스팅
 				INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(HitActor);
 				INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(HitActor);
-				
+
 				// 대상이 선택 가능함
 				if (Selectable && Selectable->IsSelectable())
 				{
@@ -439,6 +409,29 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		}
 	}
 
+	// 명령 차단 로직 (아군 유닛이 아닐 때)
+	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Input"))))
+	{
+		int LocalTeamID = GetPlayerState<ANovaPlayerState>() ? GetPlayerState<ANovaPlayerState>()->GetTeamID() : -1;
+
+		bool bContainsNonMyUnit = false;
+		for (AActor* Unit : SelectedActors)
+		{
+			INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(Unit);
+			if (!TeamInterface || TeamInterface->GetTeamID() != LocalTeamID)
+			{
+				bContainsNonMyUnit = true;
+				break;
+			}
+		}
+
+		// 적군이 하나라도 선택되어 있다면 모든 명령 단축키 (A, S, H...) 무시
+		if (bContainsNonMyUnit)
+		{
+			return;
+		}
+	}
+	
 	// 누르는 즉시 실행되는 명령 : Stop(S), Hold(H), Halt(L)
 	ECommandType ImmediateCmd = ECommandType::None;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Stop)) ImmediateCmd = ECommandType::Stop;
@@ -890,7 +883,7 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 		{
 			CmdInterface->IssueCommand(CommandData);
 		}
-		
+
 		bIsMyTeam = true;
 	}
 	if (bIsMyTeam)
@@ -1066,7 +1059,7 @@ void ANovaPlayerController::UpdatePortraitCaptures()
 	for (TObjectPtr<AActor> Actor : SelectedActors)
 	{
 		if (!Actor) continue;
-		
+
 		if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
 		{
 			// 유닛의 캡처 컴포넌트를 직접 찾아 제어
