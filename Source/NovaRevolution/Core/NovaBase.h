@@ -40,7 +40,7 @@ public:
 	// --- INovaSelectableInterface ---
 	virtual void OnSelected() override;
 	virtual void OnDeselected() override;
-	virtual bool IsSelectable() const override { return true; }
+	virtual bool IsSelectable() const override;
 	virtual ENovaSelectableType GetSelectableType() const override { return ENovaSelectableType::Base; }
 
 	// --- INovaCommandInterface ---

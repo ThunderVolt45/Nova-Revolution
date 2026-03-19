@@ -226,6 +226,25 @@ void ANovaBase::OnDeselected()
 	}
 }
 
+bool ANovaBase::IsSelectable() const
+{
+	// 안개 속에 있으면 선택 불가
+	if (!bIsVisibleByFog) return false;
+	
+	// 로컬 플레이어 팀 확인
+	int32 LocalPlayerTeamID = -1;
+	if (auto* PC = GetWorld()->GetFirstPlayerController())
+	{
+		if (auto* PS = PC->GetPlayerState<ANovaPlayerState>())
+		{
+			LocalPlayerTeamID = PS->GetTeamID();
+		}
+	}
+	// 아군이면 항상 선택 가능, 적군이면 시야 내에 있을 때만 선택 가능
+	if (TeamID == LocalPlayerTeamID) return true;
+	return bIsVisibleByFog;
+}
+
 void ANovaBase::IssueCommand(const FCommandData& CommandData)
 {
 	// 기지에서의 '이동' 명령은 랠리 포인트 설정을 의미함
@@ -491,6 +510,8 @@ void ANovaBase::SetHighlightStatus(ENovaHighlightPriority Priority, bool bActive
 	case ENovaHighlightPriority::SkillRange:
 		bIsSkillHighlighted = bActive;
 		SkillHighlightColor = Color;
+		break;
+	default:
 		break;
 	}
 	UpdateHighlight();

@@ -212,6 +212,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		return;
 	}
 
+	/*
 	// 명령 차단 로직 (아군 유닛이 아닐 때)
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Input"))))
 	{
@@ -239,6 +240,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			}
 		}
 	}
+	*/
 
 	// 슬롯(Slot 1~0) 공통 처리
 	if (InputTag.MatchesTag(FGameplayTag::RequestGameplayTag(TEXT("Input.Slot"))))
@@ -265,7 +267,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				int32 LocalTeamID = GetPlayerState<ANovaPlayerState>()->GetTeamID();
 				bool bContainsNonMyUnit = false;
 
-				for (AActor* Unit : SelectedUnits)
+				for (AActor* Unit : SelectedActors)
 				{
 					INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(Unit);
 					if (!TeamInterface || TeamInterface->GetTeamID() != LocalTeamID)
@@ -276,7 +278,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				}
 
 				// 만약 내 유닛이 아닌 것이 섞여 있거나 선택된 유닛이 아예 없다면?
-				if (bContainsNonMyUnit || SelectedUnits.Num() == 0)
+				if (bContainsNonMyUnit || SelectedActors.Num() == 0)
 				{
 					// 기존 부대 지정을 날리지 않고 그냥 무시합니다.
 					NOVA_SCREEN(Error, "Control Group %d Assignment Failed: Contains non-friendly units.",
@@ -285,12 +287,12 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 				}
 
 				// 3. 순수하게 내 유닛들만 선택된 경우에만 부대 지정 수행
-				ControlGroups[SlotIndex].Targets = SelectedUnits;
+				ControlGroups[SlotIndex].Targets = SelectedActors;
 
 				// 유저가 직접 부대 지정 했다면 자동 편입 기능 false
 				ControlGroups[SlotIndex].bIsAutoAssignActive = false;
 
-				NOVA_SCREEN(Warning, "Control Group %d Assigned (%d units)", SlotIndex + 1, SelectedUnits.Num());
+				NOVA_SCREEN(Warning, "Control Group %d Assigned (%d units)", SlotIndex + 1, SelectedActors.Num());
 
 				return;
 			}
@@ -366,7 +368,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		}
 		// 그렇지 않다면 스마트 명령 (이동 또는 공격)
 		// 선택 대상이 존재할 때
-		else if (SelectedUnits.Num() > 0)
+		else if (SelectedActors.Num() > 0)
 		{
 			// 로컬 플레이어의 팀 ID 가져오기 (적군 판별용)
 			int32 LocalTeamID = -1;
@@ -442,7 +444,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Stop)) ImmediateCmd = ECommandType::Stop;
 	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Hold)) ImmediateCmd = ECommandType::Hold;
 	else if (InputTag.MatchesTag(NovaGameplayTags::Input_Halt)) ImmediateCmd = ECommandType::Halt;
-	if (ImmediateCmd != ECommandType::None && SelectedUnits.Num() > 0)
+	if (ImmediateCmd != ECommandType::None && SelectedActors.Num() > 0)
 	{
 		FCommandData CmdData;
 		CmdData.CommandType = ImmediateCmd;
@@ -499,7 +501,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Select))
 	{
 		// 대기 중인 명령이 있다면 수행
-		if (PendingCommandType != ECommandType::None && SelectedUnits.Num() > 0)
+		if (PendingCommandType != ECommandType::None && SelectedActors.Num() > 0)
 		{
 			FHitResult CursorHit;
 			GetCursorHitResult(CursorHit);
@@ -566,7 +568,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 			INovaSelectableInterface* NewSelectable = Cast<INovaSelectableInterface>(CursorHit.GetActor());
 
 			// 단일 선택 수행 (단순 클릭)
-			if (NewSelectable)
+			if (NewSelectable && NewSelectable->IsSelectable())
 			{
 				AActor* HitActor = CursorHit.GetActor();
 				int32 LocalTeamID = GetPlayerState<ANovaPlayerState>()->GetTeamID();
@@ -577,7 +579,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 
 				// 현재 이미 선택된 유닛들 중 내 유닛이 아닌 것이 있는지 확인
 				bool bAlreadyHasNonMyUnit = false;
-				for (AActor* Unit : SelectedUnits)
+				for (AActor* Unit : SelectedActors)
 				{
 					INovaTeamInterface* SelectedTeam = Cast<INovaTeamInterface>(Unit);
 					if (!SelectedTeam || SelectedTeam->GetTeamID() != LocalTeamID)
@@ -594,7 +596,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 					// 기존에 적군이 있었다면 적군을 지우고 내 유닛 '하나'만 선택되도록 처리
 					ClearSelection();
 					NewSelectable->OnSelected();
-					SelectedUnits.Add(HitActor);
+					SelectedActors.Add(HitActor);
 				}
 				else
 				{
@@ -602,17 +604,17 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 					if (bIsShiftDown)
 					{
 						// 이미 선택 되어 있다면
-						if (SelectedUnits.Contains(CursorHit.GetActor()))
+						if (SelectedActors.Contains(CursorHit.GetActor()))
 						{
 							// 선택 해제
 							NewSelectable->OnDeselected();
-							SelectedUnits.Remove(CursorHit.GetActor());
+							SelectedActors.Remove(CursorHit.GetActor());
 						}
 						else
 						{
 							// 추가
 							NewSelectable->OnSelected();
-							SelectedUnits.Add(CursorHit.GetActor());
+							SelectedActors.Add(CursorHit.GetActor());
 						}
 					}
 					// Shift가 눌려있지 않다면
@@ -620,12 +622,12 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 					{
 						ClearSelection();
 						NewSelectable->OnSelected();
-						SelectedUnits.Add(HitActor);
+						SelectedActors.Add(HitActor);
 					}
 				}
 
 				// 선택 변경 알림
-				OnSelectionChanged.Broadcast(SelectedUnits);
+				NotifySelectionChanged();
 			}
 		}
 		// TODO: 나중에 여기에 HUD->DragSelectUpdate(..., false) 호출을 추가합니다.
@@ -633,7 +635,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 
 	// [확인용 로그] 어떤 태그가 들어오는지, 현재 몇 마리가 선택되어 있는지 출력
 	UE_LOG(LogTemp, Warning, TEXT("Tag Pressed: %s | 현재 선택된 유닛 수: %d"),
-	       *InputTag.ToString(), SelectedUnits.Num());
+	       *InputTag.ToString(), SelectedActors.Num());
 }
 
 void ANovaPlayerController::Input_AbilityInputTagHeld(FGameplayTag InputTag)
@@ -647,7 +649,7 @@ void ANovaPlayerController::Input_AbilityInputTagHeld(FGameplayTag InputTag)
 		GetMousePosition(CurrentPosition.X, CurrentPosition.Y);
 
 		// 시작점과 현재점의 거리가 일정 이상(단위: 픽셀)이면 드래그로 간주
-		if (FVector2D::Distance(DragStartPos, CurrentPosition) > 1.f)
+		if (FVector2D::Distance(DragStartPos, CurrentPosition) > 4.f)
 		{
 			bIsDraggingBox = true;
 			if (ANovaHUD* NovaHUD = Cast<ANovaHUD>(GetHUD()))
@@ -807,7 +809,7 @@ void ANovaPlayerController::PerformBoxSelection()
 		{
 			// 현재 선택된 유닛들 중 내 팀이 아닌 것이 있는지 미리 확인
 			bool bAlreadyHasNonMyUnit = false;
-			for (AActor* Unit : SelectedUnits)
+			for (AActor* Unit : SelectedActors)
 			{
 				INovaTeamInterface* SelectedTeam = Cast<INovaTeamInterface>(Unit);
 				if (!SelectedTeam || SelectedTeam->GetTeamID() != LocalTeamID)
@@ -823,7 +825,7 @@ void ANovaPlayerController::PerformBoxSelection()
 				if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Unit))
 				{
 					Selectable->OnSelected();
-					SelectedUnits.AddUnique(Unit);
+					SelectedActors.AddUnique(Unit);
 				}
 			}
 		}
@@ -838,7 +840,7 @@ void ANovaPlayerController::PerformBoxSelection()
 				if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Base))
 				{
 					Selectable->OnSelected();
-					SelectedUnits.AddUnique(Base);
+					SelectedActors.AddUnique(Base);
 				}
 			}
 		}
@@ -851,13 +853,12 @@ void ANovaPlayerController::PerformBoxSelection()
 			if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(TargetEnemy))
 			{
 				Selectable->OnSelected();
-				SelectedUnits.Add(TargetEnemy);
+				SelectedActors.Add(TargetEnemy);
 			}
 		}
 
 		// 선택 변경 알림
-		OnSelectionChanged.Broadcast(SelectedUnits);
-		UpdatePortraitCaptures();
+		NotifySelectionChanged();
 	}
 }
 
@@ -866,15 +867,11 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 {
 	// 현재 로컬 플레이어의 팀 ID 가져오기
 	int32 LocalTeamID = GetPlayerState<ANovaPlayerState>() ? GetPlayerState<ANovaPlayerState>()->GetTeamID() : -1;
-
-	if (CommandData.CommandType == ECommandType::Move)
+	bool bIsMyTeam = false;
+	for (AActor* Actors : SelectedActors)
 	{
-		SpawnCommandVisualEffect(CommandData.TargetLocation, CommandData.CommandType, CommandData.TargetActor.Get());
-	}
-	for (AActor* Unit : SelectedUnits)
-	{
-		// 내 팀 유닛이 아니라면 명령 전송 무시
-		INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(Unit);
+		// 내 팀이 아니라면 명령 전송 무시
+		INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(Actors);
 		if (!TeamInterface || TeamInterface->GetTeamID() != LocalTeamID)
 		{
 			continue;
@@ -882,17 +879,24 @@ void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& Comm
 		// 자기 자신을 공격하는 명령이라면 명령을 전달하지 않음
 		if (CommandData.CommandType == ECommandType::Attack)
 		{
-			if (CommandData.TargetActor == Unit)
+			if (CommandData.TargetActor == Actors)
 			{
-				NOVA_SCREEN(Warning, "Self-attack command ignored for unit: %s", *Unit->GetName());
+				NOVA_SCREEN(Warning, "Self-attack command ignored for unit: %s", *Actors->GetName());
 				continue;
 			}
 		}
 
-		if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Unit))
+		if (INovaCommandInterface* CmdInterface = Cast<INovaCommandInterface>(Actors))
 		{
 			CmdInterface->IssueCommand(CommandData);
 		}
+		
+		bIsMyTeam = true;
+	}
+	if (bIsMyTeam)
+	{
+		// 명령이 전달이 됐다면 Effect 실행
+		SpawnCommandVisualEffect(CommandData.TargetLocation, CommandData.CommandType, CommandData.TargetActor.Get());
 	}
 }
 
@@ -924,7 +928,7 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 			if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Actor))
 			{
 				Selectable->OnSelected();
-				SelectedUnits.Add(Actor);
+				SelectedActors.Add(Actor);
 
 				AverageLocation += Actor->GetActorLocation();
 				ValidCount++;
@@ -950,8 +954,7 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 	LastFocusTime = CurrentTime;
 
 	// 선택 변경 알림
-	OnSelectionChanged.Broadcast(SelectedUnits);
-	UpdatePortraitCaptures();
+	NotifySelectionChanged();
 }
 
 void ANovaPlayerController::ToggleHealthBar(FGameplayTag InputTag)
@@ -973,16 +976,15 @@ void ANovaPlayerController::GetCursorHitResult(FHitResult& OutHitResult)
 
 void ANovaPlayerController::ClearSelection()
 {
-	for (AActor* Unit : SelectedUnits)
+	for (AActor* Unit : SelectedActors)
 	{
 		if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(Unit))
 		{
 			Selectable->OnDeselected();
 		}
 	}
-	SelectedUnits.Empty();
-	OnSelectionChanged.Broadcast(SelectedUnits);
-	UpdatePortraitCaptures();
+	SelectedActors.Empty();
+	NotifySelectionChanged();
 }
 
 // 생성된 유닛 자동 부대 편입
@@ -1005,17 +1007,17 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 	if (!SelectedTargets) return;
 
 	// 현재 선택된 유닛 리스트에서 해당 유닛을 찾아 제거
-	if (SelectedUnits.Contains(SelectedTargets))
+	if (SelectedActors.Contains(SelectedTargets))
 	{
 		if (INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(SelectedTargets))
 		{
 			// 선택 해제 실행
 			Selectable->OnDeselected();
 		}
-		SelectedUnits.Remove(SelectedTargets);
+		SelectedActors.Remove(SelectedTargets);
 
 		// 선택 변경 알림
-		OnSelectionChanged.Broadcast(SelectedUnits);
+		NotifySelectionChanged();
 	}
 
 	// 부대 지정(ControlGroups) 리스트에서도 제거
@@ -1026,7 +1028,6 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 			ControlGroups[i].Targets.Remove(SelectedTargets);
 		}
 	}
-	UpdatePortraitCaptures();
 }
 
 void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor)
@@ -1060,9 +1061,9 @@ void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, EComman
 void ANovaPlayerController::UpdatePortraitCaptures()
 {
 	// 1. 선택된 유닛이 1마리일 때만 캡처를 켬
-	bool bShouldCapture = (SelectedUnits.Num() == 1);
+	bool bShouldCapture = (SelectedActors.Num() == 1);
 
-	for (TObjectPtr<AActor> Actor : SelectedUnits)
+	for (TObjectPtr<AActor> Actor : SelectedActors)
 	{
 		if (!Actor) continue;
 		
@@ -1076,4 +1077,10 @@ void ANovaPlayerController::UpdatePortraitCaptures()
 		}
 		// 기지는 항상 단일 선택으로 별도로 조취하지 않음.
 	}
+}
+
+void ANovaPlayerController::NotifySelectionChanged()
+{
+	OnSelectionChanged.Broadcast(SelectedActors);
+	UpdatePortraitCaptures();
 }
