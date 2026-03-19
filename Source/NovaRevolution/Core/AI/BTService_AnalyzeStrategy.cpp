@@ -159,8 +159,9 @@ void UBTService_AnalyzeStrategy::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 		}
 		case ENovaAIBuildStepType::Wait:
 		{
-			// Wait의 TargetCount를 '와트 도달치'로 평가
-			if (PS->GetCurrentWatt() >= CurrentStep->TargetCount)
+			// Wait의 TargetCount를 '초 단위 대기 시간'으로 평가
+			float Elapsed = GetWorld()->GetTimeSeconds() - AIC->GetLastStepStartTime();
+			if (Elapsed >= (float)CurrentStep->TargetCount)
 			{
 				AIC->AdvanceBuildStep();
 			}

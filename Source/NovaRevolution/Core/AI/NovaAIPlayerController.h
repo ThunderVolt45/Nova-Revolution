@@ -139,6 +139,9 @@ public:
 	/** 현재 오프닝 페이즈인지, मै크로 루프 페이즈인지 확인합니다. */
 	bool IsMacroLooping() const { return bIsMacroLooping; }
 
+	/** 현재 빌드 단계가 시작된 시간을 반환합니다. */
+	float GetLastStepStartTime() const { return LastStepStartTime; }
+
 	/** 팀 내 모든 유닛을 찾아 명령을 전달합니다. */
 	void IssueCommandToAllUnits(const struct FCommandData& CommandData);
 
@@ -203,6 +206,10 @@ private:
 	/** 현재 진행 중인 빌드 스텝 인덱스 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
 	int32 CurrentBuildStepIndex = 0;
+
+	/** 현재 빌드 스텝이 시작된 게임 시간 (Seconds) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
+	float LastStepStartTime = 0.0f;
 
 	/** 현재 매크로 루프(2페이즈)에 돌입했는지 여부 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))

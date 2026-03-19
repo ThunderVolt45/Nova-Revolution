@@ -505,11 +505,11 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 	BodyPartClass = Data.BodyClass;
 	WeaponPartClass = Data.WeaponClass;
 
-	NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
-	         *UnitName,
-	         LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
-	         BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
-	         WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+	// NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
+	//          *UnitName,
+	//          LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
+	//          BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
+	//          WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
 }
 
 void ANovaUnit::SetTeamID(int32 InTeamID)
@@ -1164,7 +1164,7 @@ void ANovaUnit::OnSpeedChanged(const FOnAttributeChangeData& Data)
 			MoveComp->StopMovementImmediately();
 		}
 
-		NOVA_LOG(Log, "Unit %s Speed Changed: %.f", *GetName(), NewSpeed);
+		// NOVA_LOG(Log, "Unit %s Speed Changed: %.f", *GetName(), NewSpeed);
 	}
 }
 

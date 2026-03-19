@@ -43,6 +43,7 @@ void ANovaAIPlayerController::BeginPlay()
 	if (StrategyBTAsset)
 	{
 		RunBehaviorTree(StrategyBTAsset);
+		LastStepStartTime = GetWorld()->GetTimeSeconds();
 	}
 	else
 	{
@@ -109,7 +110,7 @@ void ANovaAIPlayerController::AdvanceBuildStep()
 	if (bIsEmergencyDefenseActive) return;
 
 	CurrentBuildStepIndex++;
-
+	LastStepStartTime = GetWorld()->GetTimeSeconds();
 	const TArray<FNovaAIBuildStep>& TargetArray = bIsMacroLooping ? SelectedBuildOrder.MacroLoopSteps : SelectedBuildOrder.OpeningSteps;
 
 	// 배열 끝 도달 시

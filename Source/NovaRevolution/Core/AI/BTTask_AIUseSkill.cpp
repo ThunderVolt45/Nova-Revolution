@@ -80,20 +80,15 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 	if (TriggerCount > 0)
 	{
 		NOVA_LOG(Log, "AI Task: Triggered skill slot [%d] with tag [%s]", SlotIndex, *SkillTag.ToString());
+		
+		// [과생산 방지] 스킬 발동 명령을 하달했으므로, 다음 서비스 틱에서 다시 추천하기 전까지 키를 초기화합니다.
+		OwnerComp.GetBlackboardComponent()->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, -1);
+		
 		return EBTNodeResult::Succeeded;
 	}
 
 	// 발동 실패 시 (자원 부족 등)
 	NOVA_LOG(Warning, "AI Task: Failed to trigger skill slot [%d] with tag [%s] (ASC HandleGameplayEvent returned 0)", SlotIndex, *SkillTag.ToString());
-
-	// 디버깅: 현재 부여된 모든 어빌리티 태그 출력
-	TArray<FGameplayAbilitySpec> Specs = ASC->GetActivatableAbilities();
-	FString AbilityList;
-	for (const FGameplayAbilitySpec& Spec : Specs)
-	{
-		AbilityList += FString::Printf(TEXT("[%s] "), *Spec.Ability->GetClass()->GetName());
-	}
-	NOVA_LOG(Log, "AI Task: Currently granted abilities on PS: %s", *AbilityList);
 
 	return EBTNodeResult::Failed;
 }
