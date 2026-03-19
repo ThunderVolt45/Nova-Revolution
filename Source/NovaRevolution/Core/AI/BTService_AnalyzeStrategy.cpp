@@ -1,6 +1,5 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
-#include "NovaRevolution.h"
 #include "Core/AI/BTService_AnalyzeStrategy.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/AI/NovaAIPlayerController.h"
@@ -12,6 +11,7 @@
 #include "Engine/OverlapResult.h"
 #include "Kismet/GameplayStatics.h"
 #include "GAS/NovaAttributeSet.h"
+#include "NovaRevolution.h"
 
 UBTService_AnalyzeStrategy::UBTService_AnalyzeStrategy()
 {
