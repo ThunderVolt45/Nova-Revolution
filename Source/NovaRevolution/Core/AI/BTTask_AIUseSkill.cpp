@@ -6,6 +6,7 @@
 #include "NovaRevolution.h"
 #include "Abilities/GameplayAbilityTargetTypes.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "GAS/NovaGameplayTags.h"
 
 UBTTask_AIUseSkill::UBTTask_AIUseSkill()
 {
@@ -15,6 +16,8 @@ UBTTask_AIUseSkill::UBTTask_AIUseSkill()
 	SkillTargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UBTTask_AIUseSkill, SkillTargetActorKey), AActor::StaticClass());
 	SkillTargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UBTTask_AIUseSkill, SkillTargetLocationKey));
 }
+
+#include "GAS/Abilities/Skill/NovaSkillAbility.h"
 
 EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
@@ -32,7 +35,11 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 
 	// 1. 블랙보드에서 추천 슬롯 번호 가져오기
 	int32 SlotIndex = BB->GetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName);
-	if (SlotIndex == -1) return EBTNodeResult::Succeeded;
+	if (SlotIndex == -1)
+	{
+		NOVA_LOG(Log, "AI Task: No skill recommended (-1)");
+		return EBTNodeResult::Succeeded;
+	}
 
 	// 2. 사령관 스킬 태그 획득
 	// PlayerState에는 각 슬롯별로 할당된 GameplayTag가 있음
@@ -46,7 +53,54 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 
 	FGameplayTag SkillTag = SlotTags[SlotIndex];
 
-	// 3. 타겟 데이터 구성
+	// 3. 자원 레벨업 스킬의 경우 최대 레벨 체크 (이미 최대면 자동 성공 처리하여 빌드 오더 진행)
+	if (SkillTag.MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp))
+	{
+		bool bIsMaxLevel = false;
+		if (SkillTag.MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_Watt))
+		{
+			if (PS->GetWattLevel() >= 6.0f) bIsMaxLevel = true;
+		}
+		else if (SkillTag.MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_SP))
+		{
+			if (PS->GetSPLevel() >= 6.0f) bIsMaxLevel = true;
+		}
+
+		if (bIsMaxLevel)
+		{
+			NOVA_LOG(Log, "AI Task: Resource Level Up Skill [%s] skipped - Already at MAX level (6)", *SkillTag.ToString());
+			
+			// 블랙보드 키 초기화
+			OwnerComp.GetBlackboardComponent()->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, -1);
+			
+			// 이미 최대치라면 다음 빌드 스텝으로 고!
+			AIC->AdvanceBuildStep();
+
+			return EBTNodeResult::Succeeded;
+		}
+	}
+
+	// 4. 발동 전 자원 체크 (사전 검증)
+	const TArray<FGameplayAbilitySpec>& Specs = ASC->GetActivatableAbilities();
+	for (const FGameplayAbilitySpec& Spec : Specs)
+	{
+		// 해당 태그를 가진 어빌리티인지 확인
+		if (Spec.Ability && Spec.Ability->GetAssetTags().HasTag(SkillTag))
+		{
+			if (UNovaSkillAbility* SkillAbility = Cast<UNovaSkillAbility>(Spec.Ability))
+			{
+				// 해당 어빌리티의 요구 비용과 현재 PlayerState의 자원 비교
+				if (PS->GetCurrentWatt() < SkillAbility->GetWattCost() || PS->GetCurrentSP() < SkillAbility->GetSPCost())
+				{
+					NOVA_LOG(Warning, "AI Task: Failed to trigger skill [%s] - Insufficient resources (Watt: %.f/%.f, SP: %.f/%.f)", 
+						*SkillTag.ToString(), PS->GetCurrentWatt(), SkillAbility->GetWattCost(), PS->GetCurrentSP(), SkillAbility->GetSPCost());
+					return EBTNodeResult::Failed;
+				}
+			}
+		}
+	}
+
+	// 4. 타겟 데이터 구성
 	AActor* TargetActor = Cast<AActor>(BB->GetValueAsObject(SkillTargetActorKey.SelectedKeyName));
 	FVector TargetLocation = BB->GetValueAsVector(SkillTargetLocationKey.SelectedKeyName);
 
@@ -70,15 +124,24 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 		EventData.TargetData.Add(LocationData);
 	}
 
-	// 4. GameplayEvent를 통해 사령관 스킬 트리거 (타겟 정보 포함)
+	// 5. GameplayEvent를 통해 사령관 스킬 트리거 (타겟 정보 포함)
 	int32 TriggerCount = ASC->HandleGameplayEvent(SkillTag, &EventData);
 
 	if (TriggerCount > 0)
 	{
 		NOVA_LOG(Log, "AI Task: Triggered skill slot [%d] with tag [%s]", SlotIndex, *SkillTag.ToString());
+		
+		// [과생산 방지] 스킬 발동 명령을 하달했으므로, 다음 서비스 틱에서 다시 추천하기 전까지 키를 초기화합니다.
+		OwnerComp.GetBlackboardComponent()->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, -1);
+		
+		// [조건부 전진] 스킬이 실제로 성공적으로 트리거되었을 때만 다음 빌드 스텝으로 진행합니다.
+		AIC->AdvanceBuildStep();
+
 		return EBTNodeResult::Succeeded;
 	}
 
 	// 발동 실패 시 (자원 부족 등)
+	NOVA_LOG(Warning, "AI Task: Failed to trigger skill slot [%d] with tag [%s] (ASC HandleGameplayEvent returned 0)", SlotIndex, *SkillTag.ToString());
+
 	return EBTNodeResult::Failed;
 }

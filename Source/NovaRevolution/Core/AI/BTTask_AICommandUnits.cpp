@@ -21,17 +21,14 @@ EBTNodeResult::Type UBTTask_AICommandUnits::ExecuteTask(UBehaviorTreeComponent& 
 	if (!BB) return EBTNodeResult::Failed;
 
 	// 1. 명령 데이터 패키징 (무조건 위치 기반 이동을 위해 TargetActor는 nullptr로 고정)
-	FCommandData CommandData{};
+	FCommandData CommandData;
 	CommandData.CommandType = CommandType;
 	CommandData.TargetActor = nullptr;
-	
-	if (TargetLocationKey.IsSet())
-	{
-		CommandData.TargetLocation = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
-	}
+	CommandData.TargetLocation = BB->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 
-	// 2. AI 플레이어를 통해 전 부대에 명령 하달
-	AIC->IssueCommandToAllUnits(CommandData);
+	// 2. AI 플레이어가 모아둔(Gathering) 웨이브만 목표 지점으로 일제 발진(Attacking) 시킵니다.
+	NOVA_LOG(Log, "AI Task: Launching gathering waves to %s", *CommandData.TargetLocation.ToString());
+	AIC->LaunchGatheringWaves(CommandData);
 
 	return EBTNodeResult::Succeeded;
 }

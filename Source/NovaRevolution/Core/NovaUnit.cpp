@@ -10,6 +10,7 @@
 #include "NovaPlayerState.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/AI/NovaAIController.h"
+#include "Core/AI/NovaAIPlayerController.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GAS/NovaAttributeSet.h"
@@ -504,11 +505,29 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 	BodyPartClass = Data.BodyClass;
 	WeaponPartClass = Data.WeaponClass;
 
-	NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
-	         *UnitName,
-	         LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
-	         BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
-	         WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+	// NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
+	//          *UnitName,
+	//          LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
+	//          BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
+	//          WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+}
+
+void ANovaUnit::SetTeamID(int32 InTeamID)
+{
+	TeamID = InTeamID;
+
+	// 소속 팀의 AI 사령관이 있다면 현재 웨이브(방어/소집)에 자신을 편입시킵니다.
+	for (FConstControllerIterator Iterator = GetWorld()->GetControllerIterator(); Iterator; ++Iterator)
+	{
+		if (ANovaAIPlayerController* AIC = Cast<ANovaAIPlayerController>(Iterator->Get()))
+		{
+			if (AIC->GetTeamID() == TeamID)
+			{
+				AIC->AddUnitToCurrentWave(this);
+				break;
+			}
+		}
+	}
 }
 
 void ANovaUnit::ConstructUnitParts()
@@ -813,7 +832,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	else
 	{
 		MoveComp->SetMovementMode(MOVE_Walking);
-		MoveComp->bConstrainToPlane = true;
+		MoveComp->bConstrainToPlane = false; // 지상 유닛은 경사로를 타야 하므로 평면 제약 해제
 		MoveComp->MaxAcceleration = TotalSpeed * 10.0f;
 		MoveComp->BrakingDecelerationWalking = TotalSpeed * 10.0f;
 	}
@@ -1145,7 +1164,7 @@ void ANovaUnit::OnSpeedChanged(const FOnAttributeChangeData& Data)
 			MoveComp->StopMovementImmediately();
 		}
 
-		NOVA_LOG(Log, "Unit %s Speed Changed: %.f", *GetName(), NewSpeed);
+		// NOVA_LOG(Log, "Unit %s Speed Changed: %.f", *GetName(), NewSpeed);
 	}
 }
 
@@ -1762,9 +1781,21 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		// 지상 유닛인 경우 즉시 바닥으로 스냅되도록 유도 (공중 유닛이었을 경우 대비)
 		if (MovementType == ENovaMovementType::Ground)
 		{
-			MoveComp->bConstrainToPlane = true;
-			// 현재 스폰 위치(Z)를 기준으로 평면 제약 설정
-			MoveComp->SetPlaneConstraintOrigin(GetActorLocation());
+			MoveComp->bConstrainToPlane = false; // [수정] 경사로 진입을 위해 제약 해제
+			
+			// 현재 위치를 내비메시 바닥으로 강제 스냅하여 "살짝 뜨는" 현상 방지
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			UCapsuleComponent* Capsule = GetCapsuleComponent();
+			if (NavSys && Capsule)
+			{
+				FNavLocation ProjectedLoc;
+				if (NavSys->ProjectPointToNavigation(GetActorLocation(), ProjectedLoc, FVector(100.f, 100.f, 500.f)))
+				{
+					FVector NewLoc = ProjectedLoc.Location;
+					NewLoc.Z += Capsule->GetScaledCapsuleHalfHeight();
+					SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+				}
+			}
 		}
 	}
 
@@ -1913,7 +1944,7 @@ void ANovaUnit::OnReturnToPool_Implementation()
 			AbilitySystemComponent->RemoveActiveGameplayEffect(Handle);
 		}
 		
-		NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
+		// NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
 		
 		// 모든 어빌리티 및 큐 제거
 		AbilitySystemComponent->ClearAllAbilities();

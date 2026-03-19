@@ -60,7 +60,7 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 	// 5. 덱 슬롯 유효성 검사
 	if (!CurrentDeck.Units.IsValidIndex(SlotIndex))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Factory: Invalid Deck Slot %d for Team %d"), SlotIndex, TargetTeamID);
+		NOVA_LOG(Warning, "Factory: Invalid Deck Slot %d for Team %d", SlotIndex, TargetTeamID);
 		return false;
 	}
 
@@ -71,8 +71,7 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 	float ProductionCost = CalculateTotalWattCost(TargetData);
 	if (!CheckAndConsumeResources(PS, ProductionCost))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Factory: Insufficient Resources (Cost: %.f) for Team %d"), ProductionCost,
-		       TargetTeamID);
+		// NOVA_LOG(Warning, "Factory: Insufficient Resources (Cost: %.f) for Team %d", ProductionCost, TargetTeamID);
 		return false;
 	}
 
@@ -80,6 +79,7 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 	FTransform SpawnTransform = Spawner->GetActorTransform();
 	FVector SpawnLocation = SpawnTransform.GetLocation() + Spawner->GetActorForwardVector() * 350.f;
 	SpawnTransform.SetLocation(SpawnLocation);
+	
 	// 유닛의 크기가 기지(Spawner)의 스케일을 따라가지 않도록 (1, 1, 1)로 초기화
 	SpawnTransform.SetScale3D(FVector::OneVector);
 
@@ -88,9 +88,10 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 
 	if (NewUnit)
 	{
-		UE_LOG(LogTemp, Log, TEXT("Factory: Unit '%s' (Cost: %.f) successfully spawned for Team %d."),
+		NOVA_LOG(Log, "Factory: Unit '%s' (Cost: %.f) successfully spawned for Team %d.",
 		       *TargetData.UnitName, ProductionCost, TargetTeamID);
-		// 추가 : 생성된 유닛 즉시 부대 지정 편입
+		
+		// 생성된 유닛 즉시 부대 지정 편입
 		if (PS)
 		{
 			if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(PS->GetPlayerController()))
@@ -98,7 +99,7 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 				PC->OnUnitProduced(NewUnit, SlotIndex);
 			}
 		}
-		// --- End ---
+		
 		return true;
 	}
 
@@ -215,10 +216,9 @@ bool UNovaUnitFactory::CheckAndConsumeResources(class ANovaPlayerState* PS, floa
 
 		return true;
 	}
-	else
-	{
-		NOVA_LOG(Warning, "CheckAndConsumeResources failed: Afford(%d), Spawn(%d). CurrentWatt: %.1f", 
-			bCanAfford, bCanSpawn, PS->GetCurrentWatt());
-		return false;
-	}
+	
+	// NOVA_LOG(Warning, "CheckAndConsumeResources failed: Afford(%d), Spawn(%d). CurrentWatt: %.1f", 
+	// 	bCanAfford, bCanSpawn, PS->GetCurrentWatt());
+	
+	return false;
 }

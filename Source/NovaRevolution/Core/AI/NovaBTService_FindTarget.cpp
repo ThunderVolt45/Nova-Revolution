@@ -205,8 +205,8 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	// 5. 블랙보드 업데이트
 	OwnerComp.GetBlackboardComponent()->SetValueAsObject(TargetActorKey.SelectedKeyName, BestTarget);
 	
-	if (BestTarget)
-	{
-		NOVA_LOG(Log, "Unit %s found target: %s (Score: %.1f)", *MyUnit->GetName(), *BestTarget->GetName(), MaxScore);
-	}
+	// if (BestTarget)
+	// {
+	// 	NOVA_LOG(Log, "Unit %s found target: %s (Score: %.1f)", *MyUnit->GetName(), *BestTarget->GetName(), MaxScore);
+	// }
 }
