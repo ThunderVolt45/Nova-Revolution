@@ -62,7 +62,7 @@ protected:
 
 	/** 위협 감지 거리 (긴급 방어용) */
 	UPROPERTY(EditAnywhere, Category = "AI|Threshold")
-	float ThreatDetectionRadius = 4000.0f;
+	float ThreatDetectionRadius = 1200.0f;
 
 private:
 	/** 특정 슬롯 번호의 아군 유닛 수를 셉니다. */

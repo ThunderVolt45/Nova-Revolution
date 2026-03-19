@@ -87,7 +87,7 @@ void UBTService_AnalyzeStrategy::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 	BB->SetValueAsBool(bShouldAttackKey.SelectedKeyName, false);
 
 	// 1. 위협 감지 (Threat Assessment)
-	bool bEnemyNearBase = false;
+	float TotalEnemyWattNearBase = 0.0f;
 	TArray<FOverlapResult> Overlaps;
 	GetWorld()->OverlapMultiByChannel(Overlaps, MyBase->GetActorLocation(), FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(ThreatDetectionRadius));
 	
@@ -96,21 +96,45 @@ void UBTService_AnalyzeStrategy::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 		ANovaUnit* U = Cast<ANovaUnit>(Overlap.GetActor());
 		if (U && U->GetTeamID() != PS->GetTeamID() && !U->IsDead())
 		{
-			bEnemyNearBase = true;
-			break;
+			if (UAbilitySystemComponent* TargetASC = U->GetAbilitySystemComponent())
+			{
+				TotalEnemyWattNearBase += TargetASC->GetNumericAttribute(UNovaAttributeSet::GetWattAttribute());
+			}
 		}
 	}
 
-	AIC->SetEmergencyDefenseActive(bEnemyNearBase);
+	// [강화] 단순히 근처에 적이 있는지가 아니라, 적의 전력이 아군 전체 전력보다 1000 이상 높을 때만 긴급 방어 트리거
+	float MyTotalUnitWatt = PS->GetTotalUnitWatt();
+	bool bIsEmergency = (TotalEnemyWattNearBase > MyTotalUnitWatt + 1000.0f);
+
+	bool bOldEmergency = AIC->IsEmergencyDefenseActive();
+	AIC->SetEmergencyDefenseActive(bIsEmergency);
 
 	// 2. 긴급 방어 수행
 	if (AIC->IsEmergencyDefenseActive())
 	{
+		// [강화] 긴급 방어 기간 동안 오버워크 스킬 지속 추천 (태스크가 자원/쿨다운 판단 후 발동)
+		BB->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, OverworkSkillSlot);
+
+		// [강화] 긴급 방어 최초 진입 시 1회성 즉각 조치
+		if (!bOldEmergency)
+		{
+			// 모든 아군 유닛을 자신의 기지 방향으로 공격 명령 (회항)
+			FCommandData DefenseCmd;
+			DefenseCmd.CommandType = ECommandType::Attack; // 공격 이동
+			DefenseCmd.TargetLocation = MyBase->GetActorLocation();
+			DefenseCmd.TargetActor = nullptr;
+			
+			AIC->IssueCommandToAllUnits(DefenseCmd);
+			
+			NOVA_LOG(Warning, "AI Strategy: EMERGENCY detected! Triggered Retreat Attack and suggesting Overwork.");
+		}
+
 		int32 DefenseSlot = AnalyzeDynamicCounter(AIC, PS, true);
 		BB->SetValueAsInt(RecommendedUnitSlotKey.SelectedKeyName, DefenseSlot);
-		// 방어 중이므로 진군/한타 공격 취소
+		
+		// 방어 중이므로 빌드 오더에 의한 진군/한타 공격 취소
 		BB->SetValueAsBool(bShouldAttackKey.SelectedKeyName, false);
-		return;
 	}
 
 	// 3. 자율 스킬 체계 (기지 방어, 리싸이클 등 예외 상황 처리)
@@ -199,6 +223,7 @@ int32 UBTService_AnalyzeStrategy::AnalyzeDynamicCounter(ANovaAIPlayerController*
 
 	bool bEnemyHasAir = false;
 	float MaxEnemyDefense = 0.0f;
+	float MaxEnemyAttack = 0.0f;
 	ENovaMovementType ToughestType = ENovaMovementType::Ground;
 
 	for (AActor* Actor : AllUnits)
@@ -218,6 +243,12 @@ int32 UBTService_AnalyzeStrategy::AnalyzeDynamicCounter(ANovaAIPlayerController*
 			{
 				MaxEnemyDefense = Def;
 				ToughestType = Unit->GetMovementType();
+			}
+
+			float Atk = AS->GetAttack();
+			if (Atk > MaxEnemyAttack)
+			{
+				MaxEnemyAttack = Atk;
 			}
 		}
 	}
@@ -243,36 +274,41 @@ int32 UBTService_AnalyzeStrategy::AnalyzeDynamicCounter(ANovaAIPlayerController*
 			}
 		}
 
-		// 가중치 B: 가장 단단한 적으로부터 공격 가능 여부 판별 (카운터 화력 보정)
+		// 가중치 B: 가장 단단한 적 유닛을 공격할 수 있는지 여부 판별 (카운터 화력 보정)
 		bool bCanHitToughest = (ToughestType == ENovaMovementType::Air) ?
 			(SlotStats.TargetType == ENovaTargetType::AirOnly || SlotStats.TargetType == ENovaTargetType::All) :
 			(SlotStats.TargetType == ENovaTargetType::GroundOnly || SlotStats.TargetType == ENovaTargetType::All);
-
+		
 		if (bCanHitToughest)
 		{
 			SlotScores[i] += 100.f;
 		}
-		// 가중치 C: 가장 단단한 적 (방어력 상성)
+		
+		// 가중치 C: 가장 단단한 적 유닛에 실제로 데미지를 입힐 수 있는 지 여부 판별 (방어 관통 성능)
 		if (MaxEnemyDefense > 0.0f)
 		{
-			// 아군 공격력이 적 방어력보다 높을수록 가점 (최대 50점)
-			float AttackAdvantage = SlotStats.Attack - MaxEnemyDefense;
-			if (AttackAdvantage > 0)
+			if (SlotStats.Attack >= MaxEnemyDefense)
 			{
-				SlotScores[i] += FMath::Min(AttackAdvantage * 2.5f, 50.0f);
+				SlotScores[i] += 100.f; 
 			}
-			else
+			else if (SlotStats.Attack < MaxEnemyDefense * 0.5f)
 			{
-				// 공격력이 방어력보다 낮으면 뽑지 않는다 (방어력을 뚫지 못함)
-				SlotScores[i] -= 10000.f;
+				SlotScores[i] -= 1000.f; // 피해를 입히지 못하는 유닛은 쓸모가 없으므로 뽑으면 안됨 (데미지 0)
 			}
+		}
+
+		// [추가] 가중치 D: 적 유닛 중 가장 높은 공격력을 갖는 유닛의 카운터 여부 판별 (탱킹 성능)
+		if (MaxEnemyAttack > 0.0f && SlotStats.Defense >= MaxEnemyAttack)
+		{
+			// 적의 어떤 공격도 거의 통하지 않는 유닛에 큰 가중치
+			SlotScores[i] += 150.f;
 		}
 
 		// 매크로 루프 모드 카운터 믹싱일 때, 원래 지정된 선호 유닛에 높은 기본 점수 부여
 		if (!bIsEmergency && DefaultSlot != -1 && i == DefaultSlot)
 		{
 			// 선호 유닛은 +150점 보정. 단 대공(Air)이나 극단적 방어력 카운터 필요 시 스코어가 역전될 수 있음 
-			SlotScores[i] += 250.0f;
+			SlotScores[i] += 150.0f;
 		}
 	}
 
