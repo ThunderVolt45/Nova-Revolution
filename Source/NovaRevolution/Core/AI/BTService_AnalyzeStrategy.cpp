@@ -184,6 +184,7 @@ int32 UBTService_AnalyzeStrategy::CountUnitsOfSlot(ANovaPlayerState* PS, int32 S
 			Count++;
 		}
 	}
+	
 	return Count;
 }
 
@@ -234,7 +235,7 @@ int32 UBTService_AnalyzeStrategy::AnalyzeDynamicCounter(ANovaAIPlayerController*
 		CalculateUnitPerformance(AISlotInfo.Units[i], SlotStats);
 
 		// 기본: 자원(Watt) 대비 가성비 점수 (저렴할수록 점수 높음)
-		SlotScores[i] += FMath::Max(100.0f - (SlotStats.Watt * 0.1f), 10.0f);
+		SlotScores[i] += FMath::Max(1000.0f - SlotStats.Watt, 0.0f);
 
 		// 가중치 A: 적 공중 유닛 대응
 		if (bEnemyHasAir)
@@ -253,6 +254,21 @@ int32 UBTService_AnalyzeStrategy::AnalyzeDynamicCounter(ANovaAIPlayerController*
 		if (bCanHitToughest)
 		{
 			SlotScores[i] += 100.f;
+		}
+		// 가중치 C: 가장 단단한 적 (방어력 상성)
+		if (MaxEnemyDefense > 0.0f)
+		{
+			// 아군 공격력이 적 방어력보다 높을수록 가점 (최대 50점)
+			float AttackAdvantage = SlotStats.Attack - MaxEnemyDefense;
+			if (AttackAdvantage > 0)
+			{
+				SlotScores[i] += FMath::Min(AttackAdvantage * 2.5f, 50.0f);
+			}
+			else
+			{
+				// 공격력이 방어력보다 낮으면 뽑지 않는다 (방어력을 뚫지 못함)
+				SlotScores[i] -= 10000.f;
+			}
 		}
 
 		// 매크로 루프 모드 카운터 믹싱일 때, 원래 지정된 선호 유닛에 높은 기본 점수 부여
