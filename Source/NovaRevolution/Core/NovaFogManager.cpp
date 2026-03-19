@@ -179,6 +179,7 @@ void ANovaFogManager::UpdateFog()
 		// 모든 아군 시야 범위와 비교
 		for (const auto& Sight : FriendlySights)
 		{
+			// Z값을 무시하도록 수정
 			if (FVector::DistSquared2D(EnemyLoc, Sight.Location) < Sight.RadiusSq)
 			{
 				bIsVisible = true;

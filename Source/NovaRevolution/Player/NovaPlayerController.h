@@ -99,7 +99,7 @@ protected:
 
 	// 현재 마우스로 선택한 액터들을 담아두는 배열
 	UPROPERTY(BlueprintReadOnly, Category="Nova|Selection")
-	TArray<TObjectPtr<AActor>> SelectedUnits;
+	TArray<TObjectPtr<AActor>> SelectedActors;
 
 	// 부대 지정을 위한 구조체 배열 (TArray<TArray<>> 형태를 사용할 수 없어 구조체로 선언)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Selection")
@@ -179,7 +179,6 @@ public:
 	// 현재 체력바 표시 옵션 Getter(유닛/기지 초기화용)
 	UFUNCTION(BlueprintPure, Category = "Nova|UI")
 	bool GetShowHealthBars() const { return bShowHealthBars; }
-
 	
 	// 추가) GA에서 사용하기 위한 PendingCommandType Getter/Setter 함수
 	// 명령 대기 상태를 설정합니다. (GA에서 호출)
@@ -212,6 +211,8 @@ protected:
 
 	// 유닛의 PortraitCapture를 조절해줄 헬퍼 함수
 	void UpdatePortraitCaptures();
+	
+	void NotifySelectionChanged();
 public:
 	/** 선택된 유닛 배열이 변경될 때 호출되는 델리게이트 */
 	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")
@@ -219,5 +220,5 @@ public:
 
 	/** 현재 선택된 유닛 리스트를 직접 가져오는 Getter */
 	UFUNCTION(BlueprintPure, Category = "Nova|Selection")
-	const TArray<AActor*>& GetSelectedUnits() const { return SelectedUnits; }
+	const TArray<AActor*>& GetSelectedUnits() const { return SelectedActors; }
 };

@@ -1567,6 +1567,8 @@ void ANovaUnit::SetHighlightStatus(ENovaHighlightPriority Priority, bool bActive
 	case ENovaHighlightPriority::SkillRange:
 		bIsSkillHighlighted = bActive;
 		break;
+	default:
+		break;
 	}
 	UpdateHighlight();
 }
