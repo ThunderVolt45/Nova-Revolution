@@ -42,6 +42,7 @@ ANovaUnit::ANovaUnit()
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
 		Capsule->SetCanEverAffectNavigation(false);
+		Capsule->SetCollisionResponseToChannel(ECC_Ground, ECR_Ignore);
 	}
 
 	// NavModifier 생성: 장애물 상태일 때만 특정 영역(고비용)을 생성하도록 설정

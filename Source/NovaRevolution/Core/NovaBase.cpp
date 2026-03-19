@@ -28,6 +28,7 @@ ANovaBase::ANovaBase()
 	RootComponent = BaseCollision;
 	BaseCollision->SetBoxExtent(FVector(200.f, 200.f, 100.f)); // 기본 크기 설정
 	BaseCollision->SetCollisionProfileName(TEXT("Pawn"));
+	BaseCollision->SetCollisionResponseToChannel(ECC_Ground, ECR_Ignore);
 
 	// 메시 컴포넌트 생성 및 루트 설정
 	BaseMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BaseMesh"));
@@ -35,6 +36,7 @@ ANovaBase::ANovaBase()
 	if (BaseMesh)
 	{
 		BaseMesh->SetupAttachment(RootComponent);
+		BaseMesh->SetCollisionResponseToChannel(ECC_Ground, ECR_Ignore);
 	}
 
 	// 선택 원 위젯

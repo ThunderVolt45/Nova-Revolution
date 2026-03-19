@@ -52,6 +52,7 @@ FBox ANovaMapManager::GetMapBounds() const
 
 FVector2D ANovaMapManager::WorldToMapUV(const FVector& WorldLocation) const
 {
+	/*
 	FBox Bounds = GetMapBounds();
 	FVector Size = Bounds.GetSize();
 	
@@ -66,16 +67,37 @@ FVector2D ANovaMapManager::WorldToMapUV(const FVector& WorldLocation) const
 
 	// 맵 밖으로 나간 유닛도 미니맵 테두리에 걸치게 하려면 Clamp 처리
 	return FVector2D(FMath::Clamp(U, 0.f, 1.f), FMath::Clamp(V, 0.f, 1.f));
+	*/
+	FBox Bounds = GetMapBounds();
+	float MaxSide = FMath::Max(Bounds.Max.X - Bounds.Min.X, Bounds.Max.Y - Bounds.Min.Y);
+	FVector Center = Bounds.GetCenter();
+
+	// 중앙(0.5, 0.5) 기준 비율 계산 (U=X, V=Y)
+	float U = (WorldLocation.X - Center.X) / MaxSide + 0.5f;
+	float V = (WorldLocation.Y - Center.Y) / MaxSide + 0.5f;
+
+	return FVector2D(FMath::Clamp(U, 0.f, 1.f), FMath::Clamp(V, 0.f, 1.f));
 }
 
 FVector ANovaMapManager::UVToWorldLocation(const FVector2D& UV, float ZHeight) const
 {
+	/*
 	FBox Bounds = GetMapBounds();
 	FVector Size = Bounds.GetSize();
 
 	// UV(0~1) 비율을 실제 월드 좌표로 역산 (Lerp와 동일한 원리)
 	float WorldX = Bounds.Min.X + (UV.X * Size.X);
 	float WorldY = Bounds.Min.Y + (UV.Y * Size.Y);
+
+	return FVector(WorldX, WorldY, ZHeight);
+	*/
+	FBox Bounds = GetMapBounds();
+	float MaxSide = FMath::Max(Bounds.Max.X - Bounds.Min.X, Bounds.Max.Y - Bounds.Min.Y);
+	FVector Center = Bounds.GetCenter();
+
+	// WorldToMapUV의 역산: (UV - 0.5) * MaxSide + Center
+	float WorldX = (UV.X - 0.5f) * MaxSide + Center.X;
+	float WorldY = (UV.Y - 0.5f) * MaxSide + Center.Y;
 
 	return FVector(WorldX, WorldY, ZHeight);
 }
