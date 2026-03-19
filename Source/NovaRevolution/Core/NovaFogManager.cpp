@@ -10,6 +10,7 @@
 #include "NovaInterfaces.h"
 #include "NovaMapManager.h"
 #include "NovaPlayerState.h"
+#include "NovaRevolution.h"
 #include "NovaUnit.h"
 #include "Components/BoxComponent.h"
 #include "GAS/NovaAttributeSet.h"
@@ -116,6 +117,7 @@ void ANovaFogManager::UpdateFog()
 		if (Actor->IsA<APlayerState>()) continue;
 
 		INovaTeamInterface* TeamActor = Cast<INovaTeamInterface>(Actor);
+		if (!TeamActor) continue; // 팀 정보가 없는 액터는 무시
 
 		if (TeamActor && TeamActor->GetTeamID() == PlayerTeamID)
 		{
@@ -156,11 +158,11 @@ void ANovaFogManager::UpdateFog()
 			                         FVector2D(CanvasSize, CanvasSize));
 
 			// 블렌딩 모드 설정 (시야 원들이 서로 겹치 떄 자연스럽게 합쳐짐)
-			// TileItem.BlendMode = SE_BLEND_MAX;
 			TileItem.BlendMode = SE_BLEND_Additive;
 			Canvas.DrawItem(TileItem);
 		}
 		// 적군인 경우: 일단 리스트에 담아둠 (2차 순회에 한꺼번에 체크)
+		// else if (TeamActor->GetTeamID() != PlayerTeamID)
 		else
 		{
 			EnemyActors.Add(Actor);
@@ -183,9 +185,8 @@ void ANovaFogManager::UpdateFog()
 				break; // 하나라도 겹치면 더 볼 필요 없음
 			}
 		}
-		// 적군 유닛의 가시성 상태 업데이트
-		// Enemy->SetFogVisibility(bIsVisible);
-		// 가시성 적용
+		
+		// 적군 유닛/기지 가시성 상태 업데이트
 		if (ANovaUnit* Unit = Cast<ANovaUnit>(Enemy))
 		{
 			Unit->SetFogVisibility(bIsVisible);

@@ -191,8 +191,9 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 					ASC->LocalInputConfirm();
 					return; // 기존의 드래그/선택 로직을 실행하지 않고 나갑니다.
 				}
+				
 				// 우클릭 -> Cancel
-				else if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
+				if (InputTag.MatchesTag(NovaGameplayTags::Input_Command))
 				{
 					NOVA_LOG(Warning, "Input_Command detected during Skill mode. Calling LocalInputCancel for PC: %s",
 					         *GetName());
@@ -364,8 +365,15 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			NOVA_SCREEN(Warning, "Pending Command Canceled.");
 		}
 		// 그렇지 않다면 스마트 명령 (이동 또는 공격)
+		// 선택 대상이 존재할 때
 		else if (SelectedUnits.Num() > 0)
 		{
+			// 로컬 플레이어의 팀 ID 가져오기 (적군 판별용)
+			int32 LocalTeamID = -1;
+			if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+			{
+				LocalTeamID = PS->GetTeamID();
+			}
 			FCommandData CmdData;
 			CmdData.CommandType = ECommandType::Move;
 			CmdData.TargetLocation = CursorHit.Location;
@@ -373,9 +381,20 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			AActor* HitActor = CursorHit.GetActor();
 			if (HitActor)
 			{
-				if (HitActor->GetClass()->ImplementsInterface(UNovaSelectableInterface::StaticClass()))
+				// 인터페이스 캐스팅
+				INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(HitActor);
+				INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(HitActor);
+				
+				// 대상이 선택 가능함
+				if (Selectable && Selectable->IsSelectable())
 				{
+					// 타겟 정보 전달
 					CmdData.TargetActor = HitActor;
+					// 적대적 타겟 선택 시 공격 명령 전달
+					if (TeamInterface && !TeamInterface->IsFriendly(LocalTeamID))
+					{
+						CmdData.CommandType = ECommandType::Attack;
+					}
 				}
 				else
 				{
