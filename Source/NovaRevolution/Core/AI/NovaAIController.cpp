@@ -13,6 +13,9 @@
 #include "Components/CapsuleComponent.h"
 #include "NovaNavigationFilter_Move.h"
 #include "Engine/OverlapResult.h"
+#include "AbilitySystemComponent.h"
+#include "GAS/NovaAttributeSet.h"
+#include "GAS/NovaGameplayTags.h"
 
 const FName ANovaAIController::TargetLocationKey(TEXT("TargetLocation"));
 const FName ANovaAIController::TargetActorKey(TEXT("TargetActor"));
@@ -516,6 +519,33 @@ void ANovaAIController::ActivateAbilityByTag(const FGameplayTag& AbilityTag, AAc
 {
 	APawn* MyPawn = GetPawn();
 	if (!MyPawn || !Target || !AbilityTag.IsValid()) return;
+
+	// 공격 어빌리티인 경우 통합 쿨다운(FireRate) 검사
+	if (AbilityTag.MatchesTag(NovaGameplayTags::Ability_Attack))
+	{
+		float CurrentTime = GetWorld()->GetTimeSeconds();
+		float CurrentAttackInterval = 1.0f; // 기본값
+		
+		if (ANovaUnit* MyUnit = Cast<ANovaUnit>(MyPawn))
+		{
+			if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
+			{
+				float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
+				if (FireRateValue > 0.0f)
+				{
+					CurrentAttackInterval = FireRateValue / 100.0f;
+				}
+			}
+		}
+
+		if (CurrentTime - LastAttackTime < CurrentAttackInterval)
+		{
+			// 아직 쿨다운 중이므로 무시
+			return;
+		}
+
+		LastAttackTime = CurrentTime;
+	}
 
 	FGameplayEventData Payload;
 	Payload.Instigator = MyPawn;

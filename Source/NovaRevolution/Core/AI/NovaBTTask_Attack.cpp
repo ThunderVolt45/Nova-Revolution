@@ -121,25 +121,8 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 					AIC->StopMovementOptimized();
 				}
 				
-				float CurrentTime = GetWorld()->GetTimeSeconds();
-				
-				// FireRate 연동
-				float CurrentAttackInterval = AttackInterval;
-				if (UAbilitySystemComponent* ASC = MyUnit->GetAbilitySystemComponent())
-				{
-					float FireRateValue = ASC->GetNumericAttribute(UNovaAttributeSet::GetFireRateAttribute());
-					if (FireRateValue > 0.0f)
-					{
-						CurrentAttackInterval = FireRateValue / 100.0f;
-					}
-				}
-
-				// 공격 어빌리티 발동
-				if (CurrentTime - LastAttackTime >= CurrentAttackInterval)
-				{
-					AIC->ActivateAbilityByTag(AbilityTag, Target);
-					LastAttackTime = CurrentTime;
-				}
+				// 쿨다운 검사는 AIController 내부에서 통합 처리함
+				AIC->ActivateAbilityByTag(AbilityTag, Target);
 			}
 			
 			// 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.

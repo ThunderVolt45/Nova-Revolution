@@ -101,6 +101,9 @@ protected:
 	float BypassDistance = 250.f;
 
 private:
+	/** 마지막으로 공격 어빌리티를 사용한 시간 (통합 쿨다운 관리용) */
+	float LastAttackTime = 0.0f;
+
 	/** Stuck 감지용 누적 타이머 */
 	float StuckTimer = 0.0f;
 
