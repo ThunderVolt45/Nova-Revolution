@@ -63,6 +63,11 @@ protected:
 	/** 위협 감지 거리 (긴급 방어용) */
 	UPROPERTY(EditAnywhere, Category = "AI|Threshold")
 	float ThreatDetectionRadius = 1200.0f;
+	
+	/** 자원 우위 판단 기준 (Watt/SP업 시전) */
+	UPROPERTY(EditAnywhere, Category = "AI|Threshold")
+	float WattPredominance = 1000.f;
+	
 
 private:
 	/** 특정 슬롯 번호의 아군 유닛 수를 셉니다. */

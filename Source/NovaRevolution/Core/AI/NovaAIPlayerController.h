@@ -86,6 +86,10 @@ struct FNovaAIWave
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Wave")
     ENovaAIWaveState CurrentState = ENovaAIWaveState::Gathering;
+
+    // 공격 개시 시점의 유닛 수 (손실율 계산용)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "AI|Wave")
+    int32 InitialUnitCount = 0;
 };
 
 /**

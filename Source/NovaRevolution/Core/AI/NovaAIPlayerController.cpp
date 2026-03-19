@@ -229,6 +229,18 @@ void ANovaAIPlayerController::LaunchGatheringWaves(const FCommandData& CommandDa
 		if (Wave.CurrentState == ENovaAIWaveState::Gathering)
 		{
 			Wave.CurrentState = ENovaAIWaveState::Attacking;
+			
+			// 공격 개시 시점의 유닛 수 기록
+			int32 CurrentWaveUnitCount = 0;
+			for (auto& WeakUnit : Wave.AssignedUnits)
+			{
+				if (ANovaUnit* Unit = WeakUnit.Get())
+				{
+					if (!Unit->IsDead()) CurrentWaveUnitCount++;
+				}
+			}
+			Wave.InitialUnitCount = CurrentWaveUnitCount;
+
 			LaunchedWaveCount++;
 
 			for (auto& WeakUnit : Wave.AssignedUnits)

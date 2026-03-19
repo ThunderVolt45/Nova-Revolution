@@ -106,8 +106,8 @@ void UBTService_AnalyzeStrategy::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 	// [강화] 단순히 근처에 적이 있는지가 아니라, 적의 전력이 아군 전체 전력보다 1000 이상 높을 때만 긴급 방어 트리거
 	float MyTotalUnitWatt = PS->GetTotalUnitWatt();
 	bool bIsEmergency = (TotalEnemyWattNearBase > MyTotalUnitWatt + 1000.0f);
-
 	bool bOldEmergency = AIC->IsEmergencyDefenseActive();
+	
 	AIC->SetEmergencyDefenseActive(bIsEmergency);
 
 	// 2. 긴급 방어 수행
@@ -126,7 +126,6 @@ void UBTService_AnalyzeStrategy::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 			DefenseCmd.TargetActor = nullptr;
 			
 			AIC->IssueCommandToAllUnits(DefenseCmd);
-			
 			NOVA_LOG(Warning, "AI Strategy: EMERGENCY detected! Triggered Retreat Attack and suggesting Overwork.");
 		}
 
@@ -135,6 +134,24 @@ void UBTService_AnalyzeStrategy::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 		
 		// 방어 중이므로 빌드 오더에 의한 진군/한타 공격 취소
 		BB->SetValueAsBool(bShouldAttackKey.SelectedKeyName, false);
+	}
+	else
+	{
+		// [강화] 긴급 방어가 해제되는 시점에 다시 적 기지로 반격 명령
+		if (bOldEmergency)
+		{
+			FVector EnemyBaseLoc = BB->GetValueAsVector(ANovaAIPlayerController::EnemyBaseLocationKey);
+			if (!EnemyBaseLoc.IsZero())
+			{
+				FCommandData AttackCmd;
+				AttackCmd.CommandType = ECommandType::Attack;
+				AttackCmd.TargetLocation = EnemyBaseLoc;
+				AttackCmd.TargetActor = nullptr;
+
+				AIC->IssueCommandToAllUnits(AttackCmd);
+				NOVA_LOG(Warning, "AI Strategy: EMERGENCY cleared! Resuming counter-attack to enemy base.");
+			}
+		}
 	}
 
 	// 3. 자율 스킬 체계 (기지 방어, 리싸이클 등 예외 상황 처리)
@@ -375,10 +392,10 @@ void UBTService_AnalyzeStrategy::CalculateUnitPerformance(const FNovaUnitAssembl
 
 void UBTService_AnalyzeStrategy::AnalyzeOccasionalSkills(ANovaAIPlayerController* AIC, ANovaPlayerState* PS, UBlackboardComponent* BB)
 {
-	// 1. 리싸이클 (체력 20% 이하의 고가치 유닛 구제)
 	TArray<AActor*> AllUnits;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANovaUnit::StaticClass(), AllUnits);
 
+	// 1. 리싸이클 (체력 20% 이하의 고가치 유닛 구제)
 	for (AActor* Actor : AllUnits)
 	{
 		ANovaUnit* Unit = Cast<ANovaUnit>(Actor);
@@ -394,5 +411,56 @@ void UBTService_AnalyzeStrategy::AnalyzeOccasionalSkills(ANovaAIPlayerController
 		}
 	}
 
-	// 그 외 프리즈(밀집 지역 대응) 등은 스킬 구조가 확장되면 여기에 추가
+	// [신규] 2. 자원 레벨업 (전력 우위 시)
+	float MyTotalWatt = PS->GetTotalUnitWatt();
+	float EnemyTotalWatt = 0.0f;
+	for (AActor* Actor : AllUnits)
+	{
+		ANovaUnit* Unit = Cast<ANovaUnit>(Actor);
+		if (Unit && Unit->GetTeamID() != PS->GetTeamID() && !Unit->IsDead())
+		{
+			if (UNovaAttributeSet* AS = Unit->GetAttributeSet())
+			{
+				EnemyTotalWatt += AS->GetWatt();
+			}
+		}
+	}
+
+	if (MyTotalWatt >= EnemyTotalWatt + WattPredominance)
+	{
+		const TArray<FGameplayTag>& SlotTags = PS->GetSkillSlotTags();
+		int32 TargetSlot = -1;
+
+		// 와트 부족 & 만렙 아님 -> 와트 레벨업 시도
+		if (PS->GetCurrentWatt() < 500.0f && PS->GetWattLevel() < 6.0f)
+		{
+			for (int32 i = 0; i < SlotTags.Num(); ++i)
+			{
+				if (SlotTags[i].MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_Watt))
+				{
+					TargetSlot = i;
+					break;
+				}
+			}
+		}
+		// 자원 풍족 시 SP 부족하면 SP 레벨업 시도
+		else if (PS->GetCurrentSP() < 40.0f && PS->GetSPLevel() < 6.0f)
+		{
+			for (int32 i = 0; i < SlotTags.Num(); ++i)
+			{
+				if (SlotTags[i].MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_SP))
+				{
+					TargetSlot = i;
+					break;
+				}
+			}
+		}
+
+		if (TargetSlot != -1)
+		{
+			BB->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, TargetSlot);
+			NOVA_LOG(Log, "AI Strategy: Recommended Resource Level Up (Slot %d) - Unit Watt Lead: %.f", TargetSlot, MyTotalWatt - EnemyTotalWatt);
+			return;
+		}
+	}
 }
