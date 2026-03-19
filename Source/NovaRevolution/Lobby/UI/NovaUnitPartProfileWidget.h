@@ -1,11 +1,14 @@
 // Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Components/Image.h"
 #include "Core/NovaPartData.h"
 #include "NovaUnitPartProfileWidget.generated.h"
+
+class ANovaPartPreviewActor;
+class UTextureRenderTarget2D;
 
 /**
  * UNovaUnitPartProfileWidget
@@ -33,6 +36,10 @@ public:
 	
 	//test
 	virtual void NativePreConstruct() override;
+	
+	/** 위젯이 처음 생성되거나 초기화될 때 기본으로 표시할 부품 카테고리 (에디터에서 설정 가능) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Preview")
+	ENovaPartType DefaultCategory = ENovaPartType::Legs;
 
 protected:
 	/** 현재 인덱스의 데이터를 읽어와 이름과 표 위젯을 실시간으로 업데이트합니다. */
@@ -41,12 +48,34 @@ protected:
 	// --- 데이터 테이블 (에디터 디테일 패널에서 할당) ---
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Data")
 	TObjectPtr<UDataTable> PartSpecTable;
+	
+	/** [추가] 부품 ID로 클래스(BP)를 찾기 위한 에셋 데이터 테이블 (FNovaPartAssetRow 사용) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Data")
+	TObjectPtr<UDataTable> PartAssetTable;
+
+	// --- [추가] 프리뷰 설정 ---
+	/** 맵에 배치된 PreviewActor 인스턴스 (실제 촬영을 담당) */
+	
+	/** [수정] 스포이드 대신, 레벨에 배치된 액터의 '태그' 이름을 넣습니다. (예: Preview_Legs) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Preview")
+	FName PreviewActorTag;
+	
+	UPROPERTY(BlueprintReadOnly, Category = "Nova|Preview")
+	TObjectPtr<ANovaPartPreviewActor> PreviewActor;
+
+	/** 이 위젯 전용 렌더 타겟 (이미지에 바인딩되어 실시간 화면을 출력) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Preview")
+	TObjectPtr<UTextureRenderTarget2D> PreviewRenderTarget;
 
 	// --- 에디터 WBP 위젯 바인딩 (이름 일치 필수) ---
 
 	/** 부품 공식 명칭 표시 (로드런너, 건봇 등) */
 	UPROPERTY(meta = (BindWidget))
 	class UTextBlock* Txt_PartName;
+	
+	/** [추가] 부품 외형 프리뷰를 출력할 이미지 컨트롤 (WBP의 이름과 일치해야 함) */
+	UPROPERTY(meta = (BindWidget))
+	class UImage* Img_PartPreview;
 
 	/** 상세 능력치 표 위젯 (이미 구현된 TableWidget 인스턴스) */
 	UPROPERTY(meta = (BindWidget))
@@ -57,4 +86,6 @@ protected:
 	TArray<FName> CategoryPartIDs; 
     
 	int32 CurrentIndex = 0;
+	
+	
 };

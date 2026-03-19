@@ -6,6 +6,10 @@
 #include "Lobby/UI/NovaUnitPartSpecTableWidget.h"
 #include "Components/TextBlock.h"
 #include "Core/NovaLog.h"
+#include "Core/NovaPart.h"
+#include "Lobby/Preview/NovaPartPreviewActor.h" // 프리뷰 액터 헤더 포함
+#include "Engine/TextureRenderTarget2D.h"
+#include "Kismet/GameplayStatics.h"
 
 void UNovaUnitPartProfileWidget::InitCategory(ENovaPartType Category)
 {
@@ -23,9 +27,28 @@ void UNovaUnitPartProfileWidget::InitCategory(ENovaPartType Category)
             CategoryPartIDs.Add(RowName);
         }
     }
-
     // 2. 리스트의 첫 번째 항목으로 초기 인덱스 설정 및 화면 갱신
     CurrentIndex = 0;
+    
+    // 런타임에 태그를 기반으로 레벨 내 배치된 프리뷰 액터를 찾아 연결합니다.
+    // 에디터에서 직접 할당하지 않았더라도 태그가 일치하면 자동으로 바인딩됩니다.
+    if (!PreviewActor && !PreviewActorTag.IsNone())
+    {
+        TArray<AActor*> FoundActors;
+        UGameplayStatics::GetAllActorsWithTag(GetWorld(), PreviewActorTag, FoundActors);
+
+        if (FoundActors.Num() > 0)
+        {
+            // 첫 번째로 발견된 일치하는 태그의 액터를 프리뷰 액터로 캐스팅하여 할당
+            PreviewActor = Cast<ANovaPartPreviewActor>(FoundActors[0]);
+        
+            if (PreviewActor)
+            {
+                NOVA_LOG(Log, "Successfully bound PreviewActor via Tag: %s", *PreviewActorTag.ToString());
+            }
+        }
+    }
+    
     UpdateDisplay();
 }
 
@@ -75,6 +98,33 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
 
         NOVA_LOG(Log, "Profile UI Updated: %s (Index: %d)", *TargetID.ToString(), CurrentIndex);
     }
+    
+    // 3. [추가 로직] 외형 프리뷰 업데이트
+    // 프리뷰 액터, 렌더 타겟, 에셋 테이블이 모두 유효할 때만 진행합니다.
+    if (PreviewActor && PreviewRenderTarget && PartAssetTable)
+    {
+        // AssetTable에서 해당 부품의 실제 Blueprint 클래스(PartClass) 정보를 가져옴
+        static const FString AssetContext(TEXT("Part Asset Lookup"));
+        FNovaPartAssetRow* AssetRow = PartAssetTable->FindRow<FNovaPartAssetRow>(TargetID, AssetContext);
+
+        if (AssetRow && AssetRow->PartClass)
+        {
+            // 프리뷰 액터에게 "이 클래스의 부품을 이 렌더 타겟에 찍어줘"라고 요청합니다.
+            // PreviewActor 내부에서는 기존 부품을 제거하고 새 부품을 스폰하여 촬영을 시작합니다.
+            PreviewActor->UpdatePreview(AssetRow->PartClass, PreviewRenderTarget);
+            
+            // B. [추가] 렌더 타겟 영상을 위젯의 이미지 컨트롤에 투사
+            if (Img_PartPreview)
+            {
+                // 렌더 타겟(UTextureRenderTarget2D)을 텍스처로서 브러시 이미지에 할당합니다.
+                // 이를 통해 PreviewActor가 찍고 있는 3D 화면이 UI의 해당 영역에 실시간으로 출력됩니다.
+                Img_PartPreview->SetBrushResourceObject(PreviewRenderTarget);
+            }
+            
+            NOVA_LOG(Log, "Preview Updated for Part: %s", *TargetID.ToString());
+        }
+    }
+    
 }
 
 void UNovaUnitPartProfileWidget::NativePreConstruct()
@@ -85,6 +135,6 @@ void UNovaUnitPartProfileWidget::NativePreConstruct()
     // 데이터 테이블의 수치가 UI 표에 정상적으로 들어오는지 즉시 확인할 수 있습니다.
     if (!PartSpecTable) return;
     
-    InitCategory(ENovaPartType::Legs);
+    InitCategory(DefaultCategory);
 }
 
