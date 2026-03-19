@@ -144,11 +144,8 @@ void UBTService_AnalyzeStrategy::TickNode(UBehaviorTreeComponent& OwnerComp, uin
 		}
 		case ENovaAIBuildStepType::UseSkill:
 		{
-			// 스킬을 시전하라는 추천을 띄움
+			// 스킬을 시전하라는 추천을 띄움 (실제 전진은 BTTask_AIUseSkill에서 성공 시 수행)
 			BB->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, CurrentStep->TargetSlot);
-			// 스킬 발동 지시를 내렸다면 즉시 다음 스텝으로 진행 
-			// (실제 시전 여부는 자원량, 쿨타임에 따라 BTTask에서 실패할 수도 있음)
-			AIC->AdvanceBuildStep();
 			break;
 		}
 		case ENovaAIBuildStepType::CommandAttack:
@@ -235,7 +232,7 @@ int32 UBTService_AnalyzeStrategy::AnalyzeDynamicCounter(ANovaAIPlayerController*
 		CalculateUnitPerformance(AISlotInfo.Units[i], SlotStats);
 
 		// 기본: 자원(Watt) 대비 가성비 점수 (저렴할수록 점수 높음)
-		SlotScores[i] += FMath::Max(1000.0f - SlotStats.Watt, 0.0f);
+		SlotScores[i] += FMath::Max(200.0f - SlotStats.Watt, 0.0f);
 
 		// 가중치 A: 적 공중 유닛 대응
 		if (bEnemyHasAir)
@@ -275,7 +272,7 @@ int32 UBTService_AnalyzeStrategy::AnalyzeDynamicCounter(ANovaAIPlayerController*
 		if (!bIsEmergency && DefaultSlot != -1 && i == DefaultSlot)
 		{
 			// 선호 유닛은 +150점 보정. 단 대공(Air)이나 극단적 방어력 카운터 필요 시 스코어가 역전될 수 있음 
-			SlotScores[i] += 150.0f;
+			SlotScores[i] += 250.0f;
 		}
 	}
 

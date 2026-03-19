@@ -20,14 +20,18 @@ class NOVAREVOLUTION_API UNovaSkillAbility : public UNovaGameplayAbility
 public:
 	UNovaSkillAbility();
 
+	/** 현재 플레이어의 자원(Watt, SP)이 충분한지 확인합니다. */
+	UFUNCTION(BlueprintPure, Category = "Nova|Ability|Skill")
+	bool CheckResources(float CheckWattCost, float CheckSPCost) const;
+
+	/** [추가] 블루프린트에서 입력받을 자원 비용 */
+	float GetWattCost() const { return WattCost; }
+	float GetSPCost() const { return SPCost; }
+
 protected:
 	/** 어빌리티를 실행하는 플레이어의 메인 기지(ANovaBase)를 반환합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|Ability|Skill")
 	class ANovaBase* GetPlayerBase() const;
-
-	/** 현재 플레이어의 자원(Watt, SP)이 충분한지 확인합니다. */
-	UFUNCTION(BlueprintPure, Category = "Nova|Ability|Skill")
-	bool CheckResources(float CheckWattCost, float CheckSPCost) const;
 
 	/** 자원 소모가 가능한지 확인하고, 부족할 경우 경고 UI용 이벤트를 발생시킬 수 있습니다. */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Ability|Skill")

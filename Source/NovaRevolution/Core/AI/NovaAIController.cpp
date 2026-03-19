@@ -66,7 +66,7 @@ void ANovaAIController::OnPossess(APawn* InPawn)
 		bool bSuccess = RunBehaviorTree(BehaviorTreeAsset);
 		if (bSuccess)
 		{
-			NOVA_LOG(Log, "AIController: Successfully started Behavior Tree [%s] for Pawn [%s]", *BehaviorTreeAsset->GetName(), *InPawn->GetName());
+			// NOVA_LOG(Log, "AIController: Successfully started Behavior Tree [%s] for Pawn [%s]", *BehaviorTreeAsset->GetName(), *InPawn->GetName());
 		}
 		else
 		{

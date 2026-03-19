@@ -16,6 +16,8 @@ UBTTask_AIUseSkill::UBTTask_AIUseSkill()
 	SkillTargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UBTTask_AIUseSkill, SkillTargetLocationKey));
 }
 
+#include "GAS/Abilities/Skill/NovaSkillAbility.h"
+
 EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	ANovaAIPlayerController* AIC = Cast<ANovaAIPlayerController>(OwnerComp.GetAIOwner());
@@ -50,7 +52,27 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 
 	FGameplayTag SkillTag = SlotTags[SlotIndex];
 
-	// 3. 타겟 데이터 구성
+	// 3. 발동 전 자원 체크 (사전 검증)
+	const TArray<FGameplayAbilitySpec>& Specs = ASC->GetActivatableAbilities();
+	for (const FGameplayAbilitySpec& Spec : Specs)
+	{
+		// 해당 태그를 가진 어빌리티인지 확인
+		if (Spec.Ability && Spec.Ability->GetAssetTags().HasTag(SkillTag))
+		{
+			if (UNovaSkillAbility* SkillAbility = Cast<UNovaSkillAbility>(Spec.Ability))
+			{
+				// 해당 어빌리티의 요구 비용과 현재 PlayerState의 자원 비교
+				if (PS->GetCurrentWatt() < SkillAbility->GetWattCost() || PS->GetCurrentSP() < SkillAbility->GetSPCost())
+				{
+					NOVA_LOG(Warning, "AI Task: Failed to trigger skill [%s] - Insufficient resources (Watt: %.f/%.f, SP: %.f/%.f)", 
+						*SkillTag.ToString(), PS->GetCurrentWatt(), SkillAbility->GetWattCost(), PS->GetCurrentSP(), SkillAbility->GetSPCost());
+					return EBTNodeResult::Failed;
+				}
+			}
+		}
+	}
+
+	// 4. 타겟 데이터 구성
 	AActor* TargetActor = Cast<AActor>(BB->GetValueAsObject(SkillTargetActorKey.SelectedKeyName));
 	FVector TargetLocation = BB->GetValueAsVector(SkillTargetLocationKey.SelectedKeyName);
 
@@ -74,7 +96,7 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 		EventData.TargetData.Add(LocationData);
 	}
 
-	// 4. GameplayEvent를 통해 사령관 스킬 트리거 (타겟 정보 포함)
+	// 5. GameplayEvent를 통해 사령관 스킬 트리거 (타겟 정보 포함)
 	int32 TriggerCount = ASC->HandleGameplayEvent(SkillTag, &EventData);
 
 	if (TriggerCount > 0)
@@ -84,6 +106,9 @@ EBTNodeResult::Type UBTTask_AIUseSkill::ExecuteTask(UBehaviorTreeComponent& Owne
 		// [과생산 방지] 스킬 발동 명령을 하달했으므로, 다음 서비스 틱에서 다시 추천하기 전까지 키를 초기화합니다.
 		OwnerComp.GetBlackboardComponent()->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, -1);
 		
+		// [조건부 전진] 스킬이 실제로 성공적으로 트리거되었을 때만 다음 빌드 스텝으로 진행합니다.
+		AIC->AdvanceBuildStep();
+
 		return EBTNodeResult::Succeeded;
 	}
 

@@ -1930,7 +1930,7 @@ void ANovaUnit::OnReturnToPool_Implementation()
 			AbilitySystemComponent->RemoveActiveGameplayEffect(Handle);
 		}
 		
-		NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
+		// NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
 		
 		// 모든 어빌리티 및 큐 제거
 		AbilitySystemComponent->ClearAllAbilities();

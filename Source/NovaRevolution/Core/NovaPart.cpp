@@ -127,7 +127,7 @@ void ANovaPart::InitializePartSpec()
 		if (FoundRow)
 		{
 			PartSpec = *FoundRow;
-			NOVA_LOG(Log, "Part '%s' initialized with Spec from DataTable (PartID: %s)", *GetName(), *PartID.ToString());
+			// NOVA_LOG(Log, "Part '%s' initialized with Spec from DataTable (PartID: %s)", *GetName(), *PartID.ToString());
 			return;
 		}
 		
