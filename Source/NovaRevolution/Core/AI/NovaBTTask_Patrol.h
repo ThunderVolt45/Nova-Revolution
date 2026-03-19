@@ -43,10 +43,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	float ChaseDistanceLimit = 1000.0f;
 
-	/** 공격 간격 (초) */
-	UPROPERTY(EditAnywhere, Category = "Nova|AI")
-	float AttackInterval = 1.0f;
-
 	/** 공격 시 발동할 어빌리티 태그 */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	FGameplayTag AbilityTag;
@@ -54,9 +50,6 @@ protected:
 private:
 	/** 현재 목표가 Origin인지 TargetLocation인지 여부 */
 	bool bMovingToOrigin = false;
-
-	/** 마지막 공격 시간 */
-	float LastAttackTime = 0.0f;
 
 	/** 교전이 시작된 지점 (Leash 기준점) */
 	FVector CombatOrigin = FVector::ZeroVector;
