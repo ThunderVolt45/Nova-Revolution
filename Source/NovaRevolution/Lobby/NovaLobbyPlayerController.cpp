@@ -2,6 +2,8 @@
 
 
 #include "Lobby/NovaLobbyPlayerController.h"
+
+#include "NovaLobbyManager.h"
 #include "Blueprint/UserWidget.h"
 #include "NovaRevolution.h" // 프로젝트 전용 로그 매크로 사용을 위함
 #include "Core/NovaSaveGame.h"
@@ -43,89 +45,31 @@ void ANovaLobbyPlayerController::BeginPlay()
 		NOVA_SCREEN(Warning, "LobbyMainWidgetClass is not assigned in PlayerController!");
 	}
 	
-	// --- 데이터 로드 및 프리뷰 액터 초기화 ---
+	// 3. 월드 내 배치된 로비 매니저를 찾아 참조를 획득합니다.
+	// 에디터에서 수동으로 할당하지 않아도 런타임에 자동으로 서비스 객체를 찾아 바인딩합니다.
+	LobbyManager = Cast<ANovaLobbyManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaLobbyManager::StaticClass()));
 
-	// 3-1. 세이브 파일에서 덱 정보를 불러와 메모리(CurrentDeck)에 올립니다.
-	LoadDeckFromSave();
-
-	// 3-2. 월드에 배치된 유닛 프리뷰 액터를 찾아 연결합니다.
-	// (에디터에서 미리 변수에 할당해 두지 않았을 경우를 대비한 안전 코드입니다.)
-	if (!PreviewActor)
+	if (LobbyManager)
 	{
-		// 월드에서 ANovaUnit 클래스의 액터를 하나 찾아옵니다.
-		PreviewActor = Cast<ANovaUnit>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaUnit::StaticClass()));
-
-		if (PreviewActor)
-		{
-			NOVA_LOG(Log, "Found PreviewActor in World: %s", *PreviewActor->GetName());
-		}
-		else
-		{
-			NOVA_LOG(Warning, "No ANovaUnit found in the Lobby level for Preview!");
-		}
+		// 성공 시 로그를 남겨 초기화 순서가 정상임을 확인합니다.
+		NOVA_LOG(Log, "LobbyManager successfully bound to Controller.");
 	}
-
-	// 3-3. 현재 선택된 슬롯(기본 0번)의 유닛 정보를 프리뷰 액터에 적용하여 실시간 외형을 동기화합니다.
-	UpdatePreviewActor();
-}
-
-void ANovaLobbyPlayerController::LoadDeckFromSave()
-{
-	if (UGameplayStatics::DoesSaveGameExist(TEXT("NovaPlayerSaveSlot"), 0))
+	else
 	{
-		if (UNovaSaveGame* LoadedGame = Cast<UNovaSaveGame>(UGameplayStatics::LoadGameFromSlot(TEXT("NovaPlayerSaveSlot"), 0)))
-		{
-			CurrentDeck = LoadedGame->SavedDeck;
-			return;
-		}
-	}
-
-	// 세이브가 없거나 불러오기 실패 시 기본 10개의 빈 슬롯으로 초기화
-	CurrentDeck.Units.SetNum(10);
-}
-
-void ANovaLobbyPlayerController::UpdatePreviewActor()
-{
-	if (PreviewActor && CurrentDeck.Units.IsValidIndex(SelectedSlotIndex))
-	{
-		// ANovaUnit에 구현된 부품 조립 로직을 호출하여 실시간으로 외형을 갱신합니다.
-		PreviewActor->SetAssemblyData(CurrentDeck.Units[SelectedSlotIndex]);
-	}
-}
-
-void ANovaLobbyPlayerController::SelectPart(ENovaPartType PartType, FName PartID)
-{
-	if (!CurrentDeck.Units.IsValidIndex(SelectedSlotIndex)) return;
-
-	// TODO: DT_PartSpecData에서 해당 PartID의 Class를 찾아와야 함
-	// 데이터 테이블 조회를 통해 실제 액터 클래스나 정보를 가져오는 로직이 추가될 위치입니다.
-	// 예: CurrentDeck.Units[SelectedSlotIndex].LegsClass = FoundClass;
-
-	UpdatePreviewActor();
-}
-
-void ANovaLobbyPlayerController::SelectDeckSlot(int32 SlotIndex)
-{
-	if (CurrentDeck.Units.IsValidIndex(SlotIndex))
-	{
-		SelectedSlotIndex = SlotIndex;
-		UpdatePreviewActor(); // 슬롯 변경 시 외형 업데이트
-	}
-}
-
-void ANovaLobbyPlayerController::SaveCurrentDeck()
-{
-	UNovaSaveGame* SaveGameInstance = Cast<UNovaSaveGame>(UGameplayStatics::CreateSaveGameObject(UNovaSaveGame::StaticClass()));
-	if (SaveGameInstance)
-	{
-		SaveGameInstance->SavedDeck = CurrentDeck;
-		UGameplayStatics::SaveGameToSlot(SaveGameInstance, TEXT("NovaPlayerSaveSlot"), 0);
-		NOVA_SCREEN(Log, "Deck Saved Successfully!");
+		// 실패 시 화면에 경고를 띄워 개발자가 레벨 배치를 누락했음을 즉시 알립니다. (방어적 프로그래밍)
+		NOVA_SCREEN(Warning, "LobbyManager not found in World! Please place ANovaLobbyManager in the level.");
 	}
 }
 
 void ANovaLobbyPlayerController::StartGame(FName InGameLevelName)
 {
-	SaveCurrentDeck(); // 저장 먼저 수행하여 데이터 정합성 유지
-	UGameplayStatics::OpenLevel(GetWorld(), InGameLevelName);
+	// 현재 편집 중인 덱 상태를 세이브 파일에 기록하도록 매니저에게 명령합니다.
+	// 레벨이 전환되기 전 최신 데이터를 영구 저장하여 데이터 유실을 방지합니다.
+	if (LobbyManager)
+	{
+		LobbyManager->SaveCurrentDeck();
+	}
+
+	// 이후 전투 레벨이나 지정된 다음 레벨로 이동하는 로직이 이어집니다.
+	// UGameplayStatics::OpenLevel(GetWorld(), InGameLevelName);
 }
