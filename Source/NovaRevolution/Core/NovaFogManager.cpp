@@ -13,6 +13,7 @@
 #include "NovaRevolution.h"
 #include "NovaUnit.h"
 #include "Components/BoxComponent.h"
+#include "GameFramework/GameStateBase.h"
 #include "GAS/NovaAttributeSet.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMaterialLibrary.h"
@@ -59,142 +60,159 @@ void ANovaFogManager::UpdateFog()
 {
 	if (!CurrentFogRT || !HistoryFogRT || !MapManager) return;
 
-	UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
-
-	// 1. Standalone 안전장치: 첫 번째 유효한 프레임에 초기화 수행
-	if (!bIsFogInitialized)
-	{
-		// History를 White로 확실히 밀어줌
-		UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), HistoryFogRT, FLinearColor::White);
-
-		// MPC 파라미터도 이때 확실히 업데이트
-		UpdateMPCParameters();
-
-		bIsFogInitialized = true;
-	}
-
 	// 로컬 플레이어 정보 가져오기
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (!PC) return;
-	ANovaPlayerState* PS = PC ? PC->GetPlayerState<ANovaPlayerState>() : nullptr;
+	ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>();
 	if (!PS)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("FogManager: PlayerState is NULL!"));
 		return;
 	}
 
-	// INovaTeamInterface를 통해 플레이어의 팀 확인
-	int32 PlayerTeamID = PS->GetTeamID();
-
-	// --- [최적화 적용] 등록된 액터 리스트 사용 ---
-	const TArray<TWeakObjectPtr<AActor>>& RegisteredActors = MapManager->GetRegisteredActors();;
-
-	// 시야 계산을 위한 임시 저장소
-	struct FSightSource
+	// 1. Standalone 안전장치: 첫 번째 유효한 프레임에 초기화 수행
+	if (!bIsFogInitialized)
 	{
-		FVector Location;
-		float RadiusSq; // 계산 최적화를 위해 반지름의 제곱 저장
-	};
-	TArray<FSightSource> FriendlySights;
-	TArray<AActor*> EnemyActors;
+		UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), HistoryFogRT, FLinearColor::White);
+		UpdateMPCParameters();
+		bIsFogInitialized = true;
+	}
 
-	// --- 드로잉 준비 ---
-	FCanvas Canvas(CurrentFogRT->GameThread_GetRenderTargetResource(),
-	               nullptr,
-	               FGameTime::GetTimeSinceAppStart(),
-	               GetWorld()->GetFeatureLevel()
-	);
-
-	// 월드 너비 계산 방식 변경
+	// 2. 초기 설정 및 팀 정보 수집
+	int32 LocalPlayerTeamID = PS->GetTeamID();
+	const TArray<TWeakObjectPtr<AActor>>& RegisteredActors = MapManager->GetRegisteredActors();
 	FBox Bounds = MapManager->GetMapBounds();
 	float WorldWidth = Bounds.Max.X - Bounds.Min.X;
 
-	// --- 1차 순회 : 아군 시야 그리기 및 정보 수집 ---
+	TSet<int32> ActiveTeamSet;
+	ActiveTeamSet.Add(LocalPlayerTeamID);
+	if (AGameStateBase* GS = GetWorld()->GetGameState())
+	{
+		for (APlayerState* PlayerState : GS->PlayerArray)
+		{
+			if (INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PlayerState))
+			{
+				int32 TeamID = TeamInterface->GetTeamID();
+				if (TeamID >= 0 && TeamID < 32) ActiveTeamSet.Add(TeamID);
+			}
+		}
+	}
+
+	// --- [최적화] 1차 순회: 모든 액터를 한 번만 순회하며 팀별 시야 소스 분류 ---
+	struct FSightSource
+	{
+		FVector Location;
+		float RadiusSq;
+	};
+	// 팀 ID를 키로 하는 시야 소스 맵
+	TMap<int32, TArray<FSightSource>> TeamSightsMap;
+	// 가시성 판단 대상이 될 모든 유닛/기지 리스트
+	TArray<AActor*> AllSelectableActors;
+
 	for (const TWeakObjectPtr<AActor>& WeakActor : RegisteredActors)
 	{
 		AActor* Actor = WeakActor.Get();
-		// PlayerState에 의해 생긴 유령시야 해결 (INovaTeamInterface를 상속받았기 때문에 생긴 문제)
-		if (Actor->IsA<APlayerState>()) continue;
+		if (!Actor || Actor->IsA<APlayerState>()) continue;
 
 		INovaTeamInterface* TeamActor = Cast<INovaTeamInterface>(Actor);
-		if (!TeamActor) continue; // 팀 정보가 없는 액터는 무시
+		if (!TeamActor) continue;
 
-		if (TeamActor && TeamActor->GetTeamID() == PlayerTeamID)
+		AllSelectableActors.Add(Actor);
+		int32 ActorTeamID = TeamActor->GetTeamID();
+
+		// 이 액터가 시야를 제공할 수 있는지 확인 (ASC의 Sight 속성)
+		float SightRadius = 800.f;
+		if (IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(Actor))
 		{
-			float SightRadius = 800.f; // 기본 시야 값
-			if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+			if (UAbilitySystemComponent* ASC = ASCInterface->GetAbilitySystemComponent())
 			{
-				if (Unit->GetAbilitySystemComponent())
-				{
-					SightRadius = Unit->GetAbilitySystemComponent()->GetNumericAttribute(
-						UNovaAttributeSet::GetSightAttribute());
-				}
-				// 아군 유닛은 항상 보이도록 설정
-				Unit->SetFogVisibility(true);
+				SightRadius = ASC->GetNumericAttribute(UNovaAttributeSet::GetSightAttribute());
 			}
-			else if (ANovaBase* Base = Cast<ANovaBase>(Actor))
-			{
-				// 기지의 시야 범위 설정
-				if (Base->GetAbilitySystemComponent())
-				{
-					SightRadius = Base->GetAbilitySystemComponent()->GetNumericAttribute(
-						UNovaAttributeSet::GetSightAttribute());
-				}
-				// 아군 기지는 항상 보이도록 설정
-				Base->SetFogVisibility(true);
-			}
-			// 시야 정보 저장 (나중에 적군 가시성 체크용)
-			FriendlySights.Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
-
-			// UV 좌표 계산
-			FVector2D UV = WorldToFogUV(Actor->GetActorLocation());
-
-			// 캔버스에서 크기 계산 (Box 전체 너비 대비 시야 지름의 비율)
-			float CanvasSize = (SightRadius * 2.0f / WorldWidth) * TextureResolution;
-
-			// 시야 원 그리기 (중앙 정렬을 위해 CanvasSize * 0.5f 차감)
-			FCanvasTileItem TileItem(UV * TextureResolution - (CanvasSize * 0.5f),
-			                         BrushMaterial ? BrushMaterial->GetRenderProxy() : nullptr,
-			                         FVector2D(CanvasSize, CanvasSize));
-
-			// 블렌딩 모드 설정 (시야 원들이 서로 겹치 떄 자연스럽게 합쳐짐)
-			TileItem.BlendMode = SE_BLEND_Additive;
-			Canvas.DrawItem(TileItem);
 		}
-		// 적군인 경우: 일단 리스트에 담아둠 (2차 순회에 한꺼번에 체크)
-		// else if (TeamActor->GetTeamID() != PlayerTeamID)
-		else
+
+		// 해당 팀의 시야 리스트에 추가
+		if (ActiveTeamSet.Contains(ActorTeamID))
 		{
-			EnemyActors.Add(Actor);
+			TeamSightsMap.FindOrAdd(ActorTeamID).Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
+
+			// 자기 팀 유닛은 해당 팀에게 항상 보이도록 비트마스크 미리 설정
+			if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor)) Unit->SetVisibilityForTeam(ActorTeamID, true);
+			else if (ANovaBase* Base = Cast<ANovaBase>(Actor)) Base->SetVisibilityForTeam(ActorTeamID, true);
 		}
 	}
-	Canvas.Flush_GameThread();
 
-	// --- 2차 순회: 적군 유닛 가시성 판단 (O(N*M)) ---
-	for (AActor* Enemy : EnemyActors)
+	// --- 2차 순회: 각 팀별 가시성 판단 및 렌더링 ---
+	for (int32 CurrentTeamID : ActiveTeamSet)
 	{
-		bool bIsVisible = false;
-		FVector EnemyLoc = Enemy->GetActorLocation();
+		bool bIsLocalPlayerTeam = (CurrentTeamID == LocalPlayerTeamID);
+		const TArray<FSightSource>* CurrentTeamSights = TeamSightsMap.Find(CurrentTeamID);
 
-		// 모든 아군 시야 범위와 비교
-		for (const auto& Sight : FriendlySights)
+		// 3. 로컬 플레이어 팀인 경우에만 렌더 타겟 그리기 (시각적 안개)
+		if (bIsLocalPlayerTeam)
 		{
-			// Z값을 무시하도록 수정
-			if (FVector::DistSquared2D(EnemyLoc, Sight.Location) < Sight.RadiusSq)
+			UKismetRenderingLibrary::ClearRenderTarget2D(GetWorld(), CurrentFogRT, FLinearColor::Black);
+			FCanvas Canvas(CurrentFogRT->GameThread_GetRenderTargetResource(), nullptr, FGameTime::GetTimeSinceAppStart(), GetWorld()->GetFeatureLevel());
+
+			if (CurrentTeamSights)
 			{
-				bIsVisible = true;
-				break; // 하나라도 겹치면 더 볼 필요 없음
+				for (const auto& Sight : *CurrentTeamSights)
+				{
+					FVector2D UV = WorldToFogUV(Sight.Location);
+					float Radius = FMath::Sqrt(Sight.RadiusSq);
+					float CanvasSize = (Radius * 2.0f / WorldWidth) * TextureResolution;
+
+					FCanvasTileItem TileItem(UV * TextureResolution - (CanvasSize * 0.5f),
+					                         BrushMaterial ? BrushMaterial->GetRenderProxy() : nullptr,
+					                         FVector2D(CanvasSize, CanvasSize));
+					TileItem.BlendMode = SE_BLEND_Additive;
+					Canvas.DrawItem(TileItem);
+				}
 			}
+			Canvas.Flush_GameThread();
 		}
-		
-		// 적군 유닛/기지 가시성 상태 업데이트
-		if (ANovaUnit* Unit = Cast<ANovaUnit>(Enemy))
+
+		// 4. 모든 대상 액터들에 대해 현재 팀(CurrentTeamID)의 가시성 판단
+		for (AActor* TargetActor : AllSelectableActors)
 		{
-			Unit->SetFogVisibility(bIsVisible);
-		}
-		else if (ANovaBase* Base = Cast<ANovaBase>(Enemy))
-		{
-			Base->SetFogVisibility(bIsVisible);
+			INovaTeamInterface* TargetTeam = Cast<INovaTeamInterface>(TargetActor);
+			if (!TargetTeam) continue;
+
+			// 자기 팀 유닛은 이미 위에서 처리했으므로 건너뜀 (최적화)
+			if (TargetTeam->GetTeamID() == CurrentTeamID)
+			{
+				if (bIsLocalPlayerTeam)
+				{
+					if (ANovaUnit* Unit = Cast<ANovaUnit>(TargetActor)) Unit->SetFogVisibility(true);
+					else if (ANovaBase* Base = Cast<ANovaBase>(TargetActor)) Base->SetFogVisibility(true);
+				}
+				continue;
+			}
+
+			bool bVisible = false;
+			if (CurrentTeamSights)
+			{
+				FVector TargetLoc = TargetActor->GetActorLocation();
+				for (const auto& Sight : *CurrentTeamSights)
+				{
+					if (FVector::DistSquared2D(TargetLoc, Sight.Location) < Sight.RadiusSq)
+					{
+						bVisible = true;
+						break;
+					}
+				}
+			}
+
+			// 비트마스크 업데이트 (AI 판단용)
+			if (ANovaUnit* Unit = Cast<ANovaUnit>(TargetActor))
+			{
+				Unit->SetVisibilityForTeam(CurrentTeamID, bVisible);
+				if (bIsLocalPlayerTeam) Unit->SetFogVisibility(bVisible);
+			}
+			else if (ANovaBase* Base = Cast<ANovaBase>(TargetActor))
+			{
+				Base->SetVisibilityForTeam(CurrentTeamID, bVisible);
+				if (bIsLocalPlayerTeam) Base->SetFogVisibility(bVisible);
+			}
 		}
 	}
 }

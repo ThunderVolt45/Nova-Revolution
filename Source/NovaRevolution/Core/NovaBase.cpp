@@ -138,6 +138,12 @@ void ANovaBase::BeginPlay()
 	{
 		HighlightDynamicMaterial = UMaterialInstanceDynamic::Create(HighlightMasterMaterial, this);
 	}
+	
+	// 자신의 팀 ID에 비트마스크를 미리 켜둠 (기지는 항상 자기 팀에게 보임)
+	if (TeamID >= 0 && TeamID < 32)
+	{
+		SetVisibilityForTeam(TeamID, true);
+	}
 }
 
 void ANovaBase::Tick(float DeltaTime)
@@ -443,6 +449,14 @@ void ANovaBase::SetFogVisibility(bool bVisible)
 	if (bIsVisibleByFog == bVisible) return;
 	bIsVisibleByFog = bVisible;
 
+	// 로컬 플레이어 팀 ID 가져오기
+	int32 LocalTeamID = -1;
+	if (auto* PC = GetWorld()->GetFirstPlayerController()) {
+		if (auto* PS = PC->GetPlayerState<ANovaPlayerState>()) LocalTeamID = PS->GetTeamID();
+	}
+	// 로컬 플레이어에 대한 비트마스크도 함께 업데이트 (데이터 d일관성)
+	SetVisibilityForTeam(LocalTeamID, bVisible);
+	
 	// 시각적 처리 (건물 메시 숨김)
 	SetActorHiddenInGame(!bVisible);
 
@@ -560,4 +574,24 @@ void ANovaBase::NotifyActorBeginCursorOver()
 void ANovaBase::NotifyActorEndCursorOver()
 {
 	SetHighlightStatus(ENovaHighlightPriority::Hover, false);
+}
+
+bool ANovaBase::IsVisibleToTeam(int32 CurrentTeamID) const
+{
+	// 1. 유효하지 않은 팀 ID(-1 등)인 경우 처리
+	if (CurrentTeamID < 0 || CurrentTeamID >= 32)
+	{
+		return false;
+	}
+
+	// 2. 유효한 경우에만 비트 연산 수행
+	return (VisibilityMask & (1 << CurrentTeamID)) != 0;
+}
+
+void ANovaBase::SetVisibilityForTeam(int32 CurrentTeamID, bool bVisible)
+{
+	if (CurrentTeamID < 0 || CurrentTeamID >= 32) return;
+
+	if (bVisible) VisibilityMask |= (1 << CurrentTeamID);
+	else VisibilityMask &= ~(1 << CurrentTeamID);
 }

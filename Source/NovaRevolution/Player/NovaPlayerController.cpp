@@ -347,40 +347,8 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 		// 선택 대상이 존재할 때
 		else if (SelectedActors.Num() > 0)
 		{
-			// 로컬 플레이어의 팀 ID 가져오기 (적군 판별용)
-			int32 LocalTeamID = -1;
-			if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
-			{
-				LocalTeamID = PS->GetTeamID();
-			}
 			FCommandData CmdData;
-			CmdData.CommandType = ECommandType::Move;
-			CmdData.TargetLocation = CursorHit.Location;
-
-			AActor* HitActor = CursorHit.GetActor();
-			if (HitActor)
-			{
-				// 인터페이스 캐스팅
-				INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(HitActor);
-				INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(HitActor);
-
-				// 대상이 선택 가능함
-				if (Selectable && Selectable->IsSelectable())
-				{
-					// 타겟 정보 전달
-					CmdData.TargetActor = HitActor;
-					// 적대적 타겟 선택 시 공격 명령 전달
-					if (TeamInterface && !TeamInterface->IsFriendly(LocalTeamID))
-					{
-						CmdData.CommandType = ECommandType::Attack;
-					}
-				}
-				else
-				{
-					// 지형이나 일반 오브젝트인 경우 Actor는 무시하고 위치만 전달
-					CmdData.TargetActor = nullptr;
-				}
-			}
+			DetermineCommandTarget(CursorHit, ECommandType::Move, CmdData);
 
 			// 선택된 유닛들에게 명령 전달
 			IssueCommandToSelectedUnits(CmdData);
@@ -507,23 +475,7 @@ void ANovaPlayerController::Input_AbilityInputTagReleased(FGameplayTag InputTag)
 			GetCursorHitResult(CursorHit);
 
 			FCommandData CmdData;
-			CmdData.CommandType = PendingCommandType;
-			CmdData.TargetLocation = CursorHit.Location;
-
-			// TargetActor가 실제로 유닛(Unit)이나 기지(Base)인지 검사
-			AActor* HitActor = CursorHit.GetActor();
-			if (HitActor)
-			{
-				// 인터페이스를 가지고 있거나 특정 클래스(Unit/Base)인 경우메만 TargetActor로 인정
-				if (HitActor->GetClass()->ImplementsInterface(UNovaSelectableInterface::StaticClass()))
-				{
-					CmdData.TargetActor = HitActor;
-				}
-				else
-				{
-					CmdData.TargetActor = nullptr;
-				}
-			}
+			DetermineCommandTarget(CursorHit, PendingCommandType, CmdData);
 
 			IssueCommandToSelectedUnits(CmdData);
 
@@ -1178,5 +1130,47 @@ void ANovaPlayerController::SetCameraLocation(const FVector& TargetWorldPos)
 		NewLocation.Z = ControlledPawn->GetActorLocation().Z;
 
 		ControlledPawn->SetActorLocation(NewLocation);
+	}
+}
+
+void ANovaPlayerController::DetermineCommandTarget(const FHitResult& HitResult, ECommandType InCommandType,
+                                                   FCommandData& OutCmdData)
+{
+	// 기본값 설정
+	OutCmdData.CommandType = InCommandType;
+	OutCmdData.TargetLocation = HitResult.Location;
+	OutCmdData.TargetActor = nullptr;
+
+	AActor* HitActor = HitResult.GetActor();
+	if (!HitActor) return;
+
+	// 인터페이스 캐스팅
+	INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(HitActor);
+	INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(HitActor);
+
+	if (Selectable)
+	{
+		// 로컬 플레이어 팀 ID 확인
+		int32 LocalTeamID = -1;
+		if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+		{
+			LocalTeamID = PS->GetTeamID();
+		}
+
+		bool bIsFriendly = TeamInterface && TeamInterface->GetTeamID() == LocalTeamID;
+		// [버그 수정의 핵심] 안개 속 적(IsSelectable == false)은 타겟팅 대상에서 제외
+		bool bIsVisible = Selectable->IsSelectable();
+
+		// 시야에 보이는 경우에만 타겟으로 인정
+		if (bIsVisible)
+		{
+			OutCmdData.TargetActor = HitActor;
+
+			// 스마트 명령 처리: 우클릭(Move) 시 적군을 찍었다면 자동으로 Attack으로 전환
+			if (InCommandType == ECommandType::Move && !bIsFriendly)
+			{
+				OutCmdData.CommandType = ECommandType::Attack;
+			}
+		}
 	}
 }
