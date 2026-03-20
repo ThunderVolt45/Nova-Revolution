@@ -190,4 +190,16 @@ private:
 	bool bIsDragHighlighted = false;
 	bool bIsSkillHighlighted = false;
 	FLinearColor SkillHighlightColor = FLinearColor::White;
+	
+public:
+	/** 특정 팀에게 이 유닛이 보이는지 확인 (비트 연산) */
+	UFUNCTION(BlueprintPure, Category = "Nova|Fog")
+	bool IsVisibleToTeam(int32 CurrentTeamID) const;
+
+	/** 특정 팀에 대한 가시성 상태를 업데이트 (비트 연산) */
+	void SetVisibilityForTeam(int32 CurrentTeamID, bool bVisible);
+
+private:
+	/** 팀별 가시성 비트마스크 (0번 비트: 팀 0, 1번 비트: 팀 1 ...) */
+	uint32 VisibilityMask = 0;
 };

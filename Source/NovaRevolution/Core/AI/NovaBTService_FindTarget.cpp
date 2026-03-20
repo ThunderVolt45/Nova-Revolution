@@ -34,6 +34,14 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	uint8 CommandTypeValue = BB->GetValueAsEnum(CommandTypeKey.SelectedKeyName);
 	ECommandType CurrentCommand = static_cast<ECommandType>(CommandTypeValue);
 
+	APawn* ControllingPawn = OwnerComp.GetAIOwner()->GetPawn();
+	if (!ControllingPawn) return;
+
+	ANovaUnit* MyUnit = Cast<ANovaUnit>(ControllingPawn);
+	if (!MyUnit) return;
+
+	int32 MyTeamID = MyUnit->GetTeamID();
+
 	// 기존 타겟 가시성 및 유효성 검사
 	AActor* CurrentTargetActor = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 	if (CurrentTargetActor)
@@ -41,7 +49,8 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 		ANovaUnit* TargetUnit = Cast<ANovaUnit>(CurrentTargetActor);
 		
 		// 보이지 않거나 사망한 경우 타겟 해제
-		if (TargetUnit && (!TargetUnit->GetFogVisibility() || TargetUnit->IsDead()))
+		// [수정 전] if (TargetUnit && (!TargetUnit->GetFogVisibility() || TargetUnit->IsDead()))
+		if (TargetUnit && (!TargetUnit->IsVisibleToTeam(MyTeamID) || TargetUnit->IsDead()))
 		{
 			BB->ClearValue(TargetActorKey.SelectedKeyName);
 			CurrentTargetActor = nullptr;
@@ -68,12 +77,6 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	{
 		return;
 	}
-
-	APawn* ControllingPawn = OwnerComp.GetAIOwner()->GetPawn();
-	if (!ControllingPawn) return;
-
-	ANovaUnit* MyUnit = Cast<ANovaUnit>(ControllingPawn);
-	if (!MyUnit) return;
 
 	// 1. 탐색 범위 결정: 시야(Sight)와 사거리(Range) 중 더 큰 값 사용
 	float FinalSearchRadius = 1000.0f; // 기본값
@@ -112,7 +115,6 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 
 	if (bHit)
 	{
-		int32 MyTeamID = MyUnit->GetTeamID();
 		ENovaTargetType MyWeaponTargetType = MyUnit->GetTargetType();
 		
 		UAbilitySystemComponent* MyASC = MyUnit->GetAbilitySystemComponent();
@@ -169,11 +171,13 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 			bool bIsVisible = true;
 			if (TargetUnit)
 			{
-				bIsVisible = TargetUnit->GetFogVisibility();
+				// [수정 전] bIsVisible = TargetUnit->GetFogVisibility();
+				bIsVisible = TargetUnit->IsVisibleToTeam(MyTeamID);
 			}
 			else if (ANovaBase* TargetBase = Cast<ANovaBase>(PotentialTarget))
 			{
-				bIsVisible = TargetBase->GetFogVisibility();
+				// [수정 전] bIsVisible = TargetBase->GetFogVisibility();
+				bIsVisible = TargetBase->IsVisibleToTeam(MyTeamID);
 			}
 
 			if (!bIsVisible) continue;
