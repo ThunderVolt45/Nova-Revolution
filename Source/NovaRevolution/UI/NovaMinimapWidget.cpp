@@ -51,23 +51,6 @@ void UNovaMinimapWidget::NativeConstruct()
 	}
 }
 
-void UNovaMinimapWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
-{
-	// Super::NativeTick(MyGeometry, InDeltaTime);
-	// --- 마우스 드래그로 미니맵 카메라 움직이기 ---
-
-	// 드래그 중일 때 매 프레임 마우스 위치로 카메라 이동
-	if (bIsDragging)
-	{
-		// 현재 마우스의 스크린 좌표 가져오기
-		FVector2D MouseScreenPos;
-		if (GetOwningPlayer()->GetMousePosition(MouseScreenPos.X, MouseScreenPos.Y))
-		{
-			HandleMinimapClick(MyGeometry, MouseScreenPos);
-		}
-	}
-}
-
 int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
                                       const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
                                       int32 LayerId,
@@ -152,22 +135,36 @@ int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 	{
 		if (MapManager)
 		{
-			FVector2D CameraUV = MapManager->WorldToMapUV(Pawn->GetActorLocation());
-			// --- [축 교환 로직 적용] ---
-			FVector2D CameraPos;
-			CameraPos.X = CameraUV.Y * WidgetSize.X; // 월드 Y -> 위젯 X
-			CameraPos.Y = (1.0f - CameraUV.X) * WidgetSize.Y; // 월드 X -> 위젯 Y (반전)
+			// Pawn의 위치를 기준으로 4방향 오프셋 가져오기
+			FCameraViewOffsets Offsets = Pawn->GetCameraViewOffsets();
+			FVector PawnLoc = Pawn->GetActorLocation();
 
-			// 대략적인 카메라 시야 사각형 크기 (줌에 따라 조절 가능)
-			FVector2D RectSize = FVector2D(WidgetSize.X * 0.15f, WidgetSize.Y * 0.1f);
+			// 월드 상의 4개 꼭짓점 계산 (Pawn 위치 기준)
+			// 월드 X가 상하, 월드 Y가 좌우
+			FVector TopLeftWorld = PawnLoc + FVector(Offsets.Top, -Offsets.Left, 0.f);
+			FVector TopRightWorld = PawnLoc + FVector(Offsets.Top, Offsets.Right, 0.f);
+			FVector BottomRightWorld = PawnLoc + FVector(-Offsets.Bottom, Offsets.Right, 0.f);
+			FVector BottomLeftWorld = PawnLoc + FVector(-Offsets.Bottom, -Offsets.Left, 0.f);
 
+			// 월드 좌표 -> 미니맵 위젯 좌표 변환 함수 (람다)
+			auto WorldToWidgetPos = [&](const FVector& WorldPos) -> FVector2D
+			{
+				FVector2D UV = MapManager->WorldToMapUV(WorldPos);
+				FVector2D Pos;
+				Pos.X = UV.Y * WidgetSize.X; // 월드 Y -> 위젯 X
+				Pos.Y = (1.0f - UV.X) * WidgetSize.Y; // 월드 X -> 위젯 Y (반전)
+				return Pos;
+			};
+
+			// 4개 꼭짓점을 위젯 좌표로 변환
 			TArray<FVector2D> Points;
-			Points.Add(CameraPos + FVector2D(-RectSize.X, -RectSize.Y));
-			Points.Add(CameraPos + FVector2D(RectSize.X, -RectSize.Y));
-			Points.Add(CameraPos + FVector2D(RectSize.X, RectSize.Y));
-			Points.Add(CameraPos + FVector2D(-RectSize.X, RectSize.Y));
-			Points.Add(CameraPos + FVector2D(-RectSize.X, -RectSize.Y));
+			Points.Add(WorldToWidgetPos(TopLeftWorld));
+			Points.Add(WorldToWidgetPos(TopRightWorld));
+			Points.Add(WorldToWidgetPos(BottomRightWorld));
+			Points.Add(WorldToWidgetPos(BottomLeftWorld));
+			Points.Add(WorldToWidgetPos(TopLeftWorld)); // 닫힌 루프
 
+			// 사다리꼴 그리기
 			FSlateDrawElement::MakeLines(
 				OutDrawElements,
 				UnitLayer + 1,
@@ -186,32 +183,97 @@ int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 
 FReply UNovaMinimapWidget::NativeOnMouseButtonDown(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
-	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	FVector WorldLoc = GetWorldLocationFromMouse(InGeometry, InMouseEvent.GetScreenSpacePosition());
+	if (NovaPC)
 	{
-		bIsDragging = true;
-		HandleMinimapClick(InGeometry, InMouseEvent.GetScreenSpacePosition());
-		return FReply::Handled().CaptureMouse(TakeWidget());
+		if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+		{
+			// A키(공격) 등 대기 중인 명령이 있다면? -> 명령 수행(Select 태그 주입)
+			if (NovaPC->GetPendingCommandType() != ECommandType::None)
+			{
+				NovaPC->InjectMinimapInput(WorldLoc, NovaGameplayTags::Input_Select, true);
+			}
+			else
+			{
+				bIsDragging = true;
+				NovaPC->SetCameraLocation(WorldLoc);
+				return FReply::Handled().CaptureMouse(TakeWidget());
+			}
+
+			return FReply::Handled();
+		}
+		// --- 우클릭 처리 (스마트 명령) ---
+		else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+		{
+			if (NovaPC)
+			{
+				// 2. '우클릭 명령(Input.Command)' 태그를 눌렀다고 PC에게 주입!
+				NovaPC->InjectMinimapInput(WorldLoc, NovaGameplayTags::Input_Command, true);
+			}
+			return FReply::Handled();
+		}
 	}
 	return FReply::Unhandled();
 }
 
 FReply UNovaMinimapWidget::NativeOnMouseButtonUp(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
+	/*
 	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
 		bIsDragging = false;
 		return FReply::Handled().ReleaseMouseCapture();
 	}
 	return FReply::Unhandled();
+	*/
+	FVector WorldLoc = GetWorldLocationFromMouse(InGeometry, InMouseEvent.GetScreenSpacePosition());
+
+	// --- 좌클릭 뗄 때 ---
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+	{
+		if (bIsDragging)
+		{
+			bIsDragging = false;
+			return FReply::Handled().ReleaseMouseCapture();
+		}
+		else if (NovaPC)
+		{
+			// 대기 중인 명령(A클릭 등)의 마무리를 위해 주입
+			NovaPC->InjectMinimapInput(WorldLoc, NovaGameplayTags::Input_Select, false);
+		}
+		return FReply::Handled();
+	}
+
+	// --- 우클릭 뗄 때 ---
+	else if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
+	{
+		if (NovaPC)
+		{
+			// 우클릭 명령 Released 주입
+			NovaPC->InjectMinimapInput(WorldLoc, NovaGameplayTags::Input_Command, false);
+		}
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
 }
 
 FReply UNovaMinimapWidget::NativeOnMouseMove(const FGeometry& InGeometry, const FPointerEvent& InMouseEvent)
 {
+	if (bIsDragging)
+	{
+		if (NovaPC)
+		{
+			NovaPC->SetCameraLocation(GetWorldLocationFromMouse(InGeometry, InMouseEvent.GetScreenSpacePosition()));
+		}
+		return FReply::Handled();
+	}
 	return Super::NativeOnMouseMove(InGeometry, InMouseEvent);
 }
 
 void UNovaMinimapWidget::HandleMinimapClick(const FGeometry& MyGeometry, const FVector2D& MouseScreenPos)
 {
+	/*
 	// 스크린 좌표를 위젯 로컬 좌표로 변환
 	FVector2D LocalPos = MyGeometry.AbsoluteToLocal(MouseScreenPos);
 	FVector2D WidgetSize = MyGeometry.GetLocalSize();
@@ -224,12 +286,29 @@ void UNovaMinimapWidget::HandleMinimapClick(const FGeometry& MyGeometry, const F
 
 	// 월드 좌표로 변환하여 카메라 이동
 	FVector TargetWorldPos = MapManager->UVToWorldLocation(FVector2D(TargetU, TargetV), 0.0f);
-	if (APawn* Pawn = NovaPC->GetPawn())
+	*/
+
+	// NovaPlayerController에서 카메라 위치 조정
+	if (NovaPC)
 	{
-		// Z값은 현재 카메라 높이 유지
-		TargetWorldPos.Z = Pawn->GetActorLocation().Z;
-		Pawn->SetActorLocation(TargetWorldPos);
+		NovaPC->SetCameraLocation(GetWorldLocationFromMouse(MyGeometry, MouseScreenPos));
 	}
+}
+
+FVector UNovaMinimapWidget::GetWorldLocationFromMouse(const FGeometry& MyGeometry,
+                                                      const FVector2D& MouseScreenPos) const
+{
+	if (!MapManager) return FVector::ZeroVector;
+
+	// 1. 스크린 좌표 -> 위젯 로컬 좌표 -> UV 좌표 (0~1)
+	FVector2D LocalPos = MyGeometry.AbsoluteToLocal(MouseScreenPos);
+	FVector2D WidgetSize = MyGeometry.GetLocalSize();
+
+	float TargetV = FMath::Clamp(LocalPos.X / WidgetSize.X, 0.0f, 1.0f);
+	float TargetU = 1.0f - FMath::Clamp(LocalPos.Y / WidgetSize.Y, 0.0f, 1.0f);
+
+	// 2. UV를 월드 좌표로 변환 (Z값은 나중에 PC에서 보정되므로 일단 0)
+	return MapManager->UVToWorldLocation(FVector2D(TargetU, TargetV), 0.0f);
 }
 
 FVector UNovaMinimapWidget::MinimapUVToWorld(const FVector2D& UV) const

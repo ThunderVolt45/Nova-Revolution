@@ -55,7 +55,6 @@ protected:
 
 public:
 	virtual void NativeConstruct() override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	/** 슬레이트 엔진의 그리기 함수 오버라이드 (유닛 점, 카메라 사각형 그리기) */
 	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
@@ -74,6 +73,9 @@ private:
 	/** 마우스 위치(위젯 좌표)를 월드 좌표로 변환하여 카메라 이동 */
 	void HandleMinimapClick(const FGeometry& MyGeometry, const FVector2D& MouseScreenPos);
 
+	// 좌표 계산용 헬퍼 함수
+	FVector GetWorldLocationFromMouse(const FGeometry& MyGeometry, const FVector2D& MouseScreenPos) const;
+	
 	/** UV 좌표를 월드 좌표로 변환 */
 	FVector MinimapUVToWorld(const FVector2D& UV) const;
 };

@@ -13,26 +13,26 @@
 #include "Core/NovaBase.h"
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaLog.h"
+#include "Core/NovaMapManager.h"
 #include "Core/NovaPlayerState.h"
 #include "GAS/NovaGameplayTags.h"
 #include "Input/NovaInputComponent.h"
 #include "Core/NovaTypes.h"
 #include "Core/NovaUnit.h"
-#include "Core/AI/NovaAIController.h"
 #include "GameFramework/HUD.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/NovaHUD.h"
+// #include "Core/AI/NovaAIController.h"
 
 ANovaPlayerController::ANovaPlayerController()
 {
-	// bShowMouseCursor = true; // 장르가 RTS 이므로 마우스 항상 표시합니다.
-	// DefaultMouseCursor = EMouseCursor::Default;
 }
 
 void ANovaPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 마우스 항상 표시
 	bShowMouseCursor = true;
 	DefaultMouseCursor = EMouseCursor::Default;
 
@@ -68,6 +68,10 @@ void ANovaPlayerController::BeginPlay()
 				Subsystem->AddMappingContext(IMC, 0);
 			}
 		}
+
+		// 월드에서 MapManager 찾기
+		MapManager = Cast<ANovaMapManager>(
+			UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass()));
 
 		// --- 새로운 로직: 메인 HUD 생성 및 표시 ---
 		// 에디터(BP_NovaPlayerController)에서 MainHUDClass가 할당되었는지 확인
@@ -155,6 +159,9 @@ void ANovaPlayerController::PlayerTick(float DeltaTime)
 			}
 		}
 	}
+	
+	// 이동 처리가 끝난 후 마지막에 위치를 제한
+	ClampCameraLocation();
 }
 
 void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
@@ -431,7 +438,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 			return;
 		}
 	}
-	
+
 	// 누르는 즉시 실행되는 명령 : Stop(S), Hold(H), Halt(L)
 	ECommandType ImmediateCmd = ECommandType::None;
 	if (InputTag.MatchesTag(NovaGameplayTags::Input_Stop)) ImmediateCmd = ECommandType::Stop;
@@ -932,13 +939,8 @@ void ANovaPlayerController::HandleFocusAndSelection(const TArray<AActor*>& Targe
 	if (bIsDoubleClick && ValidCount > 0)
 	{
 		AverageLocation /= (float)ValidCount; // 유닛들의 중심점
-		if (APawn* ControlledPawn = GetPawn())
-		{
-			FVector NewCameraLocation = AverageLocation;
-			NewCameraLocation.Z = ControlledPawn->GetActorLocation().Z; // Z값은 현재 카메라 높이를 유지
-			ControlledPawn->SetActorLocation(NewCameraLocation);
-			// NOVA_SCREEN(Warning, "Camera Move to Selected Targets");
-		}
+		SetCameraLocation(AverageLocation);
+		ClampCameraLocation();
 	}
 
 	// 포커스 정보 갱신
@@ -963,6 +965,17 @@ void ANovaPlayerController::ToggleHealthBar(FGameplayTag InputTag)
 
 void ANovaPlayerController::GetCursorHitResult(FHitResult& OutHitResult)
 {
+	// 가상 히트 상태라면 가짜 좌표를 반환하도록 변경
+	if (bIsMinimapInputMode)
+	{
+		OutHitResult.Reset();
+		OutHitResult.Location = MinimapClickLocation;
+		OutHitResult.ImpactPoint = MinimapClickLocation;
+		OutHitResult.bBlockingHit = true;
+		return;
+	}
+	
+	// 평소에는 기존체럼 실제 마우스 커서 아래를 추적
 	GetHitResultUnderCursor(ECC_Visibility, false, OutHitResult);
 }
 
@@ -1022,6 +1035,50 @@ void ANovaPlayerController::NotifyTargetUnselectable(AActor* SelectedTargets)
 	}
 }
 
+void ANovaPlayerController::InjectMinimapInput(const FVector& WorldLocation, FGameplayTag InputTag, bool bPressed)
+{
+	// 1. Z값 보정 (지형 높이 찾기)
+	FVector CorrectedLocation = WorldLocation;
+
+	// 하늘 높이(10000)에서 바닥(-10000)으로 레이를 쏨
+	FVector TraceStart = FVector(WorldLocation.X, WorldLocation.Y, 10000.f);
+	FVector TraceEnd = FVector(WorldLocation.X, WorldLocation.Y, -10000.f);
+
+	FHitResult GroundHit;
+	FCollisionQueryParams Params;
+	// 자기 자신(Pawn)은 무시
+	Params.AddIgnoredActor(GetPawn());
+
+	// ECC_Visibility 채널을 사용하여 실제 지형(Landscale 등)의 높이를 감지 -> 새로 만든 Ground채널 이용
+	if (GetWorld()->LineTraceSingleByChannel(GroundHit, TraceStart, TraceEnd, ECC_Ground /*ECC_Visibility*/, Params))
+	{
+		// 실제 지형의 높이를 적용
+		CorrectedLocation.Z = GroundHit.ImpactPoint.Z;
+	}
+	else
+	{
+		// 지형 감지 실패 시 최소한 0으로 설정
+		CorrectedLocation.Z = 0.f;
+	}
+	
+	// 가상 상태 활성화
+	bIsMinimapInputMode = true;
+	MinimapClickLocation = CorrectedLocation;
+
+	// 기존에 이미 만들어진 입력 처리 함수 호출
+	if (bPressed)
+	{
+		Input_AbilityInputTagPressed(InputTag);
+	}
+	else
+	{
+		Input_AbilityInputTagReleased(InputTag);
+	}
+
+	// 가상 상태 즉시 해제
+	bIsMinimapInputMode = false;
+}
+
 void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor)
 {
 	UNiagaraSystem* EffectToSpawn = nullptr;
@@ -1036,10 +1093,16 @@ void ANovaPlayerController::SpawnCommandVisualEffect(const FVector& Loc, EComman
 		}
 		break;
 	case ECommandType::Attack:
-		EffectToSpawn = AttackCommandEffect;
+		if (!TargetActor)
+		{
+			EffectToSpawn = AttackCommandEffect;
+		}
 		break;
 	default:
-		EffectToSpawn = MoveCommandEffect;
+		if (!TargetActor)
+		{
+			EffectToSpawn = MoveCommandEffect;
+		}
 		break;
 	}
 	if (EffectToSpawn)
@@ -1075,4 +1138,45 @@ void ANovaPlayerController::NotifySelectionChanged()
 {
 	OnSelectionChanged.Broadcast(SelectedActors);
 	UpdatePortraitCaptures();
+}
+
+void ANovaPlayerController::ClampCameraLocation()
+{
+	ANovaPawn* NovaPawn = Cast<ANovaPawn>(GetPawn());
+	if (!NovaPawn || !MapManager) return;
+
+	FBox MapBox = MapManager->GetMapBounds();
+	FVector CurrentLoc = NovaPawn->GetActorLocation();
+	
+	// 1. 비대칭 4방향 마진 가져오기
+	FCameraViewOffsets Offsets = NovaPawn->GetCameraViewOffsets();
+	
+	// 2. 각 방향별로 Clamp (위아래, 좌우가 각각의 마진을 가짐)
+	// 맵의 MaxX(상단)는 Top 마진을 사용, MinX(하단)는 Bottom 마진을 사용
+	float MinX = FMath::Min(MapBox.Min.X + Offsets.Bottom, MapBox.GetCenter().X);
+	float MaxX = FMath::Max(MapBox.Max.X - Offsets.Top, MapBox.GetCenter().X);
+	float MinY = FMath::Min(MapBox.Min.Y + Offsets.Left, MapBox.GetCenter().Y);
+	float MaxY = FMath::Max(MapBox.Max.Y - Offsets.Right, MapBox.GetCenter().Y);
+
+	// 3. 최종 Clamp 수행
+	FVector ClampedLoc = CurrentLoc;
+	ClampedLoc.X = FMath::Clamp(CurrentLoc.X, MinX, MaxX);
+	ClampedLoc.Y = FMath::Clamp(CurrentLoc.Y, MinY, MaxY);
+
+	if (!CurrentLoc.Equals(ClampedLoc, 0.1f))
+	{
+		NovaPawn->SetActorLocation(ClampedLoc);
+	}
+}
+
+void ANovaPlayerController::SetCameraLocation(const FVector& TargetWorldPos)
+{
+	if (APawn* ControlledPawn = GetPawn())
+	{
+		FVector NewLocation = TargetWorldPos;
+		// 현재 카메라의 높이(Z)를 유지하여 지형에 박히는 것을 방지
+		NewLocation.Z = ControlledPawn->GetActorLocation().Z;
+
+		ControlledPawn->SetActorLocation(NewLocation);
+	}
 }
