@@ -114,4 +114,5 @@ private:
 	static const FName TargetLocationKey;
 	static const FName TargetActorKey;
 	static const FName CommandTypeKey;
+	static const FName IsFocusAttackKey;
 };

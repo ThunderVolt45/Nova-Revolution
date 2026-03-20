@@ -36,6 +36,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	FBlackboardKeySelector CommandTypeKey;
 
+	/** 명령이 강제 공격(Focus Attack)인지 여부를 저장하는 블랙보드 키 */
+	UPROPERTY(EditAnywhere, Category = "Nova|AI")
+	FBlackboardKeySelector IsFocusAttackKey;
+
 	/** 공격 시 발동할 어빌리티 태그 */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	FGameplayTag AbilityTag;
