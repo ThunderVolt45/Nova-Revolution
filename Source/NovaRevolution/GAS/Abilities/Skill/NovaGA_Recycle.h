@@ -24,8 +24,4 @@ protected:
 	/** 와트 반환 비율 (기본 0.6 = 60%) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nova|Skill|Recycle")
 	float RefundRate = 0.6f;
-
-	/** 분해 시 재생할 시각 효과 태그 (GameplayCue) */
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|Skill|Recycle")
-	FGameplayTag RecycleCueTag;
 };

@@ -40,10 +40,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Recall")
 	TSubclassOf<class ANovaTargetActor_GroundRadius> TargetActorClass;
 
-	/** 텔레포트 시 발생시킬 비주얼 이펙트 태그 (GameplayCue) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Recall")
-	FGameplayTag RecallCueTag;
-
 	/** 타겟팅 반지름 (기본값 700 = 노바 기준 7) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Recall")
 	float RecallRadius = 500.0f;

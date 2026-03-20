@@ -10,6 +10,9 @@
 UNovaGA_SPLevelUp::UNovaGA_SPLevelUp()
 {
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+    // 통합 GCN 타겟 설정
+    GCNTargetType = ENovaSkillGCNTargetType::Base;
 }
 
 void UNovaGA_SPLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -66,7 +69,10 @@ void UNovaGA_SPLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handle,
         }
     }
 
-    NOVA_SCREEN(Log, "SP LEVEL UP: %.0f -> %.0f", CurrentSPLevel, CurrentSPLevel + 1.0f);
+    // 6. 시각 효과 실행 (통합 GCN 시스템 사용)
+    ExecuteSkillGCN(FGameplayAbilityTargetDataHandle());
+    
+    // NOVA_SCREEN(Log, "SP LEVEL UP: %.0f -> %.0f", CurrentSPLevel, CurrentSPLevel + 1.0f);
     EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }
 

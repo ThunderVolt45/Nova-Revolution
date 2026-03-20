@@ -260,3 +260,27 @@ public:
 	/** 모든 상태를 종합하여 최종 하이라이트 효과를 갱신합니다. */
 	virtual void UpdateHighlight() = 0;
 };
+
+// --- 안개 가시성 인터페이스 ---
+UINTERFACE(MinimalAPI, BlueprintType)
+class UNovaVisibilityInterface : public UInterface
+{
+	GENERATED_BODY()
+};
+
+/**
+ * 안개 가시성(Fog of War) 상태를 제공하는 인터페이스
+ */
+class NOVAREVOLUTION_API INovaVisibilityInterface
+{
+	GENERATED_BODY()
+
+public:
+	/** 현재 안개에 의해 보이고 있는지 여부를 반환합니다. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Visibility")
+	bool GetFogVisibility() const;
+
+	/** 안개 가시성 상태를 설정합니다. */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Visibility")
+	void SetFogVisibility(bool bVisible);
+};
