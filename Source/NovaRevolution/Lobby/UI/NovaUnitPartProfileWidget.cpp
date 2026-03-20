@@ -10,6 +10,8 @@
 #include "Lobby/Preview/NovaPartPreviewActor.h" // 프리뷰 액터 헤더 포함
 #include "Engine/TextureRenderTarget2D.h"
 #include "Kismet/GameplayStatics.h"
+#include "Lobby/NovaLobbyManager.h"
+#include "Lobby/NovaLobbyPlayerController.h"
 
 void UNovaUnitPartProfileWidget::InitCategory(ENovaPartType Category)
 {
@@ -101,7 +103,7 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
         NOVA_LOG(Log, "Profile UI Updated: %s (Index: %d)", *TargetID.ToString(), CurrentIndex);
     }
     
-    // 3. [추가 로직] 외형 프리뷰 업데이트
+    // 3. 파트 외형 프리뷰 업데이트
     // 프리뷰 액터, 렌더 타겟, 에셋 테이블이 모두 유효할 때만 진행합니다.
     if (PreviewActor && PreviewRenderTarget && PartAssetTable)
     {
@@ -111,8 +113,7 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
 
         if (AssetRow && AssetRow->PartClass)
         {
-            // 프리뷰 액터에게 "이 클래스의 부품을 이 렌더 타겟에 찍어줘"라고 요청합니다.
-            // PreviewActor 내부에서는 기존 부품을 제거하고 새 부품을 스폰하여 촬영을 시작합니다.
+            // 1. 위젯 내부의 개별 파트 프리뷰 업데이트
             PreviewActor->UpdatePreview(AssetRow->PartClass, PreviewRenderTarget);
             
             // 렌더 타겟 영상을 위젯의 이미지 컨트롤에 투사
@@ -124,6 +125,33 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
             }
             
             NOVA_LOG(Log, "Preview Updated for Part: %s", *TargetID.ToString());
+            
+            //2. 중앙의 AssemblyPreviewUnit과 실시간 동기화, 위젯이 촬영을 위해 꺼낸 클래스 정보를 그대로 매니저에게 밀어넣습니다.
+            if (ANovaLobbyPlayerController* LobbyPC = Cast<ANovaLobbyPlayerController>(GetOwningPlayer()))
+            {
+                if (ANovaLobbyManager* Manager = LobbyPC->GetLobbyManager())
+                {
+                    // 이 함수 호출이 실행되는 즉시, 중앙 유닛도 해당 부품으로 갈아 끼웁니다.
+                    // 위젯의 카테고리(DefaultCategory)와 선택된 파츠 ID(TargetID)를 매니저에게 전송합니다.
+                    Manager->SelectPart(DefaultCategory, TargetID);
+                }
+            }
+            NOVA_LOG(Log, "Syncing Part with Assembly: %s", *TargetID.ToString());
+            
+        }
+    }
+    
+    // 1. 소유 중인 플레이어 컨트롤러를 로비 전용 컨트롤러로 캐스팅하여 가져옵니다.
+    if (ANovaLobbyPlayerController* LobbyPC = Cast<ANovaLobbyPlayerController>(GetOwningPlayer()))
+    {
+        // 2. 컨트롤러가 보유한 로비 매니저 참조를 획득합니다.
+        if (ANovaLobbyManager* Manager = LobbyPC->GetLobbyManager())
+        {
+            // 3. 현재 위젯이 담당하는 카테고리(DefaultCategory)와 현재 선택된 파츠 ID(TargetID)를 매니저에게 전달합니다.
+            // 이 함수 호출을 통해 매니저는 덱 데이터를 갱신하고, 월드에 배치된 '전신 유닛'의 외형을 즉시 교체합니다.
+            Manager->SelectPart(DefaultCategory, TargetID);
+        
+            // 이 시점에서 '개별 부품 프리뷰'와 '전신 조립 모습'이 동시에 업데이트되는 시각적 동기화가 이루어집니다.
         }
     }
     

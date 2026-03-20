@@ -50,6 +50,9 @@ void ANovaPartPreviewActor::UpdatePreview(TSubclassOf<ANovaPart> PartClass, UTex
     // 기존 부품이 있다면 풀(Pool)로 반환하여 재사용
     if (CurrentPreviewPart)
     {
+        // [추가할 로직] 반납하기 전에 스케일을 다시 1.0으로 초기화합니다.
+        CurrentPreviewPart->SetActorScale3D(FVector(1.0f));
+        
         Pool->ReturnToPool(CurrentPreviewPart);
         CurrentPreviewPart = nullptr;
     }
@@ -71,12 +74,12 @@ void ANovaPartPreviewActor::UpdatePreview(TSubclassOf<ANovaPart> PartClass, UTex
         if (PartType == ENovaPartType::Legs)
         {
             // 다리는 인게임 기본값이 0.25이므로, 프리뷰에서 시원하게 보이기 위해 8배(실질적 2.0배 수준)로 키웁니다.
-            PreviewScale = 8.0f; 
+            PreviewScale = 4.0f; 
         }
         else if (PartType == ENovaPartType::Body || PartType == ENovaPartType::Weapon)
         {
             // 몸통과 무기는 기본이 1.0이므로 2배 정도만 키워도 디테일 확인이 충분합니다.
-            PreviewScale = 2.0f;
+            PreviewScale = 1.0f;
         }
         
         // 최종 계산된 프리뷰 전용 스케일 적용
