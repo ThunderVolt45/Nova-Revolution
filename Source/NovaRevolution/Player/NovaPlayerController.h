@@ -145,6 +145,12 @@ protected:
 	// 드래그 선택을 수행하는 실제 판정 함수
 	void PerformBoxSelection();
 
+	/** 
+	 * 마우스 히트 결과와 현재 명령 타입을 기반으로 
+	 * 실제 유효한 타겟 액터와 위치를 결정하는 통합 로직
+	 */
+	void DetermineCommandTarget(const FHitResult& HitResult, ECommandType InCommandType, FCommandData& OutCmdData);
+
 	// 선택된 유닛들에게 실제 명령을 하달하는 헬퍼 함수
 	void IssueCommandToSelectedUnits(const FCommandData& CommandData);
 
