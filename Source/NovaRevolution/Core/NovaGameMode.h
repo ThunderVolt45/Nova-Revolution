@@ -71,4 +71,8 @@ protected:
 	// 각 팀별 덱 정보 관리
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TMap<int32, FNovaDeckInfo> TeamDecks;
+
+	/** 각 팀별 관리 중인 AI 컨트롤러 (기지 파괴 시 로직 중지용) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
+	TMap<int32, class ANovaAIPlayerController*> TeamAIControllers;
 };

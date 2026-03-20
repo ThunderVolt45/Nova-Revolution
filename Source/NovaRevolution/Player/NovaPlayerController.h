@@ -8,6 +8,7 @@
 #include "GameFramework/PlayerController.h"
 #include "NovaPlayerController.generated.h"
 
+class ANovaMapManager;
 // 인 게임 내 유닛 하단의 체력바용
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShowHealthBarsChanged, bool, bShow);
 
@@ -73,6 +74,9 @@ protected:
 	// 현재 체력바 표시 여부 (기본값 : true)
 	bool bShowHealthBars = true;
 
+	// 가상 히트 상태인지 여부
+	bool bIsMinimapInputMode = false;
+	
 	// 엣지 스크롤링 활성화 여부
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	bool bEnableEdgeScrolling = true;
@@ -109,9 +113,16 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Command")
 	ECommandType PendingCommandType = ECommandType::None;
 
+	// 맵 범위를 가져오기 위한 매니저 참조
+	UPROPERTY(Transient)
+	TObjectPtr<ANovaMapManager> MapManager;
+	
 	// 드래그 시작 시점의 화면 좌표 (픽셀 단위)
 	FVector2D DragStartPos;
 
+	// 미니맵에서 찍은 월드 좌표 저장
+	FVector MinimapClickLocation;
+	
 	// UNovaInputComponent에서 태그를 매개변수로 넘겨주게 됩니다.
 	// 마우스 Pressed
 	void Input_AbilityInputTagPressed(FGameplayTag InputTag);
@@ -133,6 +144,12 @@ protected:
 
 	// 드래그 선택을 수행하는 실제 판정 함수
 	void PerformBoxSelection();
+
+	/** 
+	 * 마우스 히트 결과와 현재 명령 타입을 기반으로 
+	 * 실제 유효한 타겟 액터와 위치를 결정하는 통합 로직
+	 */
+	void DetermineCommandTarget(const FHitResult& HitResult, ECommandType InCommandType, FCommandData& OutCmdData);
 
 	// 선택된 유닛들에게 실제 명령을 하달하는 헬퍼 함수
 	void IssueCommandToSelectedUnits(const FCommandData& CommandData);
@@ -189,6 +206,8 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Nova|Command")
 	ECommandType GetPendingCommandType() const { return PendingCommandType; }
 	
+	void InjectMinimapInput(const FVector& WorldLocation, FGameplayTag InputTag, bool bPressed);
+	
 protected:
 	/** 화면에 띄울 메인 HUD 위젯 클래스 (블루프린트에서 설정) */
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
@@ -212,7 +231,12 @@ protected:
 	// 유닛의 PortraitCapture를 조절해줄 헬퍼 함수
 	void UpdatePortraitCaptures();
 	
+	// 선택 대상이 변할 때 UI변화를 적용할 함수
 	void NotifySelectionChanged();
+	
+	// 카메라 위치를 맵 범위 내로 제한하는 함수
+	void ClampCameraLocation();
+	
 public:
 	/** 선택된 유닛 배열이 변경될 때 호출되는 델리게이트 */
 	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")
@@ -221,4 +245,7 @@ public:
 	/** 현재 선택된 유닛 리스트를 직접 가져오는 Getter */
 	UFUNCTION(BlueprintPure, Category = "Nova|Selection")
 	const TArray<AActor*>& GetSelectedUnits() const { return SelectedActors; }
+	
+	UFUNCTION(BlueprintCallable, Category = "Nova|Camera")
+	void SetCameraLocation(const FVector& TargetWorldPos);
 };

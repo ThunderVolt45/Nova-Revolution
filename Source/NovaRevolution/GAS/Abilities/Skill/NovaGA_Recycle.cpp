@@ -1,4 +1,6 @@
 #include "GAS/Abilities/Skill/NovaGA_Recycle.h"
+
+#include "AbilitySystemBlueprintLibrary.h"
 #include "Player/NovaPlayerController.h"
 #include "Core/NovaUnit.h"
 #include "AbilitySystemComponent.h"
@@ -16,6 +18,9 @@ UNovaGA_Recycle::UNovaGA_Recycle()
     // 기본 비용 설정 (BP에서 수정 가능)
     WattCost = 0.0f;
     SPCost = 20.0f;
+
+    // 통합 GCN 타겟 설정
+    GCNTargetType = ENovaSkillGCNTargetType::TargetActors;
 }
 
 void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -29,38 +34,33 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
         return;
     }
 
-    // 2. 컨트롤러에서 현재 선택된 유닛 리스트 가져오기
-    ANovaPlayerController* PC = Cast<ANovaPlayerController>(ActorInfo->PlayerController.Get());
-    if (!PC)
-    {
-        NOVA_SCREEN(Error, "PlayerController를 찾을 수 없습니다.");
-        EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
-        return;
-    }
-
-    const TArray<AActor*>& SelectedUnits = PC->GetSelectedUnits();
+    // 2. 타겟 유닛 결정 (TriggerEventData 우선, 없으면 PC 선택 유닛)
     ANovaUnit* TargetUnit = nullptr;
 
-    // 플레이어 자신의 팀 ID 확인
-    int32 PlayerTeamID = NovaTeam::None;
-    if (APlayerState* PS = PC->PlayerState)
+    if (TriggerEventData && TriggerEventData->Target)
     {
-        if (INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(PS))
-        {
-            PlayerTeamID = TeamInterface->GetTeamID();
-        }
+        TargetUnit = const_cast<ANovaUnit*>(Cast<ANovaUnit>(TriggerEventData->Target));
     }
 
-    // 3. 선택된 유닛 중 리싸이클 가능한 아군 유닛 탐색 (첫 번째 유닛 선택)
-    for (AActor* Actor : SelectedUnits)
+    if (!TargetUnit)
     {
-        if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+        ANovaPlayerController* PC = Cast<ANovaPlayerController>(ActorInfo->PlayerController.Get());
+        if (PC)
         {
-            // 팀이 같고, 현재 죽지 않은 상태여야 함
-            if (Unit->GetTeamID() == PlayerTeamID && !Unit->IsDead())
+            const TArray<AActor*>& SelectedUnits = PC->GetSelectedUnits();
+            int32 TeamID = NovaTeam::None;
+            if (INovaTeamInterface* TI = Cast<INovaTeamInterface>(PC->PlayerState)) TeamID = TI->GetTeamID();
+
+            for (AActor* Actor : SelectedUnits)
             {
-                TargetUnit = Unit;
-                break;
+                if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+                {
+                    if (Unit->GetTeamID() == TeamID && !Unit->IsDead())
+                    {
+                        TargetUnit = Unit;
+                        break;
+                    }
+                }
             }
         }
     }
@@ -68,7 +68,7 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
     // 대상이 없으면 스킬 취소
     if (!TargetUnit)
     {
-        NOVA_SCREEN(Warning, "리싸이클할 아군 유닛이 선택되어 있지 않습니다.");
+        NOVA_LOG(Warning, "Recycle Ability: No target unit found (EventData or Selected).");
         EndAbility(Handle, ActorInfo, ActivationInfo, true, true);
         return;
     }
@@ -91,9 +91,6 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
         FGameplayEffectSpecHandle SpecHandle = PlayerASC->MakeOutgoingSpec(ModifyResourceGEClass, 1.0f, PlayerASC->MakeEffectContext());
         if (SpecHandle.IsValid())
         {
-            //반환 와트량 디버그메세지
-            //NOVA_SCREEN(Warning, "반환 와트량 : %f", RefundAmount);
-            
             // SP 소모 (음수) 및 Watt 반환 (양수)
             SpecHandle.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_SP, -SPCost);
             SpecHandle.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_Watt, RefundAmount);
@@ -103,12 +100,8 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
     }
 
     // 6. 시각 효과 실행
-    if (RecycleCueTag.IsValid())
-    {
-        FGameplayCueParameters Params;
-        Params.Location = TargetUnit->GetActorLocation();
-        PlayerASC->ExecuteGameplayCue(RecycleCueTag, Params);
-    }
+    FGameplayAbilityTargetDataHandle TargetHandle = UAbilitySystemBlueprintLibrary::AbilityTargetDataFromActor(TargetUnit);
+    ExecuteSkillGCN(TargetHandle);
 
     // 7. 유닛 분해 (Die 호출로 인구수/총 와트 반납 및 오브젝트 풀 복귀 처리)
     TargetUnit->Die();

@@ -72,7 +72,7 @@ void UNovaAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 			SetHealth(FMath::Clamp(NewHealth, 0.0f, GetMaxHealth()));
 
 			// 데미지 로그 출력
-			NOVA_LOG(Log, "Unit Damaged: %f. Remaining HP: %f/%f", LocalDamageDone, GetHealth(), GetMaxHealth());
+			// NOVA_LOG(Log, "Unit Damaged: %f. Remaining HP: %f/%f", LocalDamageDone, GetHealth(), GetMaxHealth());
 
 			// 사망 처리 호출
 			if (GetHealth() <= 0.0f)

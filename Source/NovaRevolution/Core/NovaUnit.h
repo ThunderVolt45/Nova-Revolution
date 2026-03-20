@@ -61,7 +61,7 @@ public:
 	void SetAssemblyData(const FNovaUnitAssemblyData& Data);
 
 	/** 팀 식별자 설정을 위한 세터 */
-	void SetTeamID(int32 InTeamID) { TeamID = InTeamID; }
+	void SetTeamID(int32 InTeamID);
 
 	/** 생성 시 초기 이동 목표(랠리 포인트) 설정 */
 	void SetInitialRallyLocation(const FVector& InLocation) { InitialRallyLocation = InLocation; }
@@ -350,7 +350,7 @@ public:
 
 	// PortraitCapture Getter(PlayerController에게 권한 위임)
 	TObjectPtr<USceneCaptureComponent2D> GetPortraitCapture() const { return PortraitCapture; }
-	
+
 protected:
 	// --- 마우스 오버 이벤트(하이라이트 처리) ---
 	virtual void NotifyActorBeginCursorOver() override;
@@ -412,13 +412,24 @@ private:
 
 #pragma region Navigation & Fog of War
 
+private:
+	/** 팀별 가시성 비트마스크 (0번 비트: 팀 0, 1번 비트: 팀 1 ...) */
+	uint32 VisibilityMask = 0; // unint32: 부호 없는 32비트 정수
+
 public:
+	/** 특정 팀에게 이 유닛이 보이는지 확인 (비트 연산) */
+	UFUNCTION(BlueprintPure, Category = "Nova|Fog")
+	bool IsVisibleToTeam(int32 CurrentTeamID) const;
+
+	/** 특정 팀에 대한 가시성 상태를 업데이트 (비트 연산) */
+	void SetVisibilityForTeam(int32 CurrentTeamID, bool bVisible);
+
 	// --- INovaTeamInterface ---
 	virtual int32 GetTeamID() const override { return TeamID; }
 
 	// 안개 가시성 설정 함수
 	void SetFogVisibility(bool bVisible);
-	
+
 	bool GetFogVisibility() const { return bIsVisibleByFog; }
 
 	/** 유닛이 NavMesh 상에서 장애물로 작동할지 여부를 설정합니다. */

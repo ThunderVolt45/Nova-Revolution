@@ -78,8 +78,11 @@ void UNovaGA_ResourceLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle H
     
     // 6. 최종 성공 메시지
     float NewLevel = CurrentLevel + 1.0f;
-    NOVA_SCREEN(Log, "RESOURCE LEVEL UP SUCCESS! (Level %.0f -> %.0f)", CurrentLevel, NewLevel);
-
-    // 6. 어빌리티 종료
+    
+    // 6. 시각 효과 실행 (통합 GCN 시스템 사용)
+    ExecuteSkillGCN(FGameplayAbilityTargetDataHandle());
+    
+    // 7. 어빌리티 종료
+    // NOVA_SCREEN(Log, "RESOURCE LEVEL UP SUCCESS! (Level %.0f -> %.0f)", CurrentLevel, NewLevel);
     EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }

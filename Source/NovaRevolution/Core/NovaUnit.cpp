@@ -10,6 +10,7 @@
 #include "NovaPlayerState.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Core/AI/NovaAIController.h"
+#include "Core/AI/NovaAIPlayerController.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GAS/NovaAttributeSet.h"
@@ -41,6 +42,7 @@ ANovaUnit::ANovaUnit()
 	if (UCapsuleComponent* Capsule = GetCapsuleComponent())
 	{
 		Capsule->SetCanEverAffectNavigation(false);
+		Capsule->SetCollisionResponseToChannel(ECC_Ground, ECR_Ignore);
 	}
 
 	// NavModifier 생성: 장애물 상태일 때만 특정 영역(고비용)을 생성하도록 설정
@@ -504,11 +506,29 @@ void ANovaUnit::SetAssemblyData(const FNovaUnitAssemblyData& Data)
 	BodyPartClass = Data.BodyClass;
 	WeaponPartClass = Data.WeaponClass;
 
-	NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
-	         *UnitName,
-	         LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
-	         BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
-	         WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+	// NOVA_LOG(Log, "SetAssemblyData: %s (Legs: %s, Body: %s, Weapon: %s)",
+	//          *UnitName,
+	//          LegsPartClass ? *LegsPartClass->GetName() : TEXT("NULL"),
+	//          BodyPartClass ? *BodyPartClass->GetName() : TEXT("NULL"),
+	//          WeaponPartClass ? *WeaponPartClass->GetName() : TEXT("NULL"));
+}
+
+void ANovaUnit::SetTeamID(int32 InTeamID)
+{
+	TeamID = InTeamID;
+
+	// 소속 팀의 AI 사령관이 있다면 현재 웨이브(방어/소집)에 자신을 편입시킵니다.
+	for (FConstControllerIterator Iterator = GetWorld()->GetControllerIterator(); Iterator; ++Iterator)
+	{
+		if (ANovaAIPlayerController* AIC = Cast<ANovaAIPlayerController>(Iterator->Get()))
+		{
+			if (AIC->GetTeamID() == TeamID)
+			{
+				AIC->AddUnitToCurrentWave(this);
+				break;
+			}
+		}
+	}
 }
 
 void ANovaUnit::ConstructUnitParts()
@@ -813,7 +833,7 @@ void ANovaUnit::InitializeAttributesFromParts()
 	else
 	{
 		MoveComp->SetMovementMode(MOVE_Walking);
-		MoveComp->bConstrainToPlane = true;
+		MoveComp->bConstrainToPlane = false; // 지상 유닛은 경사로를 타야 하므로 평면 제약 해제
 		MoveComp->MaxAcceleration = TotalSpeed * 10.0f;
 		MoveComp->BrakingDecelerationWalking = TotalSpeed * 10.0f;
 	}
@@ -1145,7 +1165,7 @@ void ANovaUnit::OnSpeedChanged(const FOnAttributeChangeData& Data)
 			MoveComp->StopMovementImmediately();
 		}
 
-		NOVA_LOG(Log, "Unit %s Speed Changed: %.f", *GetName(), NewSpeed);
+		// NOVA_LOG(Log, "Unit %s Speed Changed: %.f", *GetName(), NewSpeed);
 	}
 }
 
@@ -1313,7 +1333,7 @@ float ANovaUnit::GetRequiredRetreatDistance(const AActor* Target) const
 	}
 
 	float AdjustedMinRange = MinRange + TargetRadius;
-	
+
 	// 부족한 후퇴 거리 계산 (값이 양수이면 물러나야 함)
 	return FMath::Max(0.0f, AdjustedMinRange - DistXY);
 }
@@ -1342,7 +1362,7 @@ void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
 			{
 				TargetLoc = HitLocation;
 			}
-			
+
 			// 내비메시 표면에 Z 고도 고정 (지상/공중 통합 처리)
 			FNavLocation ProjectedLoc;
 			if (NavSys->ProjectPointToNavigation(TargetLoc, ProjectedLoc, FVector(10.f, 10.f, 200.f), NavData))
@@ -1350,7 +1370,7 @@ void ANovaUnit::PushUnit(FVector PushDir, float PushAmount, int32 Depth)
 				TargetLoc = ProjectedLoc.Location;
 				TargetLoc.Z += GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 			}
-			
+
 			DesiredOffset = TargetLoc - CurrentLoc;
 		}
 	}
@@ -1625,6 +1645,26 @@ void ANovaUnit::UpdateHealthBar()
 #pragma endregion
 
 #pragma region Navigation & Fog of War
+bool ANovaUnit::IsVisibleToTeam(int32 CurrentTeamID) const
+{
+	// 1. 유효하지 않은 팀 ID(-1 등)인 경우 처리
+	if (CurrentTeamID < 0 || CurrentTeamID >= 32)
+	{
+		return false;
+	}
+
+	// 2. 유효한 경우에만 비트 연산 수행
+	return (VisibilityMask & (1 << CurrentTeamID)) != 0;
+}
+
+void ANovaUnit::SetVisibilityForTeam(int32 CurrentTeamID, bool bVisible)
+{
+	if (CurrentTeamID < 0 || CurrentTeamID >= 32) return;
+
+	if (bVisible) VisibilityMask |= (1 << CurrentTeamID);
+	else VisibilityMask &= ~(1 << CurrentTeamID);
+}
+
 void ANovaUnit::SetFogVisibility(bool bVisible)
 {
 	if (bIsVisibleByFog == bVisible) return;
@@ -1762,9 +1802,21 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		// 지상 유닛인 경우 즉시 바닥으로 스냅되도록 유도 (공중 유닛이었을 경우 대비)
 		if (MovementType == ENovaMovementType::Ground)
 		{
-			MoveComp->bConstrainToPlane = true;
-			// 현재 스폰 위치(Z)를 기준으로 평면 제약 설정
-			MoveComp->SetPlaneConstraintOrigin(GetActorLocation());
+			MoveComp->bConstrainToPlane = false; // [수정] 경사로 진입을 위해 제약 해제
+
+			// 현재 위치를 내비메시 바닥으로 강제 스냅하여 "살짝 뜨는" 현상 방지
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			UCapsuleComponent* Capsule = GetCapsuleComponent();
+			if (NavSys && Capsule)
+			{
+				FNavLocation ProjectedLoc;
+				if (NavSys->ProjectPointToNavigation(GetActorLocation(), ProjectedLoc, FVector(100.f, 100.f, 500.f)))
+				{
+					FVector NewLoc = ProjectedLoc.Location;
+					NewLoc.Z += Capsule->GetScaledCapsuleHalfHeight();
+					SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+				}
+			}
 		}
 	}
 
@@ -1808,6 +1860,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	// 6. UI 상태 최종 초기화
 	// [핵심] bIsVisibleByFog를 반대값으로 설정하여 SetFogVisibility(true)가 반드시 실행되도록 강제합니다.
 	bIsVisibleByFog = false;
+	VisibilityMask = 0; // 추가: 가시성 비트마스크 초기화
 	SetFogVisibility(true);
 
 	UpdateHealthBar();
@@ -1879,7 +1932,8 @@ void ANovaUnit::OnReturnToPool_Implementation()
 
 	// 다음 사용 시 SetFogVisibility가 정상 작동하도록 초기값(true)으로 리셋
 	bIsVisibleByFog = true;
-
+	VisibilityMask = 0; // 추가: 가시성 비트마스크 초기화
+	
 	// 5. 조립 데이터 및 파츠 액터 초기화 (풀로 반환)
 	UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
 	if (PoolSubsystem)
@@ -1907,14 +1961,14 @@ void ANovaUnit::OnReturnToPool_Implementation()
 		// 모든 활성 GameplayEffect 제거 (루프를 통해 확실하게 제거)
 		const FActiveGameplayEffectsContainer& ActiveGEs = AbilitySystemComponent->GetActiveGameplayEffects();
 		TArray<FActiveGameplayEffectHandle> AllHandles = ActiveGEs.GetAllActiveEffectHandles();
-		
+
 		for (const FActiveGameplayEffectHandle& Handle : AllHandles)
 		{
 			AbilitySystemComponent->RemoveActiveGameplayEffect(Handle);
 		}
-		
-		NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
-		
+
+		// NOVA_LOG(Log, "GAS State Cleared for %s (Removed %d GEs)", *GetName(), AllHandles.Num());
+
 		// 모든 어빌리티 및 큐 제거
 		AbilitySystemComponent->ClearAllAbilities();
 		AbilitySystemComponent->RemoveAllGameplayCues();

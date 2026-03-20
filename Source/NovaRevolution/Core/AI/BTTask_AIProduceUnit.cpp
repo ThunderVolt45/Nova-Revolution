@@ -28,6 +28,7 @@ EBTNodeResult::Type UBTTask_AIProduceUnit::ExecuteTask(UBehaviorTreeComponent& O
 	
 	if (SlotIndex == -1) // 생산할 유닛이 없는 상황 (자원 극심 부족 등)
 	{
+		NOVA_LOG(Log, "AI Task: No unit recommended for production (-1)");
 		return EBTNodeResult::Succeeded;
 	}
 
@@ -37,6 +38,9 @@ EBTNodeResult::Type UBTTask_AIProduceUnit::ExecuteTask(UBehaviorTreeComponent& O
 	if (bSpawned)
 	{
 		NOVA_LOG(Log, "AI Task: Triggered production for slot [%d]", SlotIndex);
+
+		// [과생산 방지] 생산 명령을 하달했으므로, 다음 서비스 틱에서 다시 추천하기 전까지 키를 초기화합니다.
+		OwnerComp.GetBlackboardComponent()->SetValueAsInt(RecommendedUnitSlotKey.SelectedKeyName, -1);
 	}
 
 	return EBTNodeResult::Succeeded;

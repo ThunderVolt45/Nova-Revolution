@@ -10,6 +10,9 @@
 UNovaGA_WattLevelUp::UNovaGA_WattLevelUp()
 {
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+    // 통합 GCN 타겟 설정
+    GCNTargetType = ENovaSkillGCNTargetType::Base;
 }
 
 void UNovaGA_WattLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -66,6 +69,10 @@ void UNovaGA_WattLevelUp::ActivateAbility(const FGameplayAbilitySpecHandle Handl
         }
     }
 
-    NOVA_SCREEN(Log, "WATT LEVEL UP: %.0f -> %.0f", CurrentWattLevel, CurrentWattLevel + 1.0f);
+    // 6. 시각 효과 실행 (통합 GCN 시스템 사용)
+    ExecuteSkillGCN(FGameplayAbilityTargetDataHandle());
+    
+    // 7. 어빌리티 종료
+    // NOVA_SCREEN(Log, "WATT LEVEL UP: %.0f -> %.0f", CurrentWattLevel, CurrentWattLevel + 1.0f);
     EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }

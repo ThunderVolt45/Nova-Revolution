@@ -162,8 +162,13 @@ void ANovaGameMode::InitializePlayerBase()
 					{
 						AIPS->SetTeamID(AssignedTeamID);
 					}
-
+					
+					AIController->CachedTeamID = AssignedTeamID;
 					AIController->SetManagedBase(NewBase);
+
+					// AI 컨트롤러 추적 목록에 등록 (기지 파괴 시 정지용)
+					TeamAIControllers.Add(AssignedTeamID, AIController);
+					
 					NOVA_LOG(Log, "Spawned AI Controller and assigned base for TeamID: %d", AssignedTeamID);
 				}
 			}
@@ -177,6 +182,15 @@ void ANovaGameMode::OnBaseDestroyed(ANovaBase* DestroyedBase)
 
 	int32 DestroyedTeamID = DestroyedBase->GetTeamID();
 	NOVA_SCREEN(Error, "Match Over! Team %d's base has been destroyed.", DestroyedTeamID);
+
+	// 해당 팀이 AI라면 AI 컨트롤러 정지
+	if (TeamAIControllers.Contains(DestroyedTeamID))
+	{
+		if (ANovaAIPlayerController* AIC = TeamAIControllers[DestroyedTeamID])
+		{
+			AIC->StopAI();
+		}
+	}
 
 	// 상대 팀 승리 처리
 	int32 WinningTeamID = NovaTeam::None;

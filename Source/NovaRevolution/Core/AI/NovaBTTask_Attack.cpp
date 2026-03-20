@@ -21,6 +21,7 @@ UNovaBTTask_Attack::UNovaBTTask_Attack()
 	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, TargetActorKey), AActor::StaticClass());
 	TargetLocationKey.AddVectorFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, TargetLocationKey));
 	CommandTypeKey.AddEnumFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, CommandTypeKey), StaticEnum<ECommandType>());
+	IsFocusAttackKey.AddBoolFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTTask_Attack, IsFocusAttackKey));
 
 	AbilityTag = NovaGameplayTags::Ability_Attack;
 }
@@ -91,13 +92,19 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			NOVA_LOG(Log, "Unit %s Is Dead. Stop attack.", *Target->GetName());
 			
 			BB->ClearValue(TargetActorKey.SelectedKeyName);
-			BB->ClearValue(TargetLocationKey.SelectedKeyName);
-			BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
+			
+			// 강제 공격(Focus Attack)인 경우에만 모든 데이터를 초기화하고 태스크 종료
+			if (BB->GetValueAsBool(IsFocusAttackKey.SelectedKeyName))
+			{
+				BB->ClearValue(TargetLocationKey.SelectedKeyName);
+				BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
 
-			// 이동 중단 명령 명시적 호출
-			AIC->StopMovementOptimized();
+				// 이동 중단 명령 명시적 호출
+				AIC->StopMovementOptimized();
 
-			FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+			}
+			// 공격 이동(Attack-Move)인 경우 타겟만 제거하고 태스크를 유지하여 원래 목적지 이동 재개 유도
 			return;
 		}
 		
@@ -136,13 +143,19 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 				NOVA_LOG(Log, "Unit %s Is Dead. Stop attack.", *Target->GetName());
 			
 				BB->ClearValue(TargetActorKey.SelectedKeyName);
-				BB->ClearValue(TargetLocationKey.SelectedKeyName);
-				BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
 
-				// 이동 중단 명령 명시적 호출
-				AIC->StopMovementOptimized();
+				// 강제 공격(Focus Attack)인 경우에만 모든 데이터를 초기화하고 태스크 종료
+				if (BB->GetValueAsBool(IsFocusAttackKey.SelectedKeyName))
+				{
+					BB->ClearValue(TargetLocationKey.SelectedKeyName);
+					BB->SetValueAsEnum(CommandTypeKey.SelectedKeyName, (uint8)ECommandType::None);
 
-				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+					// 이동 중단 명령 명시적 호출
+					AIC->StopMovementOptimized();
+
+					FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
+				}
+				// 공격 이동(Attack-Move)인 경우 타겟만 제거하고 태스크를 유지하여 원래 목적지 이동 재개 유도
 				return;
 			}
 		}

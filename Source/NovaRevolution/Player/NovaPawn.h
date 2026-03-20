@@ -10,6 +10,24 @@ class USpringArmComponent;
 class UCameraComponent;
 class UFloatingPawnMovement;
 
+/**
+ * 카메라의 4개 모서리 레이(Ray)를 바닥 평면(Z=0)과 교차시켜서, 폰의 위치로부터의 실제 거리를 계산
+ */
+USTRUCT(BlueprintType)
+struct FCameraViewOffsets
+{
+	GENERATED_BODY()
+	
+	UPROPERTY()
+	float Top = 0.f;
+	UPROPERTY()
+	float Bottom = 0.f;
+	UPROPERTY()
+	float Left = 0.f;
+	UPROPERTY()
+	float Right = 0.f;
+};
+
 UCLASS()
 class NOVAREVOLUTION_API ANovaPawn : public APawn
 {
@@ -70,4 +88,11 @@ public:
 	void UpdateZoom(float Direction);
 	
 	void ResetCamera();
+	
+	UFUNCTION(BlueprintPure, Category = "Nova|Camera")
+	FVector2D GetCameraViewExtent() const;
+	
+	/** 사다리꼴 시야 범위를 계산하여 4방향 오프셋 반환 */
+	UFUNCTION(BlueprintPure, Category = "Nova|Camera")
+	FCameraViewOffsets GetCameraViewOffsets() const;
 };
