@@ -13,17 +13,22 @@
 UENUM(BlueprintType)
 enum class ENovaSkillGCNTargetType : uint8
 {
-	None,				// GCN 미사용
-	Avatar,				// 어빌리티 실행자(AvatarActor, 보통 PS)
-	Base,				// 플레이어의 메인 기지
-	TargetActors,		// 타겟 데이터에 포함된 모든 액터
-	TargetLocation		// 타겟 데이터의 첫 번째 위치 (부착 없이 실행)
+	// GCN 미사용
+	None,
+	// 어빌리티 실행자(AvatarActor, 보통 PS)
+	Avatar,
+	// 플레이어의 메인 기지
+	Base,
+	// 타겟 데이터에 포함된 모든 액터
+	TargetActors,
+	// 타겟 데이터의 첫 번째 위치 (부착 없이 실행)
+	TargetLocation
 };
 
 /**
  * UNovaSkillAbility
  * 모든 사령관 전용 스킬(기지 소환, 프리즈, 레벨업 등)의 기반 클래스입니다.
- * 플레이어의 기지 참조 및 자원(Watt/SP) 확인 공통 로직을 포함합니다.
+ * 플레이어의 기지 참조 및 자원(Watt/SP) 확인 공통 로직을 포함합니다.	
  */
 
 UCLASS()

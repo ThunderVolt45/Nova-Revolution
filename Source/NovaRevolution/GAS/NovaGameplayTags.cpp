@@ -95,6 +95,7 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Freeze, "GameplayCue.Skill.Freeze");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Overwork, "GameplayCue.Skill.Overwork");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Recycle, "GameplayCue.Skill.Recycle");
-	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_ResourceUp, "GameplayCue.Skill.ResourceUp");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Resource_Watt, "GameplayCue.Skill.Resource.Watt");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Resource_SP, "GameplayCue.Skill.Resource.SP");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Transport, "GameplayCue.Skill.Transport");
 }
