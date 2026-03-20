@@ -72,6 +72,7 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(State_Unit_Frozen, "State.Unit.Frozen");
 	
 	// --- 게임플레이 큐 태그 ---
+	// 유닛
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Damage_Smoke, "GameplayCue.Unit.Damage.Smoke");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Damage_Fire, "GameplayCue.Unit.Damage.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Unit_Explosion, "GameplayCue.Unit.Explosion");
@@ -89,4 +90,11 @@ namespace NovaGameplayTags
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Siege_Hit, "GameplayCue.Weapon.Siege.Hit");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Vulcan_Fire, "GameplayCue.Weapon.Vulcan.Fire");
 	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Weapon_Vulcan_Hit, "GameplayCue.Weapon.Vulcan.Hit");
+	
+	// 스킬
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Freeze, "GameplayCue.Skill.Freeze");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Overwork, "GameplayCue.Skill.Overwork");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Recycle, "GameplayCue.Skill.Recycle");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_ResourceUp, "GameplayCue.Skill.ResourceUp");
+	UE_DEFINE_GAMEPLAY_TAG(GameplayCue_Skill_Transport, "GameplayCue.Skill.Transport");
 }
