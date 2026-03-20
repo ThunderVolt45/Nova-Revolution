@@ -19,6 +19,7 @@ UNovaBTService_FindTarget::UNovaBTService_FindTarget()
 	// 블랙보드 키 필터링
 	TargetActorKey.AddObjectFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTService_FindTarget, TargetActorKey), AActor::StaticClass());
 	CommandTypeKey.AddEnumFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTService_FindTarget, CommandTypeKey), StaticEnum<ECommandType>());
+	IsFocusAttackKey.AddBoolFilter(this, GET_MEMBER_NAME_CHECKED(UNovaBTService_FindTarget, IsFocusAttackKey));
 }
 
 void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
@@ -50,7 +51,14 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	{
 		if (CurrentTargetActor != nullptr)
 		{
-			return;
+			// [추가] 현재 타겟이 유닛이 아니고(기지 등), 강제 공격(Focus Attack) 중이 아니라면 더 좋은 타겟(유닛) 탐색 허용
+			bool bIsFocusAttack = BB->GetValueAsBool(IsFocusAttackKey.SelectedKeyName);
+			bool bIsTargetUnit = Cast<ANovaUnit>(CurrentTargetActor) != nullptr;
+
+			if (bIsTargetUnit || bIsFocusAttack)
+			{
+				return;
+			}
 		}
 	}
 	// Hold 상태이거나 명령이 없는(None) 경우에만 자동 탐색 허용

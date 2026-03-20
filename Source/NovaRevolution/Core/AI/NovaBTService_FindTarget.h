@@ -27,4 +27,8 @@ protected:
 	/** 현재 명령 상태를 확인할 블랙보드 키 */
 	UPROPERTY(EditAnywhere, Category = "Nova|AI")
 	FBlackboardKeySelector CommandTypeKey;
+
+	/** 강제 공격 여부를 확인할 블랙보드 키 */
+	UPROPERTY(EditAnywhere, Category = "Nova|AI")
+	FBlackboardKeySelector IsFocusAttackKey;
 };
