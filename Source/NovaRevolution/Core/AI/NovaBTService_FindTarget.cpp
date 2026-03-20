@@ -9,6 +9,7 @@
 #include "GAS/NovaAttributeSet.h"
 #include "Engine/OverlapResult.h"
 #include "NovaRevolution.h"
+#include "Core/NovaBase.h"
 
 UNovaBTService_FindTarget::UNovaBTService_FindTarget()
 {
@@ -38,6 +39,7 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	if (CurrentTargetActor)
 	{
 		ANovaUnit* TargetUnit = Cast<ANovaUnit>(CurrentTargetActor);
+		
 		// 보이지 않거나 사망한 경우 타겟 해제
 		if (TargetUnit && (!TargetUnit->GetFogVisibility() || TargetUnit->IsDead()))
 		{
@@ -162,14 +164,24 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 			}
 
 			if (!bCanAttack) continue;
+			
+			// 3-1. 시야에 보이지 않는 적은 탐색 대상에서 제외 (유닛 및 기지 모두 포함)
+			bool bIsVisible = true;
+			if (TargetUnit)
+			{
+				bIsVisible = TargetUnit->GetFogVisibility();
+			}
+			else if (ANovaBase* TargetBase = Cast<ANovaBase>(PotentialTarget))
+			{
+				bIsVisible = TargetBase->GetFogVisibility();
+			}
 
-			// [추가] 시야에 보이지 않는 적은 탐색 대상에서 제외
-			if (TargetUnit && !TargetUnit->GetFogVisibility()) continue;
+			if (!bIsVisible) continue;
 
-			// [추가] 최소 사거리 내에 있는 적은 탐색 대상에서 제외
+			// 3-2. 최소 사거리 내에 있는 적은 탐색 대상에서 제외
 			if (MyUnit->IsTargetTooClose(PotentialTarget)) continue;
 
-			// 4. [수정] 점수 기반 타겟팅 갱신 (유닛 여부, 방어력/공격력, 체력, 거리 반영)
+			// 4. 점수 기반 타겟팅 갱신 (유닛 여부, 방어력/공격력, 체력, 거리 반영)
 			if (MyUnit->IsTargetInRange(PotentialTarget, FinalSearchRadius))
 			{
 				float TargetScore = 0.0f;
@@ -178,7 +190,7 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 				// 4-1. 유닛 여부 확정 및 스탯 반영
 				if (TargetUnit)
 				{
-					// [조건 1] 기지보다 유닛을 최우선 타겟 지정 (가중치 10만점 보너스)
+					// 기지보다 유닛을 최우선 타겟 지정 (가중치 10만점 보너스)
 					TargetScore += 100000.0f;
 					
 					if (UAbilitySystemComponent* TargetASC = TargetUnit->GetAbilitySystemComponent())
@@ -186,18 +198,18 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 						float TargetDefense = TargetASC->GetNumericAttribute(UNovaAttributeSet::GetDefenseAttribute());
 						float TargetHealth = TargetASC->GetNumericAttribute(UNovaAttributeSet::GetHealthAttribute());
 						
-						// [조건 2-1] 자신의 공격력보다 낮은 방어력을 가진 유닛을 우선 (가중치 5만점 보너스)
+						// 자신의 공격력보다 낮은 방어력을 가진 유닛을 우선 (가중치 5만점 보너스)
 						if (TargetDefense < MyAttack)
 						{
 							TargetScore += 50000.0f;
 						}
 						
-						// [조건 2-2] 낮은 체력을 가진 유닛을 우선 (체력이 높을수록 감점)
+						// 낮은 체력을 가진 유닛을 우선 (체력이 높을수록 감점)
 						TargetScore -= TargetHealth;
 					}
 				}
 
-				// 4-2. [조건 3] 조건이 같을 경우 거리가 가까운 대상 선호 (거리가 멀수록 감점)
+				// 4-2. 조건이 같을 경우 거리가 가까운 대상 선호 (거리가 멀수록 감점)
 				TargetScore -= (DistSq / 10000.0f);
 
 				// 최고점 경신
