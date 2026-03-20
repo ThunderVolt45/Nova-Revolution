@@ -1,4 +1,6 @@
 #include "GAS/Abilities/Skill/NovaGA_Recycle.h"
+
+#include "AbilitySystemBlueprintLibrary.h"
 #include "Player/NovaPlayerController.h"
 #include "Core/NovaUnit.h"
 #include "AbilitySystemComponent.h"
@@ -16,6 +18,9 @@ UNovaGA_Recycle::UNovaGA_Recycle()
     // 기본 비용 설정 (BP에서 수정 가능)
     WattCost = 0.0f;
     SPCost = 20.0f;
+
+    // 통합 GCN 타겟 설정
+    GCNTargetType = ENovaSkillGCNTargetType::TargetActors;
 }
 
 void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -86,9 +91,6 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
         FGameplayEffectSpecHandle SpecHandle = PlayerASC->MakeOutgoingSpec(ModifyResourceGEClass, 1.0f, PlayerASC->MakeEffectContext());
         if (SpecHandle.IsValid())
         {
-            //반환 와트량 디버그메세지
-            //NOVA_SCREEN(Warning, "반환 와트량 : %f", RefundAmount);
-            
             // SP 소모 (음수) 및 Watt 반환 (양수)
             SpecHandle.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_SP, -SPCost);
             SpecHandle.Data->SetSetByCallerMagnitude(NovaGameplayTags::Data_Resource_Watt, RefundAmount);
@@ -98,12 +100,8 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
     }
 
     // 6. 시각 효과 실행
-    if (RecycleCueTag.IsValid())
-    {
-        FGameplayCueParameters Params;
-        Params.Location = TargetUnit->GetActorLocation();
-        PlayerASC->ExecuteGameplayCue(RecycleCueTag, Params);
-    }
+    FGameplayAbilityTargetDataHandle TargetHandle = UAbilitySystemBlueprintLibrary::AbilityTargetDataFromActor(TargetUnit);
+    ExecuteSkillGCN(TargetHandle);
 
     // 7. 유닛 분해 (Die 호출로 인구수/총 와트 반납 및 오브젝트 풀 복귀 처리)
     TargetUnit->Die();

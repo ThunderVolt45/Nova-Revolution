@@ -12,6 +12,9 @@
 UNovaGA_Overwork::UNovaGA_Overwork()
 {
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+    // 통합 GCN 타겟 설정: 기지(Base)에서 효과 발생
+    GCNTargetType = ENovaSkillGCNTargetType::Base;
 }
 
 void UNovaGA_Overwork::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -68,6 +71,9 @@ void UNovaGA_Overwork::ActivateAbility(const FGameplayAbilitySpecHandle Handle, 
             ASC->ApplyGameplayEffectSpecToSelf(*StopSpec.Data.Get());
         }
     }
+
+    // 7. 시각 효과 실행 (통합 GCN 시스템 사용)
+    ExecuteSkillGCN(FGameplayAbilityTargetDataHandle());
 
     NOVA_SCREEN(Log, "Base Overwork Activated: Refilled %.0f, Stopped for %.2f sec", RefillAmount, StopDuration);
     EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
