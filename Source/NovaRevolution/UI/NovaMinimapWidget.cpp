@@ -51,6 +51,12 @@ void UNovaMinimapWidget::NativeConstruct()
 	}
 }
 
+void UNovaMinimapWidget::NativeTick(const FGeometry& MyGeometry, float InDT)
+{
+	Super::NativeTick(MyGeometry, InDT);
+	
+}
+
 int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
                                       const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements,
                                       int32 LayerId,
@@ -273,21 +279,6 @@ FReply UNovaMinimapWidget::NativeOnMouseMove(const FGeometry& InGeometry, const 
 
 void UNovaMinimapWidget::HandleMinimapClick(const FGeometry& MyGeometry, const FVector2D& MouseScreenPos)
 {
-	/*
-	// 스크린 좌표를 위젯 로컬 좌표로 변환
-	FVector2D LocalPos = MyGeometry.AbsoluteToLocal(MouseScreenPos);
-	FVector2D WidgetSize = MyGeometry.GetLocalSize();
-
-	// --- [축 역산 로직] ---
-	// 위젯 X (가로) -> 월드 Y (V)
-	// 위젯 Y (세로) -> 월드 X (U)
-	float TargetV = FMath::Clamp(LocalPos.X / WidgetSize.X, 0.0f, 1.0f);
-	float TargetU = 1.0f - FMath::Clamp(LocalPos.Y / WidgetSize.Y, 0.0f, 1.0f); // 세로 반전 복구
-
-	// 월드 좌표로 변환하여 카메라 이동
-	FVector TargetWorldPos = MapManager->UVToWorldLocation(FVector2D(TargetU, TargetV), 0.0f);
-	*/
-
 	// NovaPlayerController에서 카메라 위치 조정
 	if (NovaPC)
 	{
