@@ -20,6 +20,7 @@
 const FName ANovaAIController::TargetLocationKey(TEXT("TargetLocation"));
 const FName ANovaAIController::TargetActorKey(TEXT("TargetActor"));
 const FName ANovaAIController::CommandTypeKey(TEXT("CommandType"));
+const FName ANovaAIController::IsFocusAttackKey(TEXT("bIsFocusAttack"));
 
 ANovaAIController::ANovaAIController()
 {
@@ -204,11 +205,13 @@ void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 			{
 				BlackboardComponent->SetValueAsObject(TargetActorKey, AdjustedCommandData.TargetActor);
 				BlackboardComponent->SetValueAsVector(TargetLocationKey, AdjustedCommandData.TargetActor->GetActorLocation());
+				BlackboardComponent->SetValueAsBool(IsFocusAttackKey, true);
 			}
 			else
 			{
 				BlackboardComponent->SetValueAsVector(TargetLocationKey, AdjustedCommandData.TargetLocation);
 				BlackboardComponent->ClearValue(TargetActorKey);
+				BlackboardComponent->SetValueAsBool(IsFocusAttackKey, false);
 			}
 			break;
 
