@@ -8,6 +8,9 @@
 #include "NovaRevolution.h"
 #include "Core/NovaLog.h"
 #include "GAS/NovaGameplayTags.h"
+#include "Abilities/GameplayAbilityTargetTypes.h"
+#include "AbilitySystemBlueprintLibrary.h"
+#include "AbilitySystemInterface.h"
 
 
 UNovaSkillAbility::UNovaSkillAbility()
@@ -80,5 +83,91 @@ void UNovaSkillAbility::ApplySkillCost()
             
 			ASC->ApplyGameplayEffectSpecToSelf(*CostSpec.Data.Get());
 		}
+	}
+}
+
+void UNovaSkillAbility::ExecuteSkillGCN(const FGameplayAbilityTargetDataHandle& TargetData)
+{
+	if (!SkillGCNTag.IsValid() || GCNTargetType == ENovaSkillGCNTargetType::None)
+	{
+		return;
+	}
+
+	UAbilitySystemComponent* ASC = GetAbilitySystemComponentFromActorInfo();
+	if (!ASC) return;
+
+	FGameplayCueParameters Params;
+	Params.AbilityLevel = GetAbilityLevel();
+	Params.Instigator = GetAvatarActorFromActorInfo();
+	Params.EffectContext = ASC->MakeEffectContext();
+
+	switch (GCNTargetType)
+	{
+	case ENovaSkillGCNTargetType::Avatar:
+		{
+			ASC->ExecuteGameplayCue(SkillGCNTag, Params);
+		}
+		break;
+
+	case ENovaSkillGCNTargetType::Base:
+		{
+			if (ANovaBase* Base = GetPlayerBase())
+			{
+				if (UAbilitySystemComponent* BaseASC = Base->GetAbilitySystemComponent())
+				{
+					BaseASC->ExecuteGameplayCue(SkillGCNTag, Params);
+				}
+				else
+				{
+					Params.Location = Base->GetActorLocation();
+					ASC->ExecuteGameplayCue(SkillGCNTag, Params);
+				}
+			}
+		}
+		break;
+
+	case ENovaSkillGCNTargetType::TargetActors:
+		{
+			for (int32 i = 0; i < TargetData.Num(); ++i)
+			{
+				TArray<AActor*> TargetActors = UAbilitySystemBlueprintLibrary::GetActorsFromTargetData(TargetData, i);
+				for (AActor* TargetActor : TargetActors)
+				{
+					if (TargetActor)
+					{
+						if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TargetActor))
+						{
+							if (UAbilitySystemComponent* TargetASC = ASI->GetAbilitySystemComponent())
+							{
+								TargetASC->ExecuteGameplayCue(SkillGCNTag, Params);
+								continue;
+							}
+						}
+						
+						Params.Location = TargetActor->GetActorLocation();
+						ASC->ExecuteGameplayCue(SkillGCNTag, Params);
+					}
+				}
+			}
+		}
+		break;
+
+	case ENovaSkillGCNTargetType::TargetLocation:
+		{
+			if (TargetData.Num() > 0)
+			{
+				const FGameplayAbilityTargetData* Data = TargetData.Get(0);
+				if (Data && Data->HasHitResult())
+				{
+					Params.Location = Data->GetHitResult()->ImpactPoint;
+				}
+				else if (Data)
+				{
+					Params.Location = Data->GetEndPoint();
+				}
+				ASC->ExecuteGameplayCue(SkillGCNTag, Params);
+			}
+		}
+		break;
 	}
 }

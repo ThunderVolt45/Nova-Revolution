@@ -4,7 +4,21 @@
 
 #include "CoreMinimal.h"
 #include "GAS/Abilities/NovaGameplayAbility.h"
+#include "Abilities/GameplayAbilityTargetTypes.h"
 #include "NovaSkillAbility.generated.h"
+
+/**
+ * GameplayCue가 발동되는 대상을 정의합니다.
+ */
+UENUM(BlueprintType)
+enum class ENovaSkillGCNTargetType : uint8
+{
+	None,				// GCN 미사용
+	Avatar,				// 어빌리티 실행자(AvatarActor, 보통 PS)
+	Base,				// 플레이어의 메인 기지
+	TargetActors,		// 타겟 데이터에 포함된 모든 액터
+	TargetLocation		// 타겟 데이터의 첫 번째 위치 (부착 없이 실행)
+};
 
 /**
  * UNovaSkillAbility
@@ -53,5 +67,17 @@ protected:
 
 	/** [추가] 설정된 변수와 GE를 사용하여 자동으로 소모 */
 	void ApplySkillCost();
+
+	/** GameplayCue 실행 방식 설정 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nova|Skill|GameplayCue")
+	ENovaSkillGCNTargetType GCNTargetType = ENovaSkillGCNTargetType::None;
+
+	/** 실행할 GameplayCue 태그 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nova|Skill|GameplayCue")
+	FGameplayTag SkillGCNTag;
+
+	/** 설정된 타겟 타입에 맞춰 GCN을 실행합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Ability|Skill")
+	void ExecuteSkillGCN(const FGameplayAbilityTargetDataHandle& TargetData);
 	
 };
