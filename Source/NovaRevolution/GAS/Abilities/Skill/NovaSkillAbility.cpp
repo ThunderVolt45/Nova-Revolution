@@ -135,6 +135,9 @@ void UNovaSkillAbility::ExecuteSkillGCN(const FGameplayAbilityTargetDataHandle& 
 				{
 					if (TargetActor)
 					{
+						// 위치 정보는 항상 업데이트
+						Params.Location = TargetActor->GetActorLocation();
+
 						if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(TargetActor))
 						{
 							if (UAbilitySystemComponent* TargetASC = ASI->GetAbilitySystemComponent())
@@ -144,7 +147,6 @@ void UNovaSkillAbility::ExecuteSkillGCN(const FGameplayAbilityTargetDataHandle& 
 							}
 						}
 						
-						Params.Location = TargetActor->GetActorLocation();
 						ASC->ExecuteGameplayCue(SkillGCNTag, Params);
 					}
 				}
@@ -154,14 +156,16 @@ void UNovaSkillAbility::ExecuteSkillGCN(const FGameplayAbilityTargetDataHandle& 
 
 	case ENovaSkillGCNTargetType::TargetLocation:
 		{
-			if (TargetData.Num() > 0)
+			for (int32 i = 0; i < TargetData.Num(); ++i)
 			{
-				const FGameplayAbilityTargetData* Data = TargetData.Get(0);
-				if (Data && Data->HasHitResult())
+				const FGameplayAbilityTargetData* Data = TargetData.Get(i);
+				if (!Data) continue;
+
+				if (Data->HasHitResult())
 				{
 					Params.Location = Data->GetHitResult()->ImpactPoint;
 				}
-				else if (Data)
+				else
 				{
 					Params.Location = Data->GetEndPoint();
 				}
@@ -169,5 +173,5 @@ void UNovaSkillAbility::ExecuteSkillGCN(const FGameplayAbilityTargetDataHandle& 
 			}
 		}
 		break;
-	}
+}
 }

@@ -12,11 +12,14 @@
 
 UNovaGA_CurseFreeze::UNovaGA_CurseFreeze()
 {
-    // 요구사항: Watt 200, SP 20 (부모 클래스인 NovaSkillAbility의 변수 사용)
+    // 요구사항: Watt 200, SP 15 (부모 클래스인 NovaSkillAbility의 변수 사용)
     WattCost = 200.0f;
-    SPCost = 20.0f;
+    SPCost = 15.0f;
 
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+    // 통합 GCN 타겟 설정
+    GCNTargetType = ENovaSkillGCNTargetType::TargetActors;
 }
 
 void UNovaGA_CurseFreeze::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -79,6 +82,9 @@ void UNovaGA_CurseFreeze::OnTargetDataReadyCallback(const FGameplayAbilityTarget
     // 2. 타겟 유닛들에게 효과 적용
     TArray<AActor*> TargetActors = UAbilitySystemBlueprintLibrary::GetAllActorsFromTargetData(DataHandle);
 
+    // 비주얼 이펙트 실행 (통합 GCN 시스템 사용)
+    ExecuteSkillGCN(DataHandle);
+
     for (AActor* Actor : TargetActors)
     {
         if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
@@ -91,12 +97,6 @@ void UNovaGA_CurseFreeze::OnTargetDataReadyCallback(const FGameplayAbilityTarget
                 {
                     ApplyGameplayEffectSpecToTarget(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, SpecHandle, DataHandle);
                 }
-            }
-
-            // 시각 효과 실행 (GameplayCue)
-            if (FreezeCueTag.IsValid() && Unit->GetAbilitySystemComponent())
-            {
-                Unit->GetAbilitySystemComponent()->ExecuteGameplayCue(FreezeCueTag);
             }
         }
     }

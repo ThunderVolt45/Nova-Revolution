@@ -44,10 +44,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Skill")
 	float FreezeRadius = 700.0f;
 
-	/** 스킬 발동 시 유닛에게 보여줄 이펙트 태그 (GameplayCue) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Skill")
-	FGameplayTag FreezeCueTag;
-
 	/** 타겟팅 중 영역 표시 색상 (얼음 느낌의 파란색/하늘색) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Skill")
 	FLinearColor SkillHighlightColor = FLinearColor(0.0f, 0.5f, 1.0f);

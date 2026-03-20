@@ -12,12 +12,15 @@
 
 UNovaGA_Recall::UNovaGA_Recall()
 {
-    // 요구사항: Watt 200, SP 15 -> 블루프린트에서 값 설정
-    //WattCost = 200.0f;
-    //SPCost = 15.0f;
+    // 기본 비용 설정 (BP에서 수정 가능)
+    WattCost = 200.0f;
+    SPCost = 15.0f;
 
     // 인스턴싱 정책 설정 (상태 저장을 위해 인스턴스화 필요)
     InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+    // 통합 GCN 타겟 설정
+    GCNTargetType = ENovaSkillGCNTargetType::TargetActors;
 }
 
 void UNovaGA_Recall::ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData)
@@ -106,11 +109,14 @@ void UNovaGA_Recall::OnTargetDataReadyCallback(const FGameplayAbilityTargetDataH
     // 라이브러리 함수를 사용하여 핸들로부터 액터 배열을 한 번에 추출합니다.
     TArray<AActor*> TargetActors = UAbilitySystemBlueprintLibrary::GetAllActorsFromTargetData(DataHandle);
     
+    // 비주얼 이펙트 실행 (통합 GCN 시스템 사용)
+    ExecuteSkillGCN(DataHandle);
+
     for (AActor* Actor : TargetActors)
     {
         if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
         {
-            // [수정] 이동할 최종 위치 계산
+            // 이동할 최종 위치 계산
             FVector FinalLocation = Destination;
 
             // 공중 유닛인 경우, 유닛이 유지해야 할 기본 고도(DefaultAirZ)를 Z축에 더해줍니다.
@@ -118,12 +124,6 @@ void UNovaGA_Recall::OnTargetDataReadyCallback(const FGameplayAbilityTargetDataH
             if (Unit->GetMovementType() == ENovaMovementType::Air)
             {
                 FinalLocation.Z += Unit->GetDefaultAirZ();
-            }
-
-            // 비주얼 이펙트 실행 (GameplayCue)
-            if (RecallCueTag.IsValid())
-            {
-                Unit->GetAbilitySystemComponent()->ExecuteGameplayCue(RecallCueTag);
             }
 
             // [수정] 보정된 위치로 순간이동
