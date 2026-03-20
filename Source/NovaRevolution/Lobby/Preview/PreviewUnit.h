@@ -9,50 +9,56 @@
 
 /**
  * APreviewUnit
- * 로비에서 유닛 조립 모습을 실시간으로 보여주는 가벼운 프리뷰 액터입니다.
- * AActor를 상속받아 불필요한 물리/AI 부하 제거 및 Preview에서 필요한 로직만 추가
+ * 로비 레벨에서 실시간으로 부품을 교체하며 유닛의 조립 상태를 보여주는 프리뷰 전용 액터입니다.
+ * 오브젝트 풀링 시스템과 연동하여 부품 스폰 및 소켓 부착을 관리합니다.
  */
-
 UCLASS()
 class NOVAREVOLUTION_API APreviewUnit : public AActor
 {
 	GENERATED_BODY()
-	
+
 public:
 	APreviewUnit();
 
-	/** 실시간 조립 데이터 적용 (UI 버튼 클릭 시 호출) */
-	UFUNCTION(BlueprintCallable, Category = "Lobby|Preview")
+	/** * 실시간 조립 데이터 적용 (LobbyManager 등에서 호출) 
+	 * 전달받은 데이터를 바탕으로 현재 장착된 부품들을 즉시 교체합니다.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Lobby")
 	void ApplyAssemblyData(const FNovaUnitAssemblyData& Data);
 
 protected:
-	/** 기존에 생성된 부품 액터들을 깨끗하게 제거 (중복 겹침 방지) */
-	void ClearParts();
+	/** * 풀링 시스템을 통해 파츠를 생성하거나 교체하는 헬퍼 함수 
+	 * @param NewPartClass 새로 생성할 부품 클래스
+	 * @param CurrentPart 현재 장착된 부품 참조 (교체 시 풀로 반환됨)
+	 * @return 생성된 새로운 부품 액터의 포인터
+	 */
+	class ANovaPart* UpdatePart(TSubclassOf<class ANovaPart> NewPartClass, TObjectPtr<class ANovaPart>& CurrentPart);
 
-	/** 개별 부품 액터를 생성하고 소켓에 부착하는 헬퍼 함수 */
-	class ANovaPart* SpawnPart(TSubclassOf<class ANovaPart> PartClass);
+	/** 모든 부품의 계층 구조(소켓 부착)를 데이터에 맞춰 다시 정렬합니다. */
+	void RefreshAttachments();
 
-	// --- 현재 조립된 부품 참조 ---
-	UPROPERTY(BlueprintReadOnly, Category = "Lobby|Preview")
+	// --- 부품 실시간 참조 ---
+    
+	UPROPERTY(VisibleAnywhere, Category = "Nova|Lobby")
 	TObjectPtr<class ANovaPart> CurrentLegs;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Lobby|Preview")
+	UPROPERTY(VisibleAnywhere, Category = "Nova|Lobby")
 	TObjectPtr<class ANovaPart> CurrentBody;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Lobby|Preview")
+	UPROPERTY(VisibleAnywhere, Category = "Nova|Lobby")
 	TArray<TObjectPtr<class ANovaPart>> CurrentWeapons;
 
-	// --- 설정 데이터 (에디터에서 지정) ---
-	/** 부품 정보 조회를 위한 데이터 테이블 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lobby|Preview")
-	TObjectPtr<class UDataTable> PartSpecDataTable;
+	// --- 설정 데이터 및 소켓 정보 ---
+    
+	/** 부품 정보를 조회하기 위한 데이터 테이블 */
+	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")
+	TObjectPtr<class UDataTable> PartDataTable;
 
-	/** 다리 위에 몸통이 붙을 소켓 이름 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lobby|Preview")
-	FName BodySocketName = TEXT("BodySocket");
+	/** 다리(Legs) 위에 몸통(Body)이 붙을 소켓 이름 */
+	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")
+	FName BodySocketName = TEXT("Socket_Body");
 
-	/** 몸통 위에 무기가 붙을 소켓 이름들 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lobby|Preview")
+	/** 몸통(Body) 위에 무기(Weapon)들이 붙을 소켓 이름 리스트 */
+	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")
 	TArray<FName> WeaponSocketNames;
-
 };
