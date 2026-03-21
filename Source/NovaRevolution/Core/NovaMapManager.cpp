@@ -42,6 +42,10 @@ void ANovaMapManager::BeginPlay()
 
 	// 맵 시작 시 자동으로 배경 캡처 수행
 	CaptureMapBackground();
+	
+	// Standalone 모드에서는 월드 로딩 완료를 위해 약간의 지연 후 캡처하는 것이 안전함
+	FTimerHandle CaptureTimerHandle;
+	GetWorldTimerManager().SetTimer(CaptureTimerHandle, this, &ANovaMapManager::CaptureMapBackground, 0.2f, false);
 }
 
 FBox ANovaMapManager::GetMapBounds() const
@@ -52,22 +56,6 @@ FBox ANovaMapManager::GetMapBounds() const
 
 FVector2D ANovaMapManager::WorldToMapUV(const FVector& WorldLocation) const
 {
-	/*
-	FBox Bounds = GetMapBounds();
-	FVector Size = Bounds.GetSize();
-	
-	// 0으로 나누기 방지
-	if (Size.X <= 0.f || Size.Y <= 0.f) return FVector2D(0.5f, 0.5f);
-
-	// 가로/세로 중 큰 값을 기준으로 0~1 범위를 계산
-	float MaxSide = FMath::Max(Bounds.Max.X - Bounds.Min.X, Bounds.Max.Y - Bounds.Min.Y);
-	// (현재위치 - 최소위치) / 전체크기 -> 0~1 사이의 비율 계산
-	float U = (WorldLocation.X - Bounds.GetCenter().X) / MaxSide + 0.5f;
-	float V = (WorldLocation.Y - Bounds.GetCenter().Y) / MaxSide + 0.5f;
-
-	// 맵 밖으로 나간 유닛도 미니맵 테두리에 걸치게 하려면 Clamp 처리
-	return FVector2D(FMath::Clamp(U, 0.f, 1.f), FMath::Clamp(V, 0.f, 1.f));
-	*/
 	FBox Bounds = GetMapBounds();
 	float MaxSide = FMath::Max(Bounds.Max.X - Bounds.Min.X, Bounds.Max.Y - Bounds.Min.Y);
 	FVector Center = Bounds.GetCenter();
