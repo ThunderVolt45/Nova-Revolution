@@ -39,14 +39,15 @@ void UNovaUnitAssemblyControlWidget::NativeConstruct()
             
 			NOVA_LOG(Log, "Widget successfully subscribed to LobbyManager's Assembly Event.");
 		}
+		else
+		{
+			// [중요] 매니저를 찾지 못한 경우: 매니저가 아직 스폰되지 않았거나 참조가 꼬였을 가능성이 큽니다.
+			// 화면에 즉시 경고를 띄워 개발자가 문제를 인지하게 합니다.
+			NOVA_SCREEN(Warning, "Widget: LobbyManager not found during Construct. Check Actor Spawn Timing!");
+			NOVA_LOG(Error, "Widget: Failed to find LobbyManager from PlayerController.");
+		}
 	}
-	else
-	{
-		// [중요] 매니저를 찾지 못한 경우: 매니저가 아직 스폰되지 않았거나 참조가 꼬였을 가능성이 큽니다.
-		// 화면에 즉시 경고를 띄워 개발자가 문제를 인지하게 합니다.
-		NOVA_SCREEN(Warning, "Widget: LobbyManager not found during Construct. Check Actor Spawn Timing!");
-		NOVA_LOG(Error, "Widget: Failed to find LobbyManager from PlayerController.");
-	}
+	
 }
 
 void UNovaUnitAssemblyControlWidget::UpdateStatus(int32 SlotIndex, const FString& UnitName)
