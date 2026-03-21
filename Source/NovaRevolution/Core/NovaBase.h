@@ -84,6 +84,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Base")
 	TObjectPtr<UStaticMeshComponent> BaseMesh;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Base")
+	TObjectPtr<class UNavModifierComponent> NavModifier;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GAS")
 	TObjectPtr<UAbilitySystemComponent> AbilitySystemComponent;
 

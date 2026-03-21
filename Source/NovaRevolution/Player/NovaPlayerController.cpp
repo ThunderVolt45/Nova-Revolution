@@ -282,7 +282,7 @@ void ANovaPlayerController::Input_AbilityInputTagPressed(FGameplayTag InputTag)
 					if (ANovaBase* PlayerBase = PS->GetPlayerBase())
 					{
 						PlayerBase->ProduceUnit(SlotIndex);
-						NOVA_SCREEN(Warning, "Request Production : Slot %d", SlotIndex + 1);
+						// NOVA_SCREEN(Warning, "Request Production : Slot %d", SlotIndex + 1);
 						return;
 					}
 					else { NOVA_SCREEN(Error, "Base is null!"); }
@@ -955,7 +955,7 @@ void ANovaPlayerController::OnUnitProduced(AActor* Unit, int32 SlotIndex)
 	{
 		// 부대 지정 배열에 유닛 추가
 		ControlGroups[SlotIndex].Targets.AddUnique(Unit);
-		NOVA_SCREEN(Log, "Unit Auto-Assigned to Group %d", SlotIndex + 1);
+		// NOVA_SCREEN(Log, "Unit Auto-Assigned to Group %d", SlotIndex + 1);
 	}
 }
 
