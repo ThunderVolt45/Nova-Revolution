@@ -80,7 +80,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	// 1. 우선순위: 타겟 액터가 있는 경우 (추격 및 공격)
 	if (Target)
 	{
-		// 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
+		// 1-0. 타겟의 사망 여부를 확인하고 죽었다면 Task를 즉시 성공시킵니다.
 		bool bTargetIsDead = false;
 		if (ANovaUnit* TargetUnit = Cast<ANovaUnit>(Target))
 		{
@@ -110,7 +110,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		
 		float Range = GetAttackRange(MyUnit);
 
-		// [수정] 캡슐 기반 사거리 판정 함수 활용
+		// 1-1. 목표가 사거리 내에 있는 경우
 		if (MyUnit->IsTargetInRange(Target, Range))
 		{
 			// 최소 사거리 제한 추가
@@ -159,6 +159,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 				return;
 			}
 		}
+		// 1-2. 목표가 사거리 내에 없는 경우
 		else
 		{
 			// 추격 함수 호출

@@ -3,6 +3,7 @@
 #include "Core/AI/NovaAIController.h"
 #include "VisualLogger/VisualLogger.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "NavigationSystem.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "BehaviorTree/BehaviorTree.h"
@@ -263,9 +264,23 @@ void ANovaAIController::MoveToLocationOptimized(const FVector& Dest, float Accep
 	{
 		FinalDest.Z = MyUnit->GetDefaultAirZ();
 	}
+	else if (MyUnit && MyUnit->GetMovementType() == ENovaMovementType::Ground)
+	{
+		// 지상 유닛의 경우, 목적지가 거대 구조물 내부(NavMesh 밖)일 수 있으므로
+		// 충분히 넓은 범위를 탐색해 가장 가까운 끄트머리 NavMesh 좌표로 수동 보정합니다.
+		if (UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld()))
+		{
+			FNavLocation ProjectedLocation;
+			if (NavSys->ProjectPointToNavigation(FinalDest, ProjectedLocation, FVector(400.f, 400.f, 200.f)))
+			{
+				FinalDest = ProjectedLocation.Location;
+			}
+		}
+	}
 
 	// 이동용 필터를 사용하여 유닛 간 뭉침 상황에서도 즉시 경로 생성 (공중/지상 모두 적용)
-	MoveToLocation(FinalDest, AcceptanceRadius, true, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
+	// bProjectDestinationToNavigation을 false로 수정하여, 목적지가 구조물 안쪽이라 NavMesh 투영에 실패하더라도 실패 처리되지 않고 근접 경로(Partial Path)를 찾게 합니다.
+	MoveToLocation(FinalDest, AcceptanceRadius, true, true, false, true, UNovaNavigationFilter_Move::StaticClass(), true);
 }
 
 void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float AcceptanceRadius)
