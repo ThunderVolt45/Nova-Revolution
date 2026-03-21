@@ -113,7 +113,10 @@ void UNovaBTTask_Patrol::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			}
 			else
 			{
-				AIC->MoveToActorOptimized(Target, 10.0f);
+				if (!AIC->IsMoveInProgress())
+				{
+					AIC->MoveToActorOptimized(Target, 10.0f);
+				}
 			}
 			return; 
 		}
