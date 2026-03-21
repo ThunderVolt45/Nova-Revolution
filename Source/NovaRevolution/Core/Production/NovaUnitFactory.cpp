@@ -1,5 +1,4 @@
 #include "Core/Production/NovaUnitFactory.h"
-
 #include "Core/NovaGameMode.h"
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaPlayerState.h"
@@ -12,7 +11,7 @@
 #include "Core/NovaPart.h"
 #include "Player/NovaPlayerController.h"
 #include "GameFramework/GameStateBase.h"
-
+#include "Core/Production/NovaFactorySettings.h"
 
 bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner, const FVector& RallyPoint)
 {
@@ -110,11 +109,13 @@ float UNovaUnitFactory::CalculateTotalWattCost(const FNovaUnitAssemblyData& Asse
 {
 	float TotalWatt = 0.0f;
 
-	UDataTable* Table = PartSpecDataTable.Get();
+	const UNovaFactorySettings* FactorySettings = GetDefault<UNovaFactorySettings>();
+	UDataTable* Table = FactorySettings->PartSpecDataTable.LoadSynchronous();
+	
 	if (!Table)
 	{
-		Table = LoadObject<UDataTable>(nullptr, TEXT("/Game/_BP/Data/DT_PartSpecData.DT_PartSpecData"));
-		if (!Table) return 100.0f;
+		NOVA_LOG(Warning, "Factory: PartSpecDataTable is not assigned or could not be loaded in NovaFactorySettings!");
+		return 100.0f;
 	}
 
 	auto GetWattFromPartClass = [&](TSubclassOf<ANovaPart> PartClass) -> float
@@ -143,9 +144,15 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
                                                          const FVector& RallyPoint,
                                                          int32 SlotIndex)
 {
-	// 실제 유닛 블루프린트 클래스 로드
-	UClass* UnitClass = LoadClass<ANovaUnit>(nullptr, TEXT("/Game/_BP/Units/BP_NovaUnitBase.BP_NovaUnitBase_C"));
-	if (!UnitClass) UnitClass = ANovaUnit::StaticClass();
+	// 실제 유닛 블루프린트 클래스 로드 (세팅에서 가져옴)
+	const UNovaFactorySettings* FactorySettings = GetDefault<UNovaFactorySettings>();
+	UClass* UnitClass = FactorySettings->DefaultUnitClass.LoadSynchronous();
+	
+	if (!UnitClass) 
+	{
+		NOVA_LOG(Warning, "Factory: DefaultUnitClass is not assigned or could not be loaded in NovaFactorySettings!");
+		UnitClass = ANovaUnit::StaticClass();
+	}
 
 	ANovaUnit* NewUnit = nullptr;
 
