@@ -171,6 +171,36 @@ void ANovaPart::SetHighlight(UMaterialInterface* InHighlightMaterial)
 	}
 }
 
+void ANovaPart::ApplyTeamTint(const FLinearColor& TintColor)
+{
+	TArray<UPrimitiveComponent*> Meshes;
+	GetComponents<UPrimitiveComponent>(Meshes);
+
+	for (UPrimitiveComponent* MeshComp : Meshes)
+	{
+		if (!MeshComp) continue;
+
+		int32 NumMaterials = MeshComp->GetNumMaterials();
+		for (int32 i = 0; i < NumMaterials; ++i)
+		{
+			UMaterialInterface* Mat = MeshComp->GetMaterial(i);
+			if (!Mat) continue;
+
+			UMaterialInstanceDynamic* MID = Cast<UMaterialInstanceDynamic>(Mat);
+
+			if (!MID)
+			{
+				MID = MeshComp->CreateDynamicMaterialInstance(i, Mat);
+			}
+
+			if (MID)
+			{
+				MID->SetVectorParameterValue(TEXT("TeamTint"), TintColor);
+			}
+		}
+	}
+}
+
 void ANovaPart::SetMovementSpeed(float Speed)
 {
 	if (SkeletalMesh)

@@ -51,6 +51,10 @@ public:
 	// Overlay Material 설정 및 세팅 : 선택된 유닛이 하이라이트 될 때 적용될 Material 세팅 함수
 	void SetHighlight(UMaterialInterface* HighlightMaterial);
 
+	/** 머티리얼의 TeamTint 파라미터를 변경하여 유닛 색상을 덮어씌웁니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Part|Color")
+	void ApplyTeamTint(const FLinearColor& TintColor);
+
 	// 데이터 테이블 기반 스펙을 가져오는 함수
 	const FNovaPartSpecRow& GetPartSpec() const { return PartSpec; }
 
