@@ -38,7 +38,6 @@ protected:
 	void RefreshAttachments();
 
 	// --- 부품 실시간 참조 ---
-    
 	UPROPERTY(VisibleAnywhere, Category = "Nova|Lobby")
 	TObjectPtr<class ANovaPart> CurrentLegs;
 
@@ -49,7 +48,6 @@ protected:
 	TArray<TObjectPtr<class ANovaPart>> CurrentWeapons;
 
 	// --- 설정 데이터 및 소켓 정보 ---
-    
 	/** 부품 정보를 조회하기 위한 데이터 테이블 */
 	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")
 	TObjectPtr<class UDataTable> PartDataTable;
@@ -61,4 +59,10 @@ protected:
 	/** 몸통(Body) 위에 무기(Weapon)들이 붙을 소켓 이름 리스트 */
 	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")
 	TArray<FName> WeaponSocketNames;
+	
+	//풀링 시스템
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	/** 장착된 모든 부품을 오브젝트 풀로 안전하게 반환합니다. */
+	void ReturnPartsToPool();
 };

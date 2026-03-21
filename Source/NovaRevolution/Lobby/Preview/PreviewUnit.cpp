@@ -148,3 +148,42 @@ void APreviewUnit::RefreshAttachments()
     }
 }
 
+void APreviewUnit::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    ReturnPartsToPool();
+    
+    Super::EndPlay(EndPlayReason);
+}
+
+void APreviewUnit::ReturnPartsToPool()
+{
+    // 풀링 서브시스템 참조 획득
+    UNovaObjectPoolSubsystem* Pool = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
+    if (!Pool) return;
+
+    // 1. 다리(Legs) 반환
+    if (CurrentLegs) 
+    {
+        // 반납 전 스케일 리셋 로직은 ReturnToPool 내부 혹은 직전에 수행됨을 전제로 합니다.
+        Pool->ReturnToPool(CurrentLegs);
+        CurrentLegs = nullptr;
+    }
+
+    // 2. 몸통(Body) 반환
+    if (CurrentBody) 
+    {
+        Pool->ReturnToPool(CurrentBody);
+        CurrentBody = nullptr;
+    }
+
+    // 3. 무기(Weapons) 리스트 반환
+    for (ANovaPart* Weapon : CurrentWeapons) 
+    {
+        if (Weapon) 
+        {
+            Pool->ReturnToPool(Weapon);
+        }
+    }
+    CurrentWeapons.Empty(); // 리스트 비우기
+}
+
