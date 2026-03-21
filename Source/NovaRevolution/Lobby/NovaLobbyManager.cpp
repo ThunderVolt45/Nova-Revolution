@@ -125,7 +125,7 @@ void ANovaLobbyManager::SelectPart(ENovaPartType PartType, FName PartID)
         UpdatePreviewActor();
         
         // 추가
-        OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName);
+        OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName, PendingAssemblyData);
     }
 }
 
@@ -149,7 +149,7 @@ void ANovaLobbyManager::SelectDeckSlot(int32 SlotIndex)
 
         UpdatePreviewActor();
         
-        OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName);
+        OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName, PendingAssemblyData);
     }
 }
 
@@ -173,7 +173,7 @@ void ANovaLobbyManager::ConfirmAssembly()
     
     // [이벤트 발송] 현재 이 델리게이트를 듣고 있는(AddDynamic) 모든 위젯들이 
     // 각자의 UpdateStatus(혹은 연결된 함수)를 동시에 실행하게 됩니다.
-    OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName);
+    OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName, PendingAssemblyData);
 }
 
 void ANovaLobbyManager::ReleaseAssembly()
@@ -190,9 +190,9 @@ void ANovaLobbyManager::ReleaseAssembly()
     }
 
     // 3. 현재 편집 공간도 빈 상태(기본 세팅)로 되돌림
-    SelectDeckSlot(SelectedSlotIndex);
+   // SelectDeckSlot(SelectedSlotIndex);
 
-    NOVA_SCREEN(Log, "Assembly Released and Slot Cleared: %d", SelectedSlotIndex);
+    NOVA_SCREEN(Log, "Assembly Released and Slot Cleared, Profile Setting is remained: %d", SelectedSlotIndex);
     
     // 파일 저장
     SaveCurrentDeck();
@@ -222,6 +222,6 @@ void ANovaLobbyManager::SaveCurrentDeck()
     }
     
     // 슬롯이 바뀌었을 때도 UI가 갱신되어야 하므로 신호를 보냅니다.
-    OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName);
+    OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName, PendingAssemblyData);
 }
 

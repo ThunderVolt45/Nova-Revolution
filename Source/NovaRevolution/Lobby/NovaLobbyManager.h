@@ -9,7 +9,7 @@
 #include "NovaLobbyManager.generated.h"
 
 /** 조립 데이터가 변경되었을 때 UI나 다른 시스템에 알리는 2개 파라미터 델리게이트 선언 */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAssemblyDataChanged, int32, SlotIndex, const FString&, UnitName);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnAssemblyDataChanged, int32, SlotIndex, const FString&, UnitName, const FNovaUnitAssemblyData&, AssemblyData);
 
 class ANovaDeckManager; // 전시장 매니저 전방 선언
 class APreviewUnit;     // 프리뷰 유닛 전방 선언
