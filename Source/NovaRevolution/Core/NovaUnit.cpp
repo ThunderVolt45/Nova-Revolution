@@ -1630,8 +1630,31 @@ void ANovaUnit::InitializeUIColors()
 
 	// 색상 결정 및 캐싱
 	CachedUIColor = FLinearColor::Red; // 적군
-	if (TeamID == LocalPlayerTeamID) CachedUIColor = FLinearColor::Green; // 아군
-	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) CachedUIColor = FLinearColor::Yellow; // 중립
+	FLinearColor UnitTintColor = EnemyTintColor;
+	
+	if (TeamID == LocalPlayerTeamID) 
+	{
+		CachedUIColor = FLinearColor::Green; // 아군
+		UnitTintColor = AllyTintColor;
+	}
+	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) 
+	{
+		CachedUIColor = FLinearColor::Yellow; // 중립
+		UnitTintColor = AllyTintColor;
+	}
+
+	// 각 파츠 머티리얼에 틴트 컬러 일괄 적용
+	ApplyTeamTintToParts(UnitTintColor);
+}
+
+void ANovaUnit::ApplyTeamTintToParts(const FLinearColor& TintColor)
+{
+	if (CurrentLegsPart) CurrentLegsPart->ApplyTeamTint(TintColor);
+	if (CurrentBodyPart) CurrentBodyPart->ApplyTeamTint(TintColor);
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
+	{
+		if (WeaponPart) WeaponPart->ApplyTeamTint(TintColor);
+	}
 }
 
 void ANovaUnit::UpdateHealthBar()

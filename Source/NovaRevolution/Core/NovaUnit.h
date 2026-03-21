@@ -362,6 +362,9 @@ protected:
 	// 체력바 업데이트 함수
 	void UpdateHealthBar();
 
+	/** 액터에 부착된 모든 파츠에 팀 틴트를 일괄 적용하는 내부 함수 */
+	void ApplyTeamTintToParts(const FLinearColor& TintColor);
+
 	// 선택 시 UI적 요소를 표시할 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
 	TObjectPtr<UNovaSelectionComponent> SelectionComponent;
@@ -369,6 +372,14 @@ protected:
 	// 상단 체력바 위젯 컴포넌트
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
 	TObjectPtr<UNovaHealthBarComponent> HealthBarComponent;
+
+	/** 적 유닛일 때 머티리얼에 곱해질 틴트 색상 (블루프린트에서 색상 변경 가능) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Nova|UI|Color")
+	FLinearColor EnemyTintColor = FLinearColor(1.0f, 0.6f, 0.6f, 1.0f);
+	
+	/** 아군 또는 중립 유닛일 때 머티리얼에 곱해질 기본 색상 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Nova|UI|Color")
+	FLinearColor AllyTintColor = FLinearColor::White;
 
 	// 캐싱된 UI 색상 (성능 최적화용)
 	FLinearColor CachedUIColor = FLinearColor::White;
