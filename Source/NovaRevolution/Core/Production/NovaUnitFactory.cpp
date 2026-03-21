@@ -15,8 +15,14 @@
 
 bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner, const FVector& RallyPoint)
 {
+	// NOVA_SCREEN(Log, "[SpawnTrace] 1. RequestSpawnUnitFromDeck Started - Slot: %d", SlotIndex);
+
 	// 1. 매개변수 유효성 검사
-	if (!Spawner) return false;
+	if (!Spawner) 
+	{
+		// NOVA_SCREEN(Error, "[SpawnTrace] Spawner is NULL!");
+		return false;
+	}
 
 	// 2. 팀 식별자 결정 (Spawner가 INovaTeamInterface를 구현하고 있다면 해당 팀 ID 사용)
 	int32 TargetTeamID = NovaTeam::Team1;
@@ -64,15 +70,18 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 	}
 
 	const FNovaUnitAssemblyData& TargetData = CurrentDeck.Units[SlotIndex];
+	// NOVA_SCREEN(Log, "[SpawnTrace] 2. Deck Valid - UnitName: %s", *TargetData.UnitName);
 
 	// 6. 자원 검사 및 소비 로직
 	// 데이터 테이블을 참조하여 실제 유닛 생산 비용을 계산합니다.
 	float ProductionCost = CalculateTotalWattCost(TargetData);
 	if (!CheckAndConsumeResources(PS, ProductionCost))
 	{
-		// NOVA_LOG(Warning, "Factory: Insufficient Resources (Cost: %.f) for Team %d", ProductionCost, TargetTeamID);
+		// NOVA_SCREEN(Warning, "[SpawnTrace] Insufficient Resources! CheckAndConsumeResources failed.");
 		return false;
 	}
+
+	// NOVA_SCREEN(Log, "[SpawnTrace] 3. Resources Consumed - Cost: %.1f", ProductionCost);
 
 	// 7. 스폰 위치 결정 (기지 전방 오프셋)
 	FTransform SpawnTransform = Spawner->GetActorTransform();
@@ -83,6 +92,7 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 	SpawnTransform.SetScale3D(FVector::OneVector);
 
 	// 8. 실제 유닛 즉시 스폰 및 데이터 주입
+	// NOVA_SCREEN(Log, "[SpawnTrace] 4. Calling ExecuteUnitProduction");
 	ANovaUnit* NewUnit = ExecuteUnitProduction(TargetData, SpawnTransform, TargetTeamID, RallyPoint, SlotIndex);
 
 	if (NewUnit)
@@ -150,16 +160,18 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
 	
 	if (!UnitClass) 
 	{
-		NOVA_LOG(Warning, "Factory: DefaultUnitClass is not assigned or could not be loaded in NovaFactorySettings!");
+		// NOVA_SCREEN(Error, "[SpawnTrace] Execute: DefaultUnitClass is NULL in Settings! Fallback to ANovaUnit.");
 		UnitClass = ANovaUnit::StaticClass();
 	}
-
+	
+	// NOVA_SCREEN(Log, "[SpawnTrace] Execute: UnitClass Loaded - %s", *UnitClass->GetName());
 	ANovaUnit* NewUnit = nullptr;
 
 	// 1. 오브젝트 풀 서브시스템에서 유닛을 가져옵니다. (자동 활성화를 끕니다)
 	if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 	{
 		NewUnit = Cast<ANovaUnit>(PoolSubsystem->SpawnFromPool(UnitClass, SpawnTransform, false));
+		// NOVA_SCREEN(Log, "[SpawnTrace] Execute: SpawnFromPool result - %s", NewUnit ? *NewUnit->GetName() : TEXT("Failed/Null"));
 	}
 	else
 	{
@@ -167,6 +179,7 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
 		NewUnit = GetWorld()->SpawnActorDeferred<ANovaUnit>(UnitClass, SpawnTransform,
 		                                                    nullptr, nullptr,
 		                                                    ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+		// NOVA_SCREEN(Log, "[SpawnTrace] Execute: SpawnActorDeferred result - %s", NewUnit ? *NewUnit->GetName() : TEXT("Failed/Null"));
 	}
 
 	if (NewUnit)
@@ -175,20 +188,28 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
 		NewUnit->SetAssemblyData(AssemblyData);
 		NewUnit->SetTeamID(TeamID);
 		NewUnit->SetInitialRallyLocation(RallyPoint);
+
 		// 유닛에게 생산 슬롯 번호 주입
 		NewUnit->SetProductionSlotIndex(SlotIndex);
+
 		// 3. 지연 스폰 또는 풀 부활 후의 마무리 작업 수행
 		// 만약 풀에서 나온 유닛이라면 이미 BeginPlay가 호출되었을 것이므로 FinishSpawningActor가 작동하지 않음
 		if (NewUnit->IsActorInitialized())
 		{
 			// 풀에서 나온 유닛은 강제로 재조립 및 스탯 초기화가 필요함
 			NewUnit->OnSpawnFromPool_Implementation();
+			
+			// NOVA_SCREEN(Log, "[SpawnTrace] Execute: Initialized. Calling OnSpawnFromPool_Implementation.");
 		}
 		else
 		{
 			// 새로 생성된 유닛은 지연 스폰 마무리
 			UGameplayStatics::FinishSpawningActor(NewUnit, SpawnTransform);
+			
+			// NOVA_SCREEN(Log, "[SpawnTrace] Execute: Not Initialized. Calling FinishSpawningActor.");
 		}
+		
+		// NOVA_SCREEN(Log, "[SpawnTrace] Execute: Final Result - Spawn Completed Successfully.");
 	}
 
 	return NewUnit;
