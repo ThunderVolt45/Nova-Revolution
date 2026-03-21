@@ -110,23 +110,25 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		
 		float Range = GetAttackRange(MyUnit);
 		float DistXY = FVector::DistXY(MyUnit->GetActorLocation(), Target->GetActorLocation());
-		NOVA_LOG(Log, "[Attack Task] Unit %s -> Target %s. DistXY: %f, Range: %f", *MyUnit->GetName(), *Target->GetName(), DistXY, Range);
+		// NOVA_LOG(Log, "[Attack Task] Unit %s -> Target %s. DistXY: %f, Range: %f", *MyUnit->GetName(), *Target->GetName(), DistXY, Range);
 
 		// 1-1. 목표가 사거리 내에 있는 경우
 		if (MyUnit->IsTargetInRange(Target, Range))
 		{
-			NOVA_LOG(Log, "[Attack Task] IsTargetInRange returned TRUE.");
+			// NOVA_LOG(Log, "[Attack Task] IsTargetInRange returned TRUE.");
+			
 			// 최소 사거리 제한 추가
 			if (MyUnit->IsTargetTooClose(Target))
 			{
-				NOVA_LOG(Log, "[Attack Task] Target is too close, retreating.");
+				// NOVA_LOG(Log, "[Attack Task] Target is too close, retreating.");
+				
 				// 사거리 안이지만 너무 가까움. 타겟과 반대 방향으로 물러나기 (중앙 집중화된 함수 사용)
 				// 이제 정밀 계산이 동반되므로 여유값(Buffer)만 50 유닛 정도로 주면 됨
 				AIC->RetreatFromTarget(Target, 50.0f);
 			}
 			else
 			{
-				NOVA_LOG(Log, "[Attack Task] Target inside range. Stopping movement and attempting attack.");
+				// NOVA_LOG(Log, "[Attack Task] Target inside range. Stopping movement and attempting attack.");
 				// 사거리 내라면 즉시 이동 중단 후 공격 수행
 				if (AIC->IsMoveInProgress())
 				{
@@ -160,6 +162,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 					FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 				}
+
 				// 공격 이동(Attack-Move)인 경우 타겟만 제거하고 태스크를 유지하여 원래 목적지 이동 재개 유도
 				return;
 			}
@@ -167,9 +170,13 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		// 1-2. 목표가 사거리 내에 없는 경우
 		else
 		{
-			NOVA_LOG(Log, "[Attack Task] IsTargetInRange returned FALSE. Moving to target.");
-			// 추격 함수 호출
-			AIC->MoveToActorOptimized(Target, 10.0f); 
+			if (!AIC->IsMoveInProgress())
+			{
+				// NOVA_LOG(Log, "[Attack Task] IsTargetInRange returned FALSE. Moving to target.");
+				
+				// 추격 함수 호출
+				AIC->MoveToActorOptimized(Target, 10.0f); 
+			}
 		}
 
 		return; // 타겟 액터 로직을 수행했으므로 하단의 지점 이동 로직은 실행하지 않음

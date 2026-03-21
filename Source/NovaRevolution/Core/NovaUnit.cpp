@@ -1272,12 +1272,10 @@ bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 	float MyHalfHeight = 0.0f;
 	GetSimpleCollisionCylinder(MyRadius, MyHalfHeight);
 
-	// 내 반지름(MyRadius)과 타겟 반지름(TargetRadius)을 더하고 약간의 여유(Buffer 10.0f)를 뺍니다.
-	// 실제 엔진 사거리 판정 상 확실히 사거리 안으로 들어가게 하여 멈춤 현상(Freezing)을 방지합니다.
-	float Buffer = 10.0f;
-	float AdjustedRange = Range + TargetRadius + MyRadius - Buffer;
+	// 사거리에 내 반지름(MyRadius)과 타겟 반지름(TargetRadius) 값을 더해서 거리를 산출합니다.
+	float AdjustedRange = Range + TargetRadius + MyRadius;
 	
-	NOVA_LOG(Log, "[NovaUnit] IsTargetInRange Check -> DistSqXY: %f, AdjustedRange: %f, AdjustedRangeSq: %f", DistSqXY, AdjustedRange, FMath::Square(AdjustedRange));
+	// NOVA_LOG(Log, "[NovaUnit] IsTargetInRange Check -> DistSqXY: %f, AdjustedRange: %f, AdjustedRangeSq: %f", DistSqXY, AdjustedRange, FMath::Square(AdjustedRange));
 
 	if (DistSqXY > FMath::Square(AdjustedRange))
 	{
