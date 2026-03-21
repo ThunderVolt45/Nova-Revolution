@@ -7,6 +7,7 @@
 #include "Core/NovaPartData.h"
 #include "NovaUnitPartProfileWidget.generated.h"
 
+struct FNovaUnitAssemblyData;
 class ANovaPartPreviewActor;
 class UTextureRenderTarget2D;
 
@@ -40,10 +41,21 @@ public:
 	/** 위젯이 처음 생성되거나 초기화될 때 기본으로 표시할 부품 카테고리 (에디터에서 설정 가능) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Preview")
 	ENovaPartType DefaultCategory = ENovaPartType::Legs;
+	
+	/** [신규] 특정 파츠 클래스를 기반으로 UI 인덱스를 강제로 맞춥니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Lobby|UI")
+	void SetCurrentPartByClass(TSubclassOf<class ANovaPart> TargetClass);
 
 protected:
 	/** 현재 인덱스의 데이터를 읽어와 이름과 표 위젯을 실시간으로 업데이트합니다. */
 	void UpdateDisplay();
+	
+	/** [신규] 매니저의 신호를 받아 내 파트의 인덱스를 강제 동기화하는 함수 */
+	UFUNCTION()
+	void OnManagerDataChanged(int32 SlotIndex, const FString& UnitName, const FNovaUnitAssemblyData& AssemblyData);
+
+	/** [신규] 무한 루프 방지를 위한 플래그 (UI 조작 시에만 true) */
+	bool bIsUserOperating = false;
 
 	// --- PartSpec 데이터 테이블 ---
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Data")

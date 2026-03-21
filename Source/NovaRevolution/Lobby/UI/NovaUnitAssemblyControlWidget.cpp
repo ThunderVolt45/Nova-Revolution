@@ -35,7 +35,7 @@ void UNovaUnitAssemblyControlWidget::NativeConstruct()
 			Manager->OnAssemblyDataChanged.AddDynamic(this, &UNovaUnitAssemblyControlWidget::UpdateStatus);
 
 			// 초기 동기화: 위젯이 켜진 순간의 현재 데이터를 한 번 반영합니다.
-			UpdateStatus(Manager->GetSelectedSlotIndex(), Manager->GetPendingData().UnitName);
+			UpdateStatus(Manager->GetSelectedSlotIndex(), Manager->GetPendingData().UnitName, Manager->GetPendingData());
             
 			NOVA_LOG(Log, "Widget successfully subscribed to LobbyManager's Assembly Event.");
 		}
@@ -50,7 +50,7 @@ void UNovaUnitAssemblyControlWidget::NativeConstruct()
 	
 }
 
-void UNovaUnitAssemblyControlWidget::UpdateStatus(int32 SlotIndex, const FString& UnitName)
+void UNovaUnitAssemblyControlWidget::UpdateStatus(int32 SlotIndex, const FString& UnitName, const FNovaUnitAssemblyData& AssemblyData)
 {
 	// 슬롯 번호 텍스트 갱신 (내부 인덱스 0~9를 유저 친화적인 1~10으로 변환)
 	if (Txt_SlotNumber)

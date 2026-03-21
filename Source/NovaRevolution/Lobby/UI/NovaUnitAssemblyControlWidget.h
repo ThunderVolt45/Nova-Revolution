@@ -6,6 +6,7 @@
 #include "Blueprint/UserWidget.h"
 #include "NovaUnitAssemblyControlWidget.generated.h"
 
+struct FNovaUnitAssemblyData;
 /**
  * UNovaUnitAssemblyControlWidget
  * 로비 조립 화면 하단 혹은 측면에 위치하여 조립 확정(Confirm), 해제(Release)를 담당하고
@@ -24,7 +25,7 @@ public:
 	 * LobbyManager의 SelectDeckSlot이나 ConfirmAssembly 호출 시 함께 갱신하기에 적합합니다.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Lobby|UI")
-	void UpdateStatus(int32 SlotIndex, const FString& UnitName);
+	void UpdateStatus(int32 SlotIndex, const FString& UnitName,const FNovaUnitAssemblyData& AssemblyData);
 
 protected:
 	/** 조립 확정 버튼 클릭 시 호출되어 LobbyManager의 ConfirmAssembly를 실행합니다. */
