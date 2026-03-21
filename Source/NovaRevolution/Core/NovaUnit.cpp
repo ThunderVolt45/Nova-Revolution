@@ -1262,14 +1262,23 @@ bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 	// 1. 수평 거리 체크 (XY 평면상 거리)
 	float DistSqXY = FVector::DistSquaredXY(MyLoc, TargetLoc);
 
-	// 타겟의 충돌체 크기를 고려하여 판정 완화 (타겟의 루트 컴포넌트가 PrimitiveComponent인 경우)
+	// 타겟의 충돌체 크기를 고려하여 판정 완화
+	// 캡슐 형태뿐 아니라 박스/스태틱메시 콜리전(예: 건물)도 포괄할 수 있도록 엔진의 기본 함수 사용
 	float TargetRadius = 0.0f;
-	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
-	{
-		TargetRadius = Capsule->GetScaledCapsuleRadius();
-	}
+	float TargetHalfHeight = 0.0f;
+	Target->GetSimpleCollisionCylinder(TargetRadius, TargetHalfHeight);
 
-	float AdjustedRange = Range + TargetRadius;
+	float MyRadius = 0.0f;
+	float MyHalfHeight = 0.0f;
+	GetSimpleCollisionCylinder(MyRadius, MyHalfHeight);
+
+	// 내 반지름(MyRadius)과 타겟 반지름(TargetRadius)을 더하고 약간의 여유(Buffer 10.0f)를 뺍니다.
+	// 실제 엔진 사거리 판정 상 확실히 사거리 안으로 들어가게 하여 멈춤 현상(Freezing)을 방지합니다.
+	float Buffer = 10.0f;
+	float AdjustedRange = Range + TargetRadius + MyRadius - Buffer;
+	
+	NOVA_LOG(Log, "[NovaUnit] IsTargetInRange Check -> DistSqXY: %f, AdjustedRange: %f, AdjustedRangeSq: %f", DistSqXY, AdjustedRange, FMath::Square(AdjustedRange));
+
 	if (DistSqXY > FMath::Square(AdjustedRange))
 	{
 		return false; // 수평 거리가 사거리를 벗어남
