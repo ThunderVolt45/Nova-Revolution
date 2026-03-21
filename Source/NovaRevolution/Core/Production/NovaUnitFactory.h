@@ -36,7 +36,4 @@ private:
 	/** 자원(Watt) 확인 및 차감 로직 */
 	bool CheckAndConsumeResources(class ANovaPlayerState* PS, float Cost);
 
-	/** 부품 스펙을 담고 있는 데이터 테이블 */
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|Factory")
-	TObjectPtr<UDataTable> PartSpecDataTable;
 };

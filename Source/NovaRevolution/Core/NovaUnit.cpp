@@ -1262,14 +1262,21 @@ bool ANovaUnit::IsTargetInRange(const AActor* Target, float Range) const
 	// 1. 수평 거리 체크 (XY 평면상 거리)
 	float DistSqXY = FVector::DistSquaredXY(MyLoc, TargetLoc);
 
-	// 타겟의 충돌체 크기를 고려하여 판정 완화 (타겟의 루트 컴포넌트가 PrimitiveComponent인 경우)
+	// 타겟의 충돌체 크기를 고려하여 판정 완화
+	// 캡슐 형태뿐 아니라 박스/스태틱메시 콜리전(예: 건물)도 포괄할 수 있도록 엔진의 기본 함수 사용
 	float TargetRadius = 0.0f;
-	if (const UCapsuleComponent* Capsule = Cast<UCapsuleComponent>(Target->GetRootComponent()))
-	{
-		TargetRadius = Capsule->GetScaledCapsuleRadius();
-	}
+	float TargetHalfHeight = 0.0f;
+	Target->GetSimpleCollisionCylinder(TargetRadius, TargetHalfHeight);
 
-	float AdjustedRange = Range + TargetRadius;
+	float MyRadius = 0.0f;
+	float MyHalfHeight = 0.0f;
+	GetSimpleCollisionCylinder(MyRadius, MyHalfHeight);
+
+	// 사거리에 내 반지름(MyRadius)과 타겟 반지름(TargetRadius) 값을 더해서 거리를 산출합니다.
+	float AdjustedRange = Range + TargetRadius + MyRadius;
+	
+	// NOVA_LOG(Log, "[NovaUnit] IsTargetInRange Check -> DistSqXY: %f, AdjustedRange: %f, AdjustedRangeSq: %f", DistSqXY, AdjustedRange, FMath::Square(AdjustedRange));
+
 	if (DistSqXY > FMath::Square(AdjustedRange))
 	{
 		return false; // 수평 거리가 사거리를 벗어남
@@ -1630,8 +1637,31 @@ void ANovaUnit::InitializeUIColors()
 
 	// 색상 결정 및 캐싱
 	CachedUIColor = FLinearColor::Red; // 적군
-	if (TeamID == LocalPlayerTeamID) CachedUIColor = FLinearColor::Green; // 아군
-	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) CachedUIColor = FLinearColor::Yellow; // 중립
+	FLinearColor UnitTintColor = EnemyTintColor;
+	
+	if (TeamID == LocalPlayerTeamID) 
+	{
+		CachedUIColor = FLinearColor::Green; // 아군
+		UnitTintColor = AllyTintColor;
+	}
+	else if (TeamID == NovaTeam::None || LocalPlayerTeamID == -1) 
+	{
+		CachedUIColor = FLinearColor::Yellow; // 중립
+		UnitTintColor = AllyTintColor;
+	}
+
+	// 각 파츠 머티리얼에 틴트 컬러 일괄 적용
+	ApplyTeamTintToParts(UnitTintColor);
+}
+
+void ANovaUnit::ApplyTeamTintToParts(const FLinearColor& TintColor)
+{
+	if (CurrentLegsPart) CurrentLegsPart->ApplyTeamTint(TintColor);
+	if (CurrentBodyPart) CurrentBodyPart->ApplyTeamTint(TintColor);
+	for (ANovaPart* WeaponPart : CurrentWeaponParts)
+	{
+		if (WeaponPart) WeaponPart->ApplyTeamTint(TintColor);
+	}
 }
 
 void ANovaUnit::UpdateHealthBar()

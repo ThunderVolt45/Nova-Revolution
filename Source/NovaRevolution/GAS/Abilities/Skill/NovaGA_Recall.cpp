@@ -9,6 +9,7 @@
 #include "NovaRevolution.h"
 #include "Core/NovaLog.h"
 #include "Player/NovaPlayerController.h"
+#include "NavigationSystem.h"
 
 UNovaGA_Recall::UNovaGA_Recall()
 {
@@ -95,7 +96,7 @@ void UNovaGA_Recall::OnTargetDataReadyCallback(const FGameplayAbilityTargetDataH
     // 1. 자원 실제 소모
     ApplySkillCost();
 
-    // 2. 기지 및 이동 목표지점(랠리 포인트) 확인
+    // 2. 기지 위치 확인 (랠리 포인트가 아닌 기지 본체로 소환)
     ANovaBase* PlayerBase = GetPlayerBase();
     if (!PlayerBase)
     {
@@ -104,7 +105,7 @@ void UNovaGA_Recall::OnTargetDataReadyCallback(const FGameplayAbilityTargetDataH
         return;
     }
 
-    FVector Destination = PlayerBase->GetRallyPoint();
+    FVector Destination = PlayerBase->GetActorLocation();
     
     // 라이브러리 함수를 사용하여 핸들로부터 액터 배열을 한 번에 추출합니다.
     TArray<AActor*> TargetActors = UAbilitySystemBlueprintLibrary::GetAllActorsFromTargetData(DataHandle);
@@ -112,12 +113,35 @@ void UNovaGA_Recall::OnTargetDataReadyCallback(const FGameplayAbilityTargetDataH
     // 비주얼 이펙트 실행 (통합 GCN 시스템 사용)
     ExecuteSkillGCN(DataHandle);
 
+    UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+
     for (AActor* Actor : TargetActors)
     {
         if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
         {
-            // 이동할 최종 위치 계산
+            // 이동할 최종 위치 계산 (기지 위치를 기본으로 하되, 지상 유닛은 NavMesh 상의 최단 거리 지점 탐색)
             FVector FinalLocation = Destination;
+
+            if (Unit->GetMovementType() == ENovaMovementType::Ground && NavSys)
+            {
+                // 모든 유닛이 한 점에 겹치는 것을 방지하기 위해 기지 중심에서 약간의 오프셋(jitter)을 줍니다.
+                FVector2D Jitter = FMath::RandPointInCircle(200.0f);
+                FVector TestPoint = Destination;
+                TestPoint.X += Jitter.X;
+                TestPoint.Y += Jitter.Y;
+
+                // 유닛의 내비게이션 속성에 맞는 특정 NavData(지상용 NavMesh)를 가져옵니다.
+                const ANavigationData* NavData = NavSys->GetNavDataForProps(Unit->GetNavAgentPropertiesRef());
+                if (NavData)
+                {
+                    FNavLocation NavLoc;
+                    // 오프셋이 적용된 지점에서 가장 가까운(Nearest) 유효 지면을 찾습니다.
+                    if (NavSys->ProjectPointToNavigation(TestPoint, NavLoc, FVector(500.f, 500.f, 200.f), NavData))
+                    {
+                        FinalLocation = NavLoc.Location;
+                    }
+                }
+            }
 
             // 공중 유닛인 경우, 유닛이 유지해야 할 기본 고도(DefaultAirZ)를 Z축에 더해줍니다.
             // 이를 통해 공중 유닛이 기지 바닥에 처박히는 현상을 방지합니다.

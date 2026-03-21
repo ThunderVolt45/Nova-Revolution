@@ -15,6 +15,8 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/WidgetComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "NavModifierComponent.h"
+#include "NavAreas/NavArea_Null.h"
 #include "Player/NovaPlayerController.h"
 #include "UI/NovaHealthBarComponent.h"
 #include "UI/NovaSelectionComponent.h"
@@ -37,6 +39,15 @@ ANovaBase::ANovaBase()
 	{
 		BaseMesh->SetupAttachment(RootComponent);
 		BaseMesh->SetCollisionResponseToChannel(ECC_Ground, ECR_Ignore);
+		BaseMesh->SetCanEverAffectNavigation(true);
+	}
+
+	// 내비게이션 보정: 기지 위에 NavMesh가 생성되지 않도록 설정
+	BaseCollision->SetCanEverAffectNavigation(true);
+	NavModifier = CreateDefaultSubobject<UNavModifierComponent>(TEXT("NavModifier"));
+	if (NavModifier)
+	{
+		NavModifier->SetAreaClass(UNavArea_Null::StaticClass());
 	}
 
 	// 선택 원 위젯

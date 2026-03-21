@@ -9,3 +9,10 @@
 
 /** Main log category used across the project */
 DECLARE_LOG_CATEGORY_EXTERN(LogNovaRevolution, Log, All);
+
+class FNovaRevolutionModule : public IModuleInterface
+{
+public:
+	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
+};
