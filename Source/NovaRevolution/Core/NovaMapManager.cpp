@@ -29,10 +29,10 @@ ANovaMapManager::ANovaMapManager()
 	AerialNavBounds->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	AerialNavBounds->SetCollisionResponseToAllChannels(ECR_Ignore);
 	// 게임 내 가시성 제거
-	AerialNavBounds->SetHiddenInGame(true); 
+	AerialNavBounds->SetHiddenInGame(true);
 	// 에디터에서만 영역을 확인할 수 있도록 설정 (선택 사항)
 	AerialNavBounds->SetLineThickness(2.0f);
-	
+
 	// 미니맵 캡처 컴포넌트 설정
 	MinimapCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("MinimapCapture"));
 	MinimapCapture->SetupAttachment(RootComponent);
@@ -54,7 +54,7 @@ void ANovaMapManager::BeginPlay()
 
 	// 맵 시작 시 자동으로 배경 캡처 수행
 	CaptureMapBackground();
-	
+
 	// Standalone 모드에서는 월드 로딩 완료를 위해 약간의 지연 후 캡처하는 것이 안전함
 	FTimerHandle CaptureTimerHandle;
 	GetWorldTimerManager().SetTimer(CaptureTimerHandle, this, &ANovaMapManager::CaptureMapBackground, 0.2f, false);
@@ -63,7 +63,7 @@ void ANovaMapManager::BeginPlay()
 void ANovaMapManager::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	
+
 	if (MapBounds && AerialNavBounds)
 	{
 		// 1. 부모(MapBounds)의 현재 Extent(가로, 세로, 높이) 가져오기
@@ -72,7 +72,7 @@ void ANovaMapManager::OnConstruction(const FTransform& Transform)
 		// 2. 자식(AerialNavBounds)의 Extent 설정
 		// X, Y는 부모와 똑같이, Z(두께)는 얇게(10) 고정
 		AerialNavBounds->SetBoxExtent(FVector(ParentExtent.X, ParentExtent.Y, 10.0f));
-		
+
 		AerialNavBounds->SetRelativeLocation(FVector(0.f, 0.f, AerialNavHeight));
 	}
 }
@@ -81,6 +81,28 @@ FBox ANovaMapManager::GetMapBounds() const
 {
 	if (!MapBounds) return FBox(ForceInit);
 	return MapBounds->Bounds.GetBox();
+}
+
+FBox ANovaMapManager::GetFogBounds() const
+{
+	FBox Bounds = GetMapBounds();
+	// 상하좌우로 FogPadding만큼 영역을 확장합니다. (Z는 확장 불필요)
+	return Bounds.ExpandBy(FVector(FogPadding, FogPadding, 0.f));
+}
+
+FVector2D ANovaMapManager::WorldToFogUV(const FVector& WorldLocation) const
+{
+	FBox FogBounds = GetFogBounds();
+	FVector Center = FogBounds.GetCenter();
+
+	// 확장된 영역의 가로/세로 중 긴 쪽을 기준으로 정규화
+	float MaxSide = FMath::Max(FogBounds.Max.X - FogBounds.Min.X, FogBounds.Max.Y - FogBounds.Min.Y);
+
+	float U = (WorldLocation.X - Center.X) / MaxSide + 0.5f;
+	float V = (WorldLocation.Y - Center.Y) / MaxSide + 0.5f;
+
+	// 안개 그리기용이므로 Clamp를 수행하여 0~1 밖으로 나가지 않게 합니다.
+	return FVector2D(FMath::Clamp(U, 0.f, 1.f), FMath::Clamp(V, 0.f, 1.f));
 }
 
 FVector2D ANovaMapManager::WorldToMapUV(const FVector& WorldLocation) const
@@ -98,16 +120,6 @@ FVector2D ANovaMapManager::WorldToMapUV(const FVector& WorldLocation) const
 
 FVector ANovaMapManager::UVToWorldLocation(const FVector2D& UV, float ZHeight) const
 {
-	/*
-	FBox Bounds = GetMapBounds();
-	FVector Size = Bounds.GetSize();
-
-	// UV(0~1) 비율을 실제 월드 좌표로 역산 (Lerp와 동일한 원리)
-	float WorldX = Bounds.Min.X + (UV.X * Size.X);
-	float WorldY = Bounds.Min.Y + (UV.Y * Size.Y);
-
-	return FVector(WorldX, WorldY, ZHeight);
-	*/
 	FBox Bounds = GetMapBounds();
 	float MaxSide = FMath::Max(Bounds.Max.X - Bounds.Min.X, Bounds.Max.Y - Bounds.Min.Y);
 	FVector Center = Bounds.GetCenter();

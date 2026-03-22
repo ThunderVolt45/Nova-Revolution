@@ -31,6 +31,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Nova|Map")
 	float AerialNavHeight = 700.f;
 	
+	/** 안개 영역을 플레이 영역보다 얼마나 더 넓힐지 (맵 밖의 자연스러운 시야 처리를 위함) */
+	UPROPERTY(EditAnywhere, Category = "Nova|Map")
+	float FogPadding = 3000.f;
+	
 	// 액터를 등록 및 관리할 배열
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AActor>> RegisteredActors;
@@ -54,6 +58,13 @@ public:
 	/** 지도의 바운드 정보 반환 */
 	FBox GetMapBounds() const;
 
+	/** 확장된 안개 전용 바운드 */
+	FBox GetFogBounds() const;
+
+	/** 확장된 안개 영역 기준의 UV 변환 */
+	UFUNCTION(BlueprintPure, Category = "Nova|Map")
+	FVector2D WorldToFogUV(const FVector& WorldLocation) const;
+	
 	/** 월드 좌표를 0~1 사이의 UV 좌표로 변환 (미니맵, 안개 공용) */
 	UFUNCTION(BlueprintPure, Category = "Nova|Map")
 	FVector2D WorldToMapUV(const FVector& WorldLocation) const;
