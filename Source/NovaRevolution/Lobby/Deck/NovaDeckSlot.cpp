@@ -4,9 +4,11 @@
 #include "Lobby/Deck/NovaDeckSlot.h"
 
 #include "NovaRevolution.h"
+#include "Components/SceneCaptureComponent2D.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SpotLightComponent.h"
 #include "Core/NovaLog.h"
+#include "Engine/TextureRenderTarget2D.h"
 #include "Lobby/NovaLobbyPlayerController.h"
 #include "Lobby/NovaLobbyManager.h"
 
@@ -27,6 +29,32 @@ ANovaDeckSlot::ANovaDeckSlot()
     // 코드 수정 없이 BP 에디터에서 이 컴포넌트만 옮겨서 스폰 지점을 미세 조정할 수 있습니다.
     UnitSpawnPoint = CreateDefaultSubobject<USceneComponent>(TEXT("UnitSpawnPoint"));
     UnitSpawnPoint->SetupAttachment(RootComponent);
+    
+    // Scene Capture 컴포넌트 생성 및 부착
+    SceneCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("SceneCapture"));
+    SceneCapture->SetupAttachment(RootComponent);
+
+    // 유닛을 바라보도록 위치와 회전 기본값 설정 (에디터에서 미세조정 가능)
+    SceneCapture->SetRelativeLocation(FVector(300.0f, 0.0f, 150.0f));
+    SceneCapture->SetRelativeRotation(FRotator(-15.0f, 180.0f, 0.0f));
+
+    // --- [핵심 변경 사항: 매 프레임 실시간 캡처 활성화] ---
+    SceneCapture->bCaptureEveryFrame = true; 
+    SceneCapture->bCaptureOnMovement = false;
+
+    // 투명화 및 배경 제거를 위한 캡처 설정
+    //알파값 반전 : 기존의 M_PartPreview_UI Material 사용
+    SceneCapture->CaptureSource = ESceneCaptureSource::SCS_SceneColorHDR;
+    // 알파값 정상 : ToDo: 이후 FinalColorLDR로 변경
+    //SceneCapture->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+    SceneCapture->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
+    SceneCapture->CompositeMode = ESceneCaptureCompositeMode::SCCM_Overwrite;
+
+    // 불필요한 배경 요소 강제 비활성화 (알파 채널 확보용)
+    SceneCapture->ShowFlags.SetAtmosphere(false);
+    SceneCapture->ShowFlags.SetSkyLighting(false);
+    SceneCapture->ShowFlags.SetFog(false);
+    SceneCapture->ShowFlags.SetVolumetricFog(false);
 
     // 성능 최적화: 매 프레임 실행되는 틱(Tick) 로직이 필요 없으므로 비활성화합니다.
     PrimaryActorTick.bCanEverTick = false;
@@ -97,4 +125,35 @@ FTransform ANovaDeckSlot::GetUnitSpawnTransform() const
     }
     
     return GetActorTransform();
+}
+
+void ANovaDeckSlot::SetCaptureTarget(AActor* TargetUnit)
+{
+    if (!SceneCapture || !RenderTarget) return;
+
+    // 기존 캡처 리스트 초기화 및 렌더 타겟 비우기 (투명 처리)
+    SceneCapture->ShowOnlyActors.Empty();
+    RenderTarget->ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    SceneCapture->TextureTarget = RenderTarget;
+
+    if (TargetUnit)
+    {
+        // 1. 유닛 본체(Base Actor) 추가
+        SceneCapture->ShowOnlyActors.Add(TargetUnit);
+
+        // 2. 유닛에 부착된 모든 부품 액터(다리, 몸통, 무기 등)를 재귀적으로 찾아 추가
+        TArray<AActor*> AttachedActors;
+        TargetUnit->GetAttachedActors(AttachedActors, false, true); 
+        
+        for (AActor* Attached : AttachedActors)
+        {
+            if (Attached)
+            {
+                SceneCapture->ShowOnlyActors.Add(Attached);
+            }
+        }
+    }
+    
+    // bCaptureEveryFrame이 true이므로 별도의 CaptureScene() 호출 없이 엔진이 자동 갱신합니다.
+    
 }

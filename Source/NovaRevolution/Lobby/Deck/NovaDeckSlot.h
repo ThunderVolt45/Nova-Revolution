@@ -6,6 +6,9 @@
 #include "GameFramework/Actor.h"
 #include "NovaDeckSlot.generated.h"
 
+class USceneCaptureComponent2D;
+class UTextureRenderTarget2D;
+
 /**
  * ANovaDeckSlot
  * 로비 레벨(격납고)에 배치되어 개별 유닛 덱을 대표하는 액터입니다.
@@ -39,6 +42,17 @@ public:
 
 	/** 슬롯 인덱스 Getter */
 	int32 GetSlotIndex() const { return SlotIndex; }
+	
+	// 덱 WBP 세팅
+	/** * 이 슬롯 카메라가 실시간으로 계속 찍을 대상 유닛을 설정합니다.
+	 * nullptr을 넘기면 화면을 비웁니다.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Deck")
+	void SetCaptureTarget(AActor* TargetUnit);
+
+	/** UI 위젯에서 이 슬롯의 렌더 타겟을 가져올 때 사용합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Deck")
+	UTextureRenderTarget2D* GetRenderTarget() const { return RenderTarget; }
 
 protected:
 	/** 기준이 되는 루트 컴포넌트 (DefaultSceneRoot 역할) */
@@ -60,4 +74,12 @@ protected:
 	/** BaseMesh의 머티리얼 파라미터를 실시간으로 조절하기 위한 다이나믹 머티리얼 */
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceDynamic> BaseDynamicMaterial;
+	
+	/** 유닛의 외형을 UI용으로 캡처할 카메라 컴포넌트 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Deck|Capture")
+	TObjectPtr<USceneCaptureComponent2D> SceneCapture;
+
+	/** 캡처된 이미지가 저장될 렌더 타겟 에셋 (각 슬롯의 BP에서 1~10번 슬롯용 렌더 타겟을 개별 할당) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Deck|Capture")
+	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
 };
