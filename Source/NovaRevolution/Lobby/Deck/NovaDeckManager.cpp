@@ -49,16 +49,23 @@ void ANovaDeckManager::UpdateSlotUnit(int32 SlotIndex, const FNovaUnitAssemblyDa
 		);
 
 		// 생성된 유닛을 맵에 등록하여 관리
-		if (UnitToUpdate)
-		{
-			SpawnedUnits.Add(SlotIndex, UnitToUpdate);
-		}
+		// if (UnitToUpdate)
+		// {
+		// 	SpawnedUnits.Add(SlotIndex, UnitToUpdate);
+		// }
 	}
 
-	// 3. 조립 데이터 적용 (기존 PreviewUnit의 실시간 조립 로직 호출)
+	// ... 기존 스폰 로직 (UnitToUpdate 생성 등) ...
 	if (UnitToUpdate)
 	{
+		// 슬롯 번호 주입 (클릭 이벤트 처리를 위함)
+		UnitToUpdate->SetSlotIndex(SlotIndex);
+
+		// 유닛 배율 설정 (전시용이므로 메인보다 작게 설정)
+		UnitToUpdate->SetUnitScale(3.0f);
+
 		UnitToUpdate->ApplyAssemblyData(UnitData);
+		SpawnedUnits.Add(SlotIndex, UnitToUpdate);
 	}
 }
 

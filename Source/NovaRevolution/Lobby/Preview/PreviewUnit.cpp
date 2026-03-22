@@ -2,9 +2,14 @@
 
 
 #include "Lobby/Preview/PreviewUnit.h"
+
+#include "NovaRevolution.h"
+#include "Components/CapsuleComponent.h"
+#include "Core/NovaLog.h"
 #include "Core/NovaPart.h"
 #include "Core/NovaObjectPoolSubsystem.h"
 #include "Kismet/GameplayStatics.h"
+#include "Lobby/NovaLobbyManager.h"
 
 APreviewUnit::APreviewUnit()
 {
@@ -12,6 +17,20 @@ APreviewUnit::APreviewUnit()
     
     // 유닛의 중심점이 될 루트 컴포넌트 생성
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("PreviewRoot"));
+    
+    // 2. [추가] 클릭 감지용 캡슐 생성 및 설정
+    ClickCollision = CreateDefaultSubobject<UCapsuleComponent>(TEXT("ClickCollision"));
+    ClickCollision->SetupAttachment(RootComponent);
+
+    // 캡슐의 기본 크기 설정 (유닛 크기에 맞춰 적절히 조절 필요)
+    // 로비에서 유닛이 꽤 크기 때문에 넉넉하게 잡습니다.
+    ClickCollision->InitCapsuleSize(100.f, 200.f);
+    ClickCollision->SetRelativeLocation(FVector(0.f, 0.f, 100.f)); // 중심을 위로 올림
+
+    // 충돌 설정: 쿼리(클릭)는 허용하되 물리(Physics)는 끕니다.
+    ClickCollision->SetCollisionProfileName(TEXT("UI")); // 혹은 커스텀 프로필
+    ClickCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
+    ClickCollision->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block); // 마우스 클릭 채널 차단(감지)
 
     // 기본 무기 소켓 이름 설정 (몸통 부품의 스켈레탈 메시 소켓 이름과 일치해야 함)
     WeaponSocketNames.Empty();
@@ -43,6 +62,16 @@ void APreviewUnit::ApplyAssemblyData(const FNovaUnitAssemblyData& Data)
     // 2. [핵심] 부품들 간의 계층 구조 및 소켓 부착 관계 재정립
     // 이 함수가 다리 -> 몸통 -> 무기 순으로 부품들을 체인처럼 연결합니다.
     RefreshAttachments();
+}
+
+void APreviewUnit::SetUnitScale(float NewScale)
+{
+    UnitScale = NewScale;
+    if (ClickCollision)
+    {
+        // 유닛 전체 배율에 맞춰 클릭 영역도 리사이징
+        ClickCollision->SetWorldScale3D(FVector(NewScale));
+    }
 }
 
 ANovaPart* APreviewUnit::UpdatePart(TSubclassOf<ANovaPart> NewPartClass, TObjectPtr<ANovaPart>& CurrentPart)
@@ -103,7 +132,7 @@ void APreviewUnit::RefreshAttachments()
         // UpdatePart에서 주입된 스펙 정보를 바탕으로 타입을 정확히 판별합니다.
         if (CurrentLegs->GetPartSpec().PartType == ENovaPartType::Legs)
         {
-            CurrentLegs->SetActorScale3D(FVector(4.0f));
+            CurrentLegs->SetActorScale3D(FVector(UnitScale));
         }
 
         // [인게임 로직 복제 1] 다리는 유닛 중심에서 바닥으로 내려야 하므로 Z축 -90 오프셋을 적용합니다.
@@ -185,5 +214,27 @@ void APreviewUnit::ReturnPartsToPool()
         }
     }
     CurrentWeapons.Empty(); // 리스트 비우기
+}
+
+void APreviewUnit::OnPreviewUnitClicked(AActor* TouchedActor, FKey ButtonPressed)
+{
+    // 메인 프리뷰(SlotIndex -1)가 아닌 덱 슬롯용 프리뷰일 때만 동작
+    if (SlotIndex != -1)
+    {
+        // 월드에서 LobbyManager를 찾아 슬롯 선택 명령 전달
+        if (ANovaLobbyManager* LobbyManager = Cast<ANovaLobbyManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaLobbyManager::StaticClass())))
+        {
+            LobbyManager->SelectDeckSlot(SlotIndex);
+            NOVA_SCREEN(Log, "PreviewUnit Clicked! Selecting Slot: %d", SlotIndex);
+        }
+    }
+}
+
+void APreviewUnit::BeginPlay()
+{
+    Super::BeginPlay();
+    
+    // 액터 클릭 이벤트 바인딩
+    OnClicked.AddDynamic(this, &APreviewUnit::OnPreviewUnitClicked);
 }
 

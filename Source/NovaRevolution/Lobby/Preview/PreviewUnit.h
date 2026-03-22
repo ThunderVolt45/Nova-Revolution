@@ -7,6 +7,7 @@
 #include "Core/NovaAssemblyTypes.h"
 #include "PreviewUnit.generated.h"
 
+class UCapsuleComponent;
 /**
  * APreviewUnit
  * 로비 레벨에서 실시간으로 부품을 교체하며 유닛의 조립 상태를 보여주는 프리뷰 전용 액터입니다.
@@ -25,6 +26,13 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Lobby")
 	void ApplyAssemblyData(const FNovaUnitAssemblyData& Data);
+	
+	/** 외부(Manager)에서 유닛의 전체 크기를 조정할 수 있도록 함수 노출 */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Lobby")
+	void SetUnitScale(float NewScale);
+	
+	/** 이 프리뷰 유닛이 배치된 덱 슬롯의 인덱스를 설정합니다. */
+	void SetSlotIndex(int32 InSlotIndex) { SlotIndex = InSlotIndex; }
 
 protected:
 	/** * 풀링 시스템을 통해 파츠를 생성하거나 교체하는 헬퍼 함수 
@@ -65,4 +73,21 @@ protected:
 
 	/** 장착된 모든 부품을 오브젝트 풀로 안전하게 반환합니다. */
 	void ReturnPartsToPool();
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Lobby")
+	float UnitScale = 1.0f;
+	
+	/** 마우스 클릭 이벤트를 처리하는 함수 (엔진 표준 Actor Click 핸들러) */
+	UFUNCTION()
+	void OnPreviewUnitClicked(AActor* TouchedActor, FKey ButtonPressed);
+
+	virtual void BeginPlay() override;
+
+	/** 자신이 속한 덱 슬롯 번호 (-1은 메인 프리뷰용) */
+	UPROPERTY(VisibleAnywhere, Category = "Nova|Lobby")
+	int32 SlotIndex = -1;
+	
+	/** 클릭을 감지하기 위한 투명한 충돌체 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Lobby")
+	TObjectPtr<UCapsuleComponent> ClickCollision;
 };
