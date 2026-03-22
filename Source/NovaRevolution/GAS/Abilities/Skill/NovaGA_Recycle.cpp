@@ -51,16 +51,38 @@ void UNovaGA_Recycle::ActivateAbility(const FGameplayAbilitySpecHandle Handle, c
             int32 TeamID = NovaTeam::None;
             if (INovaTeamInterface* TI = Cast<INovaTeamInterface>(PC->PlayerState)) TeamID = TI->GetTeamID();
 
+            float BestScore = -1.0f;
+
             for (AActor* Actor : SelectedUnits)
             {
                 if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
                 {
                     if (Unit->GetTeamID() == TeamID && !Unit->IsDead())
                     {
-                        TargetUnit = Unit;
-                        break;
+                        if (UNovaAttributeSet* AS = Unit->GetAttributeSet())
+                        {
+                            float CurrentWatt = AS->GetWatt();
+                            float CurrentHealth = AS->GetHealth();
+                            float MaxHealth = AS->GetMaxHealth();
+                            
+                            // 점수 계산: (와트 가치 * 가중치) + (손실된 체력 * 가중치)
+                            // 손실된 체력이 많을수록(죽기 직전일수록) 높은 점수
+                            float HealthLoss = FMath::Max(0.0f, MaxHealth - CurrentHealth);
+                            float Score = (CurrentWatt * WattWeight) + (HealthLoss * HealthWeight);
+
+                            if (Score > BestScore)
+                            {
+                                BestScore = Score;
+                                TargetUnit = Unit;
+                            }
+                        }
                     }
                 }
+            }
+
+            if (TargetUnit)
+            {
+                NOVA_LOG(Log, "Recycle Ability: Auto-selected best target %s (Score: %.2f)", *TargetUnit->GetName(), BestScore);
             }
         }
     }
