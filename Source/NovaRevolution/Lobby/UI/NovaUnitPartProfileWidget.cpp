@@ -138,12 +138,32 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
             // 1. 위젯 내부의 개별 파트 프리뷰 업데이트
             PreviewActor->UpdatePreview(AssetRow->PartClass, PreviewRenderTarget);
             
-            // 렌더 타겟 영상을 위젯의 이미지 컨트롤에 투사
-            if (Img_PartPreview)
+            // 2. 다이나믹 머티리얼 생성 및 렌더 타겟 주입
+            if (!PreviewDynamicMaterial && PreviewMaterialBase)
             {
-                // 렌더 타겟(UTextureRenderTarget2D)을 텍스처로서 브러시 이미지에 할당합니다.
-                // 이를 통해 PreviewActor가 찍고 있는 3D 화면이 UI의 해당 영역에 실시간으로 출력됩니다.
-                Img_PartPreview->SetBrushResourceObject(PreviewRenderTarget);
+                PreviewDynamicMaterial = UMaterialInstanceDynamic::Create(PreviewMaterialBase, this);
+            }
+
+            if (PreviewDynamicMaterial)
+            {
+                // 머티리얼의 텍스처 파라미터(PreviewTexture)에 렌더 타겟 연결
+                PreviewDynamicMaterial->SetTextureParameterValue(TEXT("PreviewTexture"), PreviewRenderTarget);
+
+                // 이미지 위젯에 머티리얼 적용
+                if (Img_PartPreview)
+                {
+                    Img_PartPreview->SetBrushFromMaterial(PreviewDynamicMaterial);
+                }
+            }
+            else
+            {
+                // 렌더 타겟 영상을 위젯의 이미지 컨트롤에 투사
+                if (Img_PartPreview)
+                {
+                    // 렌더 타겟(UTextureRenderTarget2D)을 텍스처로서 브러시 이미지에 할당합니다.
+                    // 이를 통해 PreviewActor가 찍고 있는 3D 화면이 UI의 해당 영역에 실시간으로 출력됩니다.
+                    Img_PartPreview->SetBrushResourceObject(PreviewRenderTarget);
+                }
             }
             
             NOVA_LOG(Log, "Preview Updated for Part: %s", *TargetID.ToString());

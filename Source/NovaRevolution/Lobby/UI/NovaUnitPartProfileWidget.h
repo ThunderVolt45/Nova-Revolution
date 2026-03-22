@@ -78,6 +78,15 @@ protected:
 	// 해당 위젯 전용 렌더 타겟 (이미지에 바인딩되어 실시간 화면을 출력)
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Preview")
 	TObjectPtr<UTextureRenderTarget2D> PreviewRenderTarget;
+	
+	//추가
+	/** UI에서 투명도를 지원하기 위한 프리뷰용 머티리얼 베이스 (M_PartPreview_UI 등을 할당) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Preview")
+	TObjectPtr<UMaterialInterface> PreviewMaterialBase;
+
+	/** 런타임에 렌더 타겟을 주입할 다이나믹 머티리얼 */
+	UPROPERTY()
+	TObjectPtr<UMaterialInstanceDynamic> PreviewDynamicMaterial;
 
 	// --- 에디터 WBP 위젯 바인딩 (이름 일치 필수) ---
 	/** 부품 공식 명칭 표시 (로드런너, 건봇 등) */
