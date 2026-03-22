@@ -1105,7 +1105,7 @@ void ANovaPlayerController::ClampCameraLocation()
 	
 	// 2. 각 방향별로 Clamp (위아래, 좌우가 각각의 마진을 가짐)
 	// 맵의 MaxX(상단)는 Top 마진을 사용, MinX(하단)는 Bottom 마진을 사용
-	float MinX = FMath::Min(MapBox.Min.X + Offsets.Bottom, MapBox.GetCenter().X);
+	float MinX = FMath::Min(MapBox.Min.X + Offsets.Bottom - ExtraScrollMargins, MapBox.GetCenter().X);
 	float MaxX = FMath::Max(MapBox.Max.X - Offsets.Top, MapBox.GetCenter().X);
 	float MinY = FMath::Min(MapBox.Min.Y + Offsets.Left, MapBox.GetCenter().Y);
 	float MaxY = FMath::Max(MapBox.Max.Y - Offsets.Right, MapBox.GetCenter().Y);
