@@ -13,14 +13,26 @@ ANovaMapManager::ANovaMapManager()
 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = false;
 
-	// 1. 실제 맵 범위를 정의할 박스 컴포넌트 생성
+	// 실제 맵 범위를 정의할 박스 컴포넌트 생성
 	MapBounds = CreateDefaultSubobject<UBoxComponent>(TEXT("MapBounds"));
 	RootComponent = MapBounds;
-
 	// 기본 설정 (에디터에서 육안으로 확인하기 편하게 설정)
 	MapBounds->SetBoxExtent(FVector(10000.f, 10000.f, 500.f));
 	MapBounds->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	// 공중 유닛용 내비게이션 바닥 추가
+	AerialNavBounds = CreateDefaultSubobject<UBoxComponent>(TEXT("AerialNavBounds"));
+	AerialNavBounds->SetupAttachment(RootComponent);
+	// 중요: 내비게이션에 영향을 주도록 설정
+	AerialNavBounds->SetCanEverAffectNavigation(true);
+	// 충돌 설정: 유닛은 통과하지만 NavMesh는 생성되도록 'QueryOnly' 설정
+	AerialNavBounds->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	AerialNavBounds->SetCollisionResponseToAllChannels(ECR_Ignore);
+	// 게임 내 가시성 제거
+	AerialNavBounds->SetHiddenInGame(true); 
+	// 에디터에서만 영역을 확인할 수 있도록 설정 (선택 사항)
+	AerialNavBounds->SetLineThickness(2.0f);
+	
 	// 미니맵 캡처 컴포넌트 설정
 	MinimapCapture = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("MinimapCapture"));
 	MinimapCapture->SetupAttachment(RootComponent);
@@ -46,6 +58,23 @@ void ANovaMapManager::BeginPlay()
 	// Standalone 모드에서는 월드 로딩 완료를 위해 약간의 지연 후 캡처하는 것이 안전함
 	FTimerHandle CaptureTimerHandle;
 	GetWorldTimerManager().SetTimer(CaptureTimerHandle, this, &ANovaMapManager::CaptureMapBackground, 0.2f, false);
+}
+
+void ANovaMapManager::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+	
+	if (MapBounds && AerialNavBounds)
+	{
+		// 1. 부모(MapBounds)의 현재 Extent(가로, 세로, 높이) 가져오기
+		FVector ParentExtent = MapBounds->GetUnscaledBoxExtent();
+
+		// 2. 자식(AerialNavBounds)의 Extent 설정
+		// X, Y는 부모와 똑같이, Z(두께)는 얇게(10) 고정
+		AerialNavBounds->SetBoxExtent(FVector(ParentExtent.X, ParentExtent.Y, 10.0f));
+		
+		AerialNavBounds->SetRelativeLocation(FVector(0.f, 0.f, AerialNavHeight));
+	}
 }
 
 FBox ANovaMapManager::GetMapBounds() const

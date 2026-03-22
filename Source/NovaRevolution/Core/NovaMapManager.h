@@ -23,6 +23,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Map")
 	TObjectPtr<UBoxComponent> MapBounds;
 
+	/** 공중 유닛용 내비게이션 바닥 (Z=800) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Map")
+	TObjectPtr<UBoxComponent> AerialNavBounds;
+	
+	/** 공중 유닛용 내비게이션 높이 */
+	UPROPERTY(EditAnywhere, Category = "Nova|Map")
+	float AerialNavHeight = 700.f;
+	
 	// 액터를 등록 및 관리할 배열
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AActor>> RegisteredActors;
@@ -40,6 +48,9 @@ protected:
 	float CaptureHeight = 10000.0f;
 
 public:
+	/** 에디터 프로퍼티 변경 시 동기화를 위한 함수 */
+	virtual void OnConstruction(const FTransform& Transform) override;
+	
 	/** 지도의 바운드 정보 반환 */
 	FBox GetMapBounds() const;
 
