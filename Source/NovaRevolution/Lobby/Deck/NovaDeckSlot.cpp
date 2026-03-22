@@ -13,8 +13,6 @@
 ANovaDeckSlot::ANovaDeckSlot()
 {
     // 1. 루트 컴포넌트 생성 (DefaultSceneRoot 역할)
-    // 루트를 SceneComponent로 설정함으로써, BP 에디터에서 하위 메쉬나 조명 등을 
-    // 자유롭게 추가하고 상대적 위치를 조정할 수 있는 유연성을 제공합니다.
     SceneRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SceneRoot"));
     RootComponent = SceneRoot;
 

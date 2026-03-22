@@ -62,7 +62,7 @@ void ANovaDeckManager::UpdateSlotUnit(int32 SlotIndex, const FNovaUnitAssemblyDa
 		UnitToUpdate->SetSlotIndex(SlotIndex);
 
 		// 유닛 배율 설정 (전시용이므로 메인보다 작게 설정)
-		UnitToUpdate->SetUnitScale(3.0f);
+		UnitToUpdate->SetUnitScale(2.5f);
 
 		UnitToUpdate->ApplyAssemblyData(UnitData);
 		SpawnedUnits.Add(SlotIndex, UnitToUpdate);
