@@ -5,13 +5,10 @@
 
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
-#include "HairStrandsInterface.h"
-#include "NovaBase.h"
 #include "NovaInterfaces.h"
 #include "NovaMapManager.h"
 #include "NovaPlayerState.h"
 #include "NovaRevolution.h"
-#include "NovaUnit.h"
 #include "GameFramework/GameStateBase.h"
 #include "GAS/NovaAttributeSet.h"
 #include "Kismet/GameplayStatics.h"

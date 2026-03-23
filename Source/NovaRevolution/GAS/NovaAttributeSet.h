@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "AttributeSet.h"
 #include "AbilitySystemComponent.h"
-#include "GameplayEffectExtension.h"
 #include "NovaAttributeSet.generated.h"
 
 // 속성 접근을 위한 매크로 정의
