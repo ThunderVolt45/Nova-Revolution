@@ -8,7 +8,12 @@ bool UNovaGCN_Burst::OnExecute_Implementation(AActor* MyTarget, const FGameplayC
 		// 타겟이 가시성 인터페이스를 구현하고 있다면 가시성 확인
 		if (MyTarget->GetClass()->ImplementsInterface(UNovaVisibilityInterface::StaticClass()))
 		{
-			if (!INovaVisibilityInterface::Execute_GetFogVisibility(MyTarget))
+			bool bIsVisible = INovaVisibilityInterface::Execute_GetFogVisibility(MyTarget);
+			
+			UE_LOG(LogTemp, Log, TEXT("GCN_Burst: OnExecute for Target [%s], Visibility: %s"), 
+				*MyTarget->GetName(), bIsVisible ? TEXT("Visible") : TEXT("Hidden"));
+
+			if (!bIsVisible)
 			{
 				// 안개에 의해 보이지 않는 상태라면 실행 취소
 				return false;
@@ -19,3 +24,4 @@ bool UNovaGCN_Burst::OnExecute_Implementation(AActor* MyTarget, const FGameplayC
 	// 가시성이 확보되었거나 타겟이 없어 범용적인 경우(위치 기반 등) 부모 로직 실행
 	return Super::OnExecute_Implementation(MyTarget, Parameters);
 }
+ 

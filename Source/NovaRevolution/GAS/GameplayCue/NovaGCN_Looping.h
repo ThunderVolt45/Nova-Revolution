@@ -19,9 +19,12 @@ public:
 	// --- INovaVisibilityInterface ---
 	virtual bool GetFogVisibility_Implementation() const override { return bIsVisibleByFog; }
 	virtual void SetFogVisibility_Implementation(bool bVisible) override;
+	virtual bool IsVisibleToTeam_Implementation(int32 CurrentTeamID) const override { return bIsVisibleByFog; }
+	virtual void SetVisibilityForTeam_Implementation(int32 CurrentTeamID, bool bVisible) override {}
 
 	// --- AGameplayCueNotify_Looping ---
 	virtual bool OnActive_Implementation(AActor* MyTarget, const FGameplayCueParameters& Parameters) override;
+	virtual bool OnRemove_Implementation(AActor* MyTarget, const FGameplayCueParameters& Parameters) override;
 
 protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Visibility")
