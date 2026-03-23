@@ -10,6 +10,7 @@
 #include "Core/AI/NovaAIPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
+#include "Core/NovaAudioSubsystem.h"
 
 ANovaGameMode::ANovaGameMode()
 {
@@ -41,6 +42,19 @@ void ANovaGameMode::BeginPlay()
 
 	// 3. 게임 시작 시 기지 배치
 	InitializePlayerBase();
+
+	// 4. BGM 재생
+	if (LevelBGMs.Num() > 0)
+	{
+		int32 RandomIndex = FMath::RandRange(0, LevelBGMs.Num() - 1);
+		if (USoundBase* SelectedBGM = LevelBGMs[RandomIndex])
+		{
+			if (UNovaAudioSubsystem* AudioSubsystem = GetGameInstance()->GetSubsystem<UNovaAudioSubsystem>())
+			{
+				AudioSubsystem->PlayBGM(SelectedBGM);
+			}
+		}
+	}
 }
 
 void ANovaGameMode::LoadPlayerDecks()
@@ -217,4 +231,38 @@ void ANovaGameMode::OnBaseDestroyed(ANovaBase* DestroyedBase)
 void ANovaGameMode::EndMatch(int32 WinningTeamID)
 {
 	NOVA_SCREEN(Warning, "WINNER: Team %d", WinningTeamID);
+
+	if (UNovaAudioSubsystem* AudioSubsystem = GetGameInstance()->GetSubsystem<UNovaAudioSubsystem>())
+	{
+		AudioSubsystem->StopBGM();
+
+		// 로컬 플레이어의 팀 ID 확인 (동적 식별)
+		int32 PlayerTeamID = NovaTeam::None;
+		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			if (ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>())
+			{
+				PlayerTeamID = PS->GetTeamID();
+			}
+		}
+
+		// 승리/패배 결과에 따른 전용 BGM 재생 (플레이어 팀 판정)
+		if (WinningTeamID != NovaTeam::None && PlayerTeamID != NovaTeam::None)
+		{
+			if (WinningTeamID == PlayerTeamID)
+			{
+				if (VictoryBGM)
+				{
+					AudioSubsystem->PlayBGM(VictoryBGM, false); // 승리 음악은 한 번만 재생하거나 루핑 설정에 따름
+				}
+			}
+			else
+			{
+				if (DefeatBGM)
+				{
+					AudioSubsystem->PlayBGM(DefeatBGM, false);
+				}
+			}
+		}
+	}
 }

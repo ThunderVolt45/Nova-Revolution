@@ -16,6 +16,7 @@ ANovaMapManager::ANovaMapManager()
 	// 실제 맵 범위를 정의할 박스 컴포넌트 생성
 	MapBounds = CreateDefaultSubobject<UBoxComponent>(TEXT("MapBounds"));
 	RootComponent = MapBounds;
+	
 	// 기본 설정 (에디터에서 육안으로 확인하기 편하게 설정)
 	MapBounds->SetBoxExtent(FVector(10000.f, 10000.f, 500.f));
 	MapBounds->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -23,13 +24,18 @@ ANovaMapManager::ANovaMapManager()
 	// 공중 유닛용 내비게이션 바닥 추가
 	AerialNavBounds = CreateDefaultSubobject<UBoxComponent>(TEXT("AerialNavBounds"));
 	AerialNavBounds->SetupAttachment(RootComponent);
+
 	// 중요: 내비게이션에 영향을 주도록 설정
 	AerialNavBounds->SetCanEverAffectNavigation(true);
+
 	// 충돌 설정: 유닛은 통과하지만 NavMesh는 생성되도록 'QueryOnly' 설정
 	AerialNavBounds->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	AerialNavBounds->SetCollisionResponseToAllChannels(ECR_Ignore);
+	AerialNavBounds->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+
 	// 게임 내 가시성 제거
 	AerialNavBounds->SetHiddenInGame(true);
+
 	// 에디터에서만 영역을 확인할 수 있도록 설정 (선택 사항)
 	AerialNavBounds->SetLineThickness(2.0f);
 

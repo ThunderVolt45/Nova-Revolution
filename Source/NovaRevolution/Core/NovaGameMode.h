@@ -6,6 +6,7 @@
 #include "GameFramework/GameModeBase.h"
 #include "Core/NovaTypes.h"
 #include "Core/NovaAssemblyTypes.h"
+#include "Sound/SoundBase.h"
 #include "NovaGameMode.generated.h"
 
 class ANovaBase;
@@ -75,4 +76,16 @@ protected:
 	/** 각 팀별 관리 중인 AI 컨트롤러 (기지 파괴 시 로직 중지용) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|GameMode")
 	TMap<int32, class ANovaAIPlayerController*> TeamAIControllers;
+
+	/** 이 레벨에서 재생할 배경 음악 리스트 (BeginPlay 시 이 중 하나를 무작위로 재생) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Audio")
+	TArray<TObjectPtr<USoundBase>> LevelBGMs;
+
+	/** 승리 시 재생할 BGM */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Audio")
+	TObjectPtr<USoundBase> VictoryBGM;
+
+	/** 패배 시 재생할 BGM */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Audio")
+	TObjectPtr<USoundBase> DefeatBGM;
 };
