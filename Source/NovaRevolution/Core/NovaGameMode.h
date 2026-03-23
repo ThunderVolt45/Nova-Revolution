@@ -80,4 +80,12 @@ protected:
 	/** 이 레벨에서 재생할 배경 음악 리스트 (BeginPlay 시 이 중 하나를 무작위로 재생) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Audio")
 	TArray<TObjectPtr<USoundBase>> LevelBGMs;
+
+	/** 승리 시 재생할 BGM */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Audio")
+	TObjectPtr<USoundBase> VictoryBGM;
+
+	/** 패배 시 재생할 BGM */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Audio")
+	TObjectPtr<USoundBase> DefeatBGM;
 };

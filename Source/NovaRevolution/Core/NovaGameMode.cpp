@@ -232,9 +232,38 @@ void ANovaGameMode::EndMatch(int32 WinningTeamID)
 {
 	NOVA_SCREEN(Warning, "WINNER: Team %d", WinningTeamID);
 
-	// 게임 종료 시 BGM 정지 (승리/패배 연출 사운드를 위해)
+	// 게임 종료 시 기존 BGM 즉시 정지
 	if (UNovaAudioSubsystem* AudioSubsystem = GetGameInstance()->GetSubsystem<UNovaAudioSubsystem>())
 	{
-		AudioSubsystem->StopBGM(0.f); // 즉시 BGM 종료
+		AudioSubsystem->StopBGM(0.f);
+
+		// 로컬 플레이어의 팀 ID 확인 (동적 식별)
+		int32 PlayerTeamID = NovaTeam::None;
+		if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+		{
+			if (ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>())
+			{
+				PlayerTeamID = PS->GetTeamID();
+			}
+		}
+
+		// 승리/패배 결과에 따른 전용 BGM 재생 (플레이어 팀 판정)
+		if (WinningTeamID != NovaTeam::None && PlayerTeamID != NovaTeam::None)
+		{
+			if (WinningTeamID == PlayerTeamID)
+			{
+				if (VictoryBGM)
+				{
+					AudioSubsystem->PlayBGM(VictoryBGM, false); // 승리 음악은 한 번만 재생하거나 루핑 설정에 따름
+				}
+			}
+			else
+			{
+				if (DefeatBGM)
+				{
+					AudioSubsystem->PlayBGM(DefeatBGM, false);
+				}
+			}
+		}
 	}
 }
