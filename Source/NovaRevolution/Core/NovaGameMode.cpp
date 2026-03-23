@@ -10,6 +10,7 @@
 #include "Core/AI/NovaAIPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
+#include "Core/NovaAudioSubsystem.h"
 
 ANovaGameMode::ANovaGameMode()
 {
@@ -41,6 +42,19 @@ void ANovaGameMode::BeginPlay()
 
 	// 3. 게임 시작 시 기지 배치
 	InitializePlayerBase();
+
+	// 4. BGM 재생
+	if (LevelBGMs.Num() > 0)
+	{
+		int32 RandomIndex = FMath::RandRange(0, LevelBGMs.Num() - 1);
+		if (USoundBase* SelectedBGM = LevelBGMs[RandomIndex])
+		{
+			if (UNovaAudioSubsystem* AudioSubsystem = GetGameInstance()->GetSubsystem<UNovaAudioSubsystem>())
+			{
+				AudioSubsystem->PlayBGM(SelectedBGM);
+			}
+		}
+	}
 }
 
 void ANovaGameMode::LoadPlayerDecks()
@@ -217,4 +231,10 @@ void ANovaGameMode::OnBaseDestroyed(ANovaBase* DestroyedBase)
 void ANovaGameMode::EndMatch(int32 WinningTeamID)
 {
 	NOVA_SCREEN(Warning, "WINNER: Team %d", WinningTeamID);
+
+	// 게임 종료 시 BGM 정지 (승리/패배 연출 사운드를 위해)
+	if (UNovaAudioSubsystem* AudioSubsystem = GetGameInstance()->GetSubsystem<UNovaAudioSubsystem>())
+	{
+		AudioSubsystem->StopBGM(0.f); // 즉시 BGM 종료
+	}
 }
