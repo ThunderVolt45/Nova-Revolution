@@ -52,12 +52,84 @@ void ANovaMapManager::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// 게임 시작 시 투명 벽 자동 생성
+	SetupBoundaryWalls();
+
 	// 맵 시작 시 자동으로 배경 캡처 수행
 	CaptureMapBackground();
 
 	// Standalone 모드에서는 월드 로딩 완료를 위해 약간의 지연 후 캡처하는 것이 안전함
 	FTimerHandle CaptureTimerHandle;
 	GetWorldTimerManager().SetTimer(CaptureTimerHandle, this, &ANovaMapManager::CaptureMapBackground, 0.2f, false);
+}
+
+void ANovaMapManager::SetupBoundaryWalls()
+{
+	if (!MapBounds) return;
+
+	// 1. 기준 정보 가져오기 (절반 크기인 Extent 사용)
+	FVector Center = MapBounds->GetComponentLocation();
+	FVector Extent = MapBounds->GetUnscaledBoxExtent();
+	float HalfThick = BoundaryWallThickness * 0.5f;
+	float HalfHeight = BoundaryWallHeight * 0.5f;
+
+	// 2. 4가지 방향(위, 아래, 왼쪽, 오른쪽) 설정 데이터
+	struct FWallData
+	{
+		FVector Location;
+		FVector BoxExtent;
+		FString Name;
+	};
+
+	TArray<FWallData> WallConfigs;
+	// 위쪽 (X+)
+	WallConfigs.Add({
+		Center + FVector(Extent.X + HalfThick, 0.f, HalfHeight),
+		FVector(HalfThick, Extent.Y + BoundaryWallThickness, HalfHeight), TEXT("Wall_North")
+	});
+	// 아래쪽 (X-)
+	WallConfigs.Add({
+		Center + FVector(-Extent.X - HalfThick, 0.f, HalfHeight),
+		FVector(HalfThick, Extent.Y + BoundaryWallThickness, HalfHeight), TEXT("Wall_South")
+	});
+	// 오른쪽 (Y+)
+	WallConfigs.Add({
+		Center + FVector(0.f, Extent.Y + HalfThick, HalfHeight),
+		FVector(Extent.X + BoundaryWallThickness, HalfThick, HalfHeight), TEXT("Wall_East")
+	});
+	// 왼쪽 (Y-)
+	WallConfigs.Add({
+		Center + FVector(0.f, -Extent.Y - HalfThick, HalfHeight),
+		FVector(Extent.X + BoundaryWallThickness, HalfThick, HalfHeight), TEXT("Wall_West")
+	});
+
+	// 3. 실제 컴포넌트 생성 및 설정
+	for (const FWallData& Config : WallConfigs)
+	{
+		UBoxComponent* NewWall = NewObject<UBoxComponent>(this, FName(*Config.Name));
+		if (NewWall)
+		{
+			NewWall->RegisterComponent();
+			NewWall->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepWorldTransform);
+
+			// 위치 및 크기 설정
+			NewWall->SetWorldLocation(Config.Location);
+			NewWall->SetBoxExtent(Config.BoxExtent);
+
+			// 중요: 콜리전 설정
+			// 마우스 클릭(Visibility)은 통과시키고, 유닛(Pawn)만 막음
+			NewWall->SetCollisionProfileName(TEXT("Custom"));
+			NewWall->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			NewWall->SetCollisionObjectType(ECC_WorldStatic);
+			NewWall->SetCollisionResponseToAllChannels(ECR_Block);
+			NewWall->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore); // 클릭 통과
+			NewWall->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore); // 카메라 통과
+
+			NewWall->SetHiddenInGame(true); // 게임 중에는 안 보이게
+
+			BoundaryWalls.Add(NewWall);
+		}
+	}
 }
 
 void ANovaMapManager::OnConstruction(const FTransform& Transform)

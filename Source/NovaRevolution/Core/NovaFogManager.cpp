@@ -230,7 +230,7 @@ FVector2D ANovaFogManager::WorldToFogUV(const FVector& WorldLocation) const
 	if (MapManager)
 	{
 		// MapManager가 제공하는 공용 좌표 변환 함수 사용
-		return MapManager->WorldToMapUV(WorldLocation);
+		return MapManager->WorldToFogUV(WorldLocation);
 	}
 
 	return FVector2D(0.5f, 0.5f);

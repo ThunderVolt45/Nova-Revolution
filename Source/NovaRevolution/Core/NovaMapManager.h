@@ -18,7 +18,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	
+
 	/** 실제 플레이 가능 영역을 정의하는 박스 (에디터에서 조절) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Map")
 	TObjectPtr<UBoxComponent> MapBounds;
@@ -26,15 +26,15 @@ protected:
 	/** 공중 유닛용 내비게이션 바닥 (Z=800) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|Map")
 	TObjectPtr<UBoxComponent> AerialNavBounds;
-	
+
 	/** 공중 유닛용 내비게이션 높이 */
 	UPROPERTY(EditAnywhere, Category = "Nova|Map")
 	float AerialNavHeight = 700.f;
-	
+
 	/** 안개 영역을 플레이 영역보다 얼마나 더 넓힐지 (맵 밖의 자연스러운 시야 처리를 위함) */
 	UPROPERTY(EditAnywhere, Category = "Nova|Map")
 	float FogPadding = 3000.f;
-	
+
 	// 액터를 등록 및 관리할 배열
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AActor>> RegisteredActors;
@@ -51,10 +51,25 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Minimap")
 	float CaptureHeight = 10000.0f;
 
+	/** 벽의 두께 (기본 100) */
+	UPROPERTY(EditAnywhere, Category = "Nova|Map")
+	float BoundaryWallThickness = 100.f;
+
+	/** 벽의 높이 (충분히 높게 설정하여 공중 유닛도 막음) */
+	UPROPERTY(EditAnywhere, Category = "Nova|Map")
+	float BoundaryWallHeight = 5000.f;
+
+	/** 생성된 벽들을 담아둘 배열 (필요 시 참조용) */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UBoxComponent>> BoundaryWalls;
+
+	/** 실제 벽을 생성하는 내부 함수 */
+	void SetupBoundaryWalls();
+
 public:
 	/** 에디터 프로퍼티 변경 시 동기화를 위한 함수 */
 	virtual void OnConstruction(const FTransform& Transform) override;
-	
+
 	/** 지도의 바운드 정보 반환 */
 	FBox GetMapBounds() const;
 
@@ -64,7 +79,7 @@ public:
 	/** 확장된 안개 영역 기준의 UV 변환 */
 	UFUNCTION(BlueprintPure, Category = "Nova|Map")
 	FVector2D WorldToFogUV(const FVector& WorldLocation) const;
-	
+
 	/** 월드 좌표를 0~1 사이의 UV 좌표로 변환 (미니맵, 안개 공용) */
 	UFUNCTION(BlueprintPure, Category = "Nova|Map")
 	FVector2D WorldToMapUV(const FVector& WorldLocation) const;
