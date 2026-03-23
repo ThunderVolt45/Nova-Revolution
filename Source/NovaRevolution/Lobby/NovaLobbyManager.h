@@ -32,6 +32,10 @@ public:
      */
     UPROPERTY(BlueprintAssignable, Category = "Nova|Lobby|Event")
     FOnAssemblyDataChanged OnAssemblyDataChanged;
+    
+    /** UI에서 덱 매니저에 접근할 수 있도록 Getter 노출 */
+    UFUNCTION(BlueprintCallable, Category = "Nova|Lobby")
+    class ANovaDeckManager* GetDeckManager() const { return DeckManager; }
 
 protected:
     virtual void BeginPlay() override;

@@ -30,6 +30,17 @@ public:
 	/** 특정 슬롯에 배치된 유닛을 제거하고 풀로 반환합니다. */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Deck")
 	void ClearSlotUnit(int32 SlotIndex);
+	
+	/** 특정 인덱스의 덱 슬롯 액터를 반환합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Deck")
+	class ANovaDeckSlot* GetSlotActor(int32 SlotIndex) const
+	{
+		if (DeckSlots.IsValidIndex(SlotIndex))
+		{
+			return DeckSlots[SlotIndex];
+		}
+		return nullptr;
+	}
 
 protected:
 	/** * 레벨에 물리적으로 배치된 10개의 슬롯 액터 리스트입니다. 
