@@ -185,8 +185,19 @@ void ANovaLobbyManager::SelectPart(ENovaPartType PartType, FName PartID)
         case ENovaPartType::Body:   PendingAssemblyData.BodyClass = AssetRow->PartClass; break;
         case ENovaPartType::Weapon:
             PendingAssemblyData.WeaponClass = AssetRow->PartClass;
-            // 유닛 이름은 기본적으로 마지막으로 선택한 무기의 이름을 따라가도록 설정
-            PendingAssemblyData.UnitName = PartID.ToString();
+           
+            // [수정] 무기 부품의 경우, 스펙 테이블에서 'PartName'을 가져와 유닛의 대표 이름으로 설정합니다.
+            FNovaPartSpecRow WeaponSpec = GetSpecByID(PartID);
+            if (!WeaponSpec.PartName.IsEmpty())
+            {
+                // 데이터 테이블에 정의된 실제 이름을 사용
+                PendingAssemblyData.UnitName = WeaponSpec.PartName;
+            }
+            else
+            {
+                // 데이터 테이블에 이름 정보가 없을 경우를 대비한 폴백(Fallback): ID를 문자열로 사용
+                PendingAssemblyData.UnitName = PartID.ToString();
+            }
             break;
         }
 
@@ -215,9 +226,28 @@ void ANovaLobbyManager::SelectDeckSlot(int32 SlotIndex)
             PendingAssemblyData.WeaponClass = GetFirstPartClass(ENovaPartType::Weapon);
             PendingAssemblyData.UnitName = TEXT("New Unit");
         }
+        
+        // 2. [추가] 불러온 유닛 이름이 ID 형태이거나 비어있다면 실제 이름으로 보정
+        if (PendingAssemblyData.WeaponClass)
+        {
+            if (ANovaPart* DefaultPart = PendingAssemblyData.WeaponClass.GetDefaultObject())
+            {
+                // 무기 ID를 기반으로 데이터 테이블에서 상세 스펙 조회
+                FNovaPartSpecRow WeaponSpec = GetSpecByID(DefaultPart->GetPartID());
+
+                // 보정 조건: 이름이 비어있거나, "New Unit"이거나, 혹은 ID 형태(예: Part_...)인 경우
+                // 유저가 직접 커스텀 이름을 지은 경우가 아닐 때만 무기 이름으로 업데이트합니다.
+                if (!WeaponSpec.PartName.IsEmpty() &&
+                   (PendingAssemblyData.UnitName.IsEmpty() || 
+                    PendingAssemblyData.UnitName == TEXT("New Unit") || 
+                    PendingAssemblyData.UnitName.Contains(TEXT("Part_"))))
+                {
+                    PendingAssemblyData.UnitName = WeaponSpec.PartName;
+                }
+            }
+        }
 
         UpdatePreviewActor();
-        
         OnAssemblyDataChanged.Broadcast(SelectedSlotIndex, PendingAssemblyData.UnitName, PendingAssemblyData);
     }
 }
