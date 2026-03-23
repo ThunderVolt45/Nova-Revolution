@@ -22,7 +22,7 @@ void UNovaAudioSubsystem::PlayBGM(USoundBase* NewBGM, bool bLoop)
 	}
 
 	// 기존 BGM 중지 (부드러운 전환을 위해 페이드 아웃 고려 가능하나, 일단 즉시 정지 후 교체)
-	StopBGM(0.2f);
+	StopBGM(0.5f);
 
 	// 새로운 BGM 재생
 	BGMComponent = UGameplayStatics::SpawnSound2D(GetWorld(), NewBGM, 1.0f, 1.0f, 0.0f, nullptr, true, true);

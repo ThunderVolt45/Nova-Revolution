@@ -232,10 +232,9 @@ void ANovaGameMode::EndMatch(int32 WinningTeamID)
 {
 	NOVA_SCREEN(Warning, "WINNER: Team %d", WinningTeamID);
 
-	// 게임 종료 시 기존 BGM 즉시 정지
 	if (UNovaAudioSubsystem* AudioSubsystem = GetGameInstance()->GetSubsystem<UNovaAudioSubsystem>())
 	{
-		AudioSubsystem->StopBGM(0.f);
+		AudioSubsystem->StopBGM();
 
 		// 로컬 플레이어의 팀 ID 확인 (동적 식별)
 		int32 PlayerTeamID = NovaTeam::None;
