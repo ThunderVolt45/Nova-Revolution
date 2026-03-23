@@ -69,9 +69,31 @@ void UNovaUnitPartProfileWidget::ShowPrevPart()
 {
     if (CategoryPartIDs.Num() == 0) return;
     
+    bIsUserOperating = true; // 플래그 ON
+    
     // 리스트 처음에 도달하면 다시 마지막으로 돌아가는 순환 구조
     CurrentIndex = (CurrentIndex - 1 + CategoryPartIDs.Num()) % CategoryPartIDs.Num();
     UpdateDisplay();
+    
+    bIsUserOperating = false; // 플래그 OFF
+}
+
+void UNovaUnitPartProfileWidget::SetCurrentPartByClass(TSubclassOf<class ANovaPart> TargetClass)
+{
+    if (!TargetClass || !PartAssetTable) return;
+
+    // 1. 현재 카테고리 리스트(CategoryPartIDs)를 돌며 해당 클래스를 가진 ID를 찾습니다.
+    for (int32 i = 0; i < CategoryPartIDs.Num(); ++i)
+    {
+        FNovaPartAssetRow* AssetRow = PartAssetTable->FindRow<FNovaPartAssetRow>(CategoryPartIDs[i], TEXT(""));
+        if (AssetRow && AssetRow->PartClass == TargetClass)
+        {
+            // 2. 일치하는 파츠를 찾았다면 인덱스를 갱신하고 화면을 업데이트합니다.
+            CurrentIndex = i;
+            UpdateDisplay();
+            break;
+        }
+    }
 }
 
 void UNovaUnitPartProfileWidget::UpdateDisplay()
@@ -116,12 +138,32 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
             // 1. 위젯 내부의 개별 파트 프리뷰 업데이트
             PreviewActor->UpdatePreview(AssetRow->PartClass, PreviewRenderTarget);
             
-            // 렌더 타겟 영상을 위젯의 이미지 컨트롤에 투사
-            if (Img_PartPreview)
+            // 2. 다이나믹 머티리얼 생성 및 렌더 타겟 주입
+            if (!PreviewDynamicMaterial && PreviewMaterialBase)
             {
-                // 렌더 타겟(UTextureRenderTarget2D)을 텍스처로서 브러시 이미지에 할당합니다.
-                // 이를 통해 PreviewActor가 찍고 있는 3D 화면이 UI의 해당 영역에 실시간으로 출력됩니다.
-                Img_PartPreview->SetBrushResourceObject(PreviewRenderTarget);
+                PreviewDynamicMaterial = UMaterialInstanceDynamic::Create(PreviewMaterialBase, this);
+            }
+
+            if (PreviewDynamicMaterial)
+            {
+                // 머티리얼의 텍스처 파라미터(PreviewTexture)에 렌더 타겟 연결
+                PreviewDynamicMaterial->SetTextureParameterValue(TEXT("PreviewTexture"), PreviewRenderTarget);
+
+                // 이미지 위젯에 머티리얼 적용
+                if (Img_PartPreview)
+                {
+                    Img_PartPreview->SetBrushFromMaterial(PreviewDynamicMaterial);
+                }
+            }
+            else
+            {
+                // 렌더 타겟 영상을 위젯의 이미지 컨트롤에 투사
+                if (Img_PartPreview)
+                {
+                    // 렌더 타겟(UTextureRenderTarget2D)을 텍스처로서 브러시 이미지에 할당합니다.
+                    // 이를 통해 PreviewActor가 찍고 있는 3D 화면이 UI의 해당 영역에 실시간으로 출력됩니다.
+                    Img_PartPreview->SetBrushResourceObject(PreviewRenderTarget);
+                }
             }
             
             NOVA_LOG(Log, "Preview Updated for Part: %s", *TargetID.ToString());
@@ -157,6 +199,41 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
     
 }
 
+void UNovaUnitPartProfileWidget::OnManagerDataChanged(int32 SlotIndex, const FString& UnitName,
+    const FNovaUnitAssemblyData& AssemblyData)
+{
+    // [중요] 사용자가 직접 UI 화살표를 눌러서 발생한 신호라면, 이미 인덱스가 맞춰져 있으므로 무시합니다. (무한 루프 방지)
+    if (bIsUserOperating) return;
+
+    // 1. 내 위젯의 카테고리에 해당하는 파츠 클래스 추출
+    TSubclassOf<class ANovaPart> TargetClass = nullptr;
+    switch (DefaultCategory)
+    {
+    case ENovaPartType::Legs:   TargetClass = AssemblyData.LegsClass; break;
+    case ENovaPartType::Body:   TargetClass = AssemblyData.BodyClass; break;
+    case ENovaPartType::Weapon: TargetClass = AssemblyData.WeaponClass; break;
+    }
+
+    if (!TargetClass) return;
+
+    // 2. 현재 내 리스트(CategoryPartIDs)에서 해당 클래스를 가진 인덱스 찾기
+    for (int32 i = 0; i < CategoryPartIDs.Num(); ++i)
+    {
+        FNovaPartAssetRow* Asset = PartAssetTable->FindRow<FNovaPartAssetRow>(CategoryPartIDs[i], TEXT(""));
+        if (Asset && Asset->PartClass == TargetClass)
+        {
+            // 3. 일치하는 파츠를 찾았다면 인덱스를 강제 세팅하고 화면만 업데이트
+            if (CurrentIndex != i)
+            {
+                CurrentIndex = i;
+                UpdateDisplay(); // 이때 UpdateDisplay 내의 Manager->SelectPart 호출 로직에도 bIsUserOperating 체크가 필요할 수 있음
+            }
+            break;
+        }
+    }
+    
+}
+
 void UNovaUnitPartProfileWidget::NativePreConstruct()
 {
     Super::NativePreConstruct();
@@ -165,5 +242,17 @@ void UNovaUnitPartProfileWidget::NativePreConstruct()
     if (!PartSpecTable) return;
     
     InitCategory(DefaultCategory);
+    
+    // 1. 매니저를 찾아 델리게이트 구독 (ControlWidget과 동일한 패턴)
+    if (ANovaLobbyPlayerController* PC = Cast<ANovaLobbyPlayerController>(GetOwningPlayer()))
+    {
+        if (ANovaLobbyManager* Manager = PC->GetLobbyManager())
+        {
+            Manager->OnAssemblyDataChanged.AddDynamic(this, &UNovaUnitPartProfileWidget::OnManagerDataChanged);
+
+            // 초기 동기화 호출
+            OnManagerDataChanged(Manager->GetSelectedSlotIndex(), Manager->GetPendingData().UnitName, Manager->GetPendingData());
+        }
+    }
 }
 

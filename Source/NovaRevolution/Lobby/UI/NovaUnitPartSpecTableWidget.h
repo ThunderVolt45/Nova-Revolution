@@ -68,8 +68,9 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	class UNovaUnitPartSpecEntryWidget* Entry_SplashRange;
 	
-	UPROPERTY(meta = (BindWidget))
-	class UNovaUnitPartSpecEntryWidget* Entry_CollisionRadius;
+	//충돌반경은 위젯 정보란에 크게 유의미한 데이터는 아니라고 판단
+	// UPROPERTY(meta = (BindWidget))
+	// class UNovaUnitPartSpecEntryWidget* Entry_CollisionRadius;
 
 	UPROPERTY(meta = (BindWidget))
 	class UNovaUnitPartSpecEntryWidget* Entry_Homing;

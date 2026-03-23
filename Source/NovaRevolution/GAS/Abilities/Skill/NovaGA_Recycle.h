@@ -24,4 +24,12 @@ protected:
 	/** 와트 반환 비율 (기본 0.6 = 60%) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nova|Skill|Recycle")
 	float RefundRate = 0.6f;
+
+	/** 대상 선정 시 와트 가치 가중치 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nova|Skill|Recycle")
+	float WattWeight = 1.0f;
+
+	/** 대상 선정 시 체력 손실 가중치 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Nova|Skill|Recycle")
+	float HealthWeight = 100.0f;
 };

@@ -133,6 +133,18 @@ public:
 	/** 현재 속한 빌드 페이즈 스텝을 가져옵니다. (유효하지 않으면 nullptr) */
 	const FNovaAIBuildStep* GetCurrentBuildStep() const;
 
+	/** 동적 빌드 스텝을 단발성으로 주입합니다. 기존 빌드 스텝을 멈추고 우선 실행합니다. */
+	void InjectBuildStep(const FNovaAIBuildStep& NewStep);
+
+	/** 현재 단발성으로 주입된 스텝이 대기 중이거나 실행 중인지 확인합니다. */
+	bool HasInjectedBuildStep() const { return bHasInjectedStep; }
+
+	/** 주입된 단발성 스텝을 강제로 취소합니다. */
+	void ClearInjectedBuildStep();
+
+	/** 매크로 루프 사이클이 방금 종료되었는지 여부를 가져오고 초기화합니다. */
+	bool ConsumeMacroLoopFinishedEvent();
+
 	/** 다음 빌드 스텝으로 진행합니다. 오프닝이 끝나면 매크로 루프로 자동 전환됩니다. */
 	void AdvanceBuildStep();
 
@@ -214,6 +226,13 @@ private:
 	/** 현재 빌드 스텝이 시작된 게임 시간 (Seconds) */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
 	float LastStepStartTime = 0.0f;
+
+	/** 동적으로 주입된 단발성 빌드 스텝 여부 */
+	bool bHasInjectedStep = false;
+	FNovaAIBuildStep InjectedBuildStep;
+
+	/** 매크로 루프가 방금 1사이클 종료되었는지 판별하는 플래그 */
+	bool bJustFinishedMacroLoop = false;
 
 	/** 현재 매크로 루프(2페이즈)에 돌입했는지 여부 */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|AI", meta = (AllowPrivateAccess = "true"))
