@@ -2,6 +2,8 @@
 
 
 #include "Lobby/UI/NovaPreviewUnitProfileTableWidget.h"
+
+#include "Components/TextBlock.h"
 #include "Lobby/UI/NovaUnitPartSpecEntryWidget.h"
 #include "Lobby/NovaLobbyManager.h"
 #include "Kismet/GameplayStatics.h"
@@ -35,6 +37,14 @@ void UNovaPreviewUnitProfileTableWidget::RefreshProfileTable()
 
 	// 4. [데이터 획득] 매니저에게 합산된 최종 스펙을 요청
 	FNovaPartSpecRow TotalSpec = LobbyManager->GetTotalPendingSpec();
+	const FNovaUnitAssemblyData& PendingData = LobbyManager->GetPendingData();
+	
+	// 2. [변경] 유닛 이름 설정 (일반 TextBlock 사용)
+	if (Txt_UnitName)
+	{
+		// FString을 FText로 변환하여 UI에 적용합니다.
+		Txt_UnitName->SetText(FText::FromString(PendingData.UnitName));
+	}
 
 	// 1. 숫자형 데이터 주입 (정수 표시)
 	if (Entry_TotalWatt)

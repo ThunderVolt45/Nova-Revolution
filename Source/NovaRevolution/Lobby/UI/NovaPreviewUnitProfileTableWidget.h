@@ -30,8 +30,11 @@ protected:
 	void RefreshProfileTable();
 
 protected:
+	/** [추가] 유닛 이름을 크게 보여줄 일반 텍스트 위젯 */
+	UPROPERTY(meta = (BindWidget))
+	class UTextBlock* Txt_UnitName;
+	
 	// --- WBP에서 배치할 Entry 위젯들 (이름을 아래 변수명과 일치시켜야 함) ---
-
 	UPROPERTY(meta = (BindWidget))
 	class UNovaUnitPartSpecEntryWidget* Entry_TotalWatt;
 
