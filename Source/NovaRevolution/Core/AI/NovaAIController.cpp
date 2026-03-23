@@ -10,7 +10,6 @@
 #include "AbilitySystemBlueprintLibrary.h"
 #include "NovaRevolution.h"
 #include "Core/NovaUnit.h"
-#include "NavigationSystem.h"
 #include "Components/CapsuleComponent.h"
 #include "NovaNavigationFilter_Move.h"
 #include "Engine/OverlapResult.h"
