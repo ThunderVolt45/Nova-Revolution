@@ -62,11 +62,15 @@ void ANovaFogManager::UpdateFog()
 
 	// 로컬 플레이어 정보 가져오기
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC) return;
+	if (!PC)
+	{
+		NOVA_LOG(Warning, "PlayerController is NULL!");
+		return;
+	}
 	ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>();
 	if (!PS)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("FogManager: PlayerState is NULL!"));
+		NOVA_LOG(Warning, "PlayerState is NULL!");
 		return;
 	}
 
@@ -98,14 +102,16 @@ void ANovaFogManager::UpdateFog()
 		}
 	}
 
-	// --- [최적화] 1차 순회: 모든 액터를 한 번만 순회하며 팀별 시야 소스 분류 ---
+	// --- 1차 순회: 모든 액터를 한 번만 순회하며 팀별 시야 소스 분류 ---
 	struct FSightSource
 	{
 		FVector Location;
 		float RadiusSq;
 	};
+	
 	// 팀 ID를 키로 하는 시야 소스 맵
 	TMap<int32, TArray<FSightSource>> TeamSightsMap;
+	
 	// 가시성 판단 대상이 될 모든 유닛/기지 리스트
 	TArray<AActor*> AllSelectableActors;
 
@@ -115,9 +121,16 @@ void ANovaFogManager::UpdateFog()
 		if (!Actor || Actor->IsA<APlayerState>()) continue;
 
 		INovaTeamInterface* TeamActor = Cast<INovaTeamInterface>(Actor);
+		INovaVisibilityInterface* VisibilityInterface = Cast<INovaVisibilityInterface>(Actor);
+
+		// 가시성 판단 대상 목록에 추가 (유닛, 기지, GCN 등)
+		if (TeamActor || VisibilityInterface)
+		{
+			AllSelectableActors.Add(Actor);
+		}
+
 		if (!TeamActor) continue;
 
-		AllSelectableActors.Add(Actor);
 		int32 ActorTeamID = TeamActor->GetTeamID();
 
 		// 이 액터가 시야를 제공할 수 있는지 확인 (ASC의 Sight 속성)
@@ -130,17 +143,13 @@ void ANovaFogManager::UpdateFog()
 			}
 		}
 
-		// 가시성 인터페이스를 통해 공통적으로 처리
-		if (INovaVisibilityInterface* VisibilityInterface = Cast<INovaVisibilityInterface>(Actor))
+		// 해당 팀의 시야 리스트에 추가 (시야 제공 주체)
+		if (ActiveTeamSet.Contains(ActorTeamID) && VisibilityInterface)
 		{
-			// 해당 팀의 시야 리스트에 추가
-			if (ActiveTeamSet.Contains(ActorTeamID))
-			{
-				TeamSightsMap.FindOrAdd(ActorTeamID).Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
+			TeamSightsMap.FindOrAdd(ActorTeamID).Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
 
-				// 자기 팀 유닛은 해당 팀에게 항상 보이도록 설정
-				INovaVisibilityInterface::Execute_SetVisibilityForTeam(Actor, ActorTeamID, true);
-			}
+			// 자기 팀 유닛은 해당 팀에게 항상 보이도록 설정
+			INovaVisibilityInterface::Execute_SetVisibilityForTeam(Actor, ActorTeamID, true);
 		}
 	}
 
@@ -178,10 +187,9 @@ void ANovaFogManager::UpdateFog()
 		for (AActor* TargetActor : AllSelectableActors)
 		{
 			INovaTeamInterface* TargetTeam = Cast<INovaTeamInterface>(TargetActor);
-			if (!TargetTeam) continue;
 
-			// 자기 팀 유닛은 이미 위에서 처리했으므로 건너뜀 (최적화)
-			if (TargetTeam->GetTeamID() == CurrentTeamID)
+			// 팀이 있는 경우, 자기 팀 유닛은 이미 위에서 시야 소스 단계에서 처리했으므로 건너뜀 (최적화)
+			if (TargetTeam && TargetTeam->GetTeamID() == CurrentTeamID)
 			{
 				if (bIsLocalPlayerTeam)
 				{
