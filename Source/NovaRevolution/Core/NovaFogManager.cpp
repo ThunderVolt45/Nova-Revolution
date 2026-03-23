@@ -130,14 +130,17 @@ void ANovaFogManager::UpdateFog()
 			}
 		}
 
-		// 해당 팀의 시야 리스트에 추가
-		if (ActiveTeamSet.Contains(ActorTeamID))
+		// 가시성 인터페이스를 통해 공통적으로 처리
+		if (INovaVisibilityInterface* VisibilityInterface = Cast<INovaVisibilityInterface>(Actor))
 		{
-			TeamSightsMap.FindOrAdd(ActorTeamID).Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
+			// 해당 팀의 시야 리스트에 추가
+			if (ActiveTeamSet.Contains(ActorTeamID))
+			{
+				TeamSightsMap.FindOrAdd(ActorTeamID).Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
 
-			// 자기 팀 유닛은 해당 팀에게 항상 보이도록 비트마스크 미리 설정
-			if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor)) Unit->SetVisibilityForTeam(ActorTeamID, true);
-			else if (ANovaBase* Base = Cast<ANovaBase>(Actor)) Base->SetVisibilityForTeam(ActorTeamID, true);
+				// 자기 팀 유닛은 해당 팀에게 항상 보이도록 설정
+				INovaVisibilityInterface::Execute_SetVisibilityForTeam(Actor, ActorTeamID, true);
+			}
 		}
 	}
 
@@ -182,8 +185,10 @@ void ANovaFogManager::UpdateFog()
 			{
 				if (bIsLocalPlayerTeam)
 				{
-					if (ANovaUnit* Unit = Cast<ANovaUnit>(TargetActor)) Unit->SetFogVisibility(true);
-					else if (ANovaBase* Base = Cast<ANovaBase>(TargetActor)) Base->SetFogVisibility(true);
+					if (INovaVisibilityInterface::Execute_GetFogVisibility(TargetActor) == false)
+					{
+						INovaVisibilityInterface::Execute_SetFogVisibility(TargetActor, true);
+					}
 				}
 				continue;
 			}
@@ -202,16 +207,14 @@ void ANovaFogManager::UpdateFog()
 				}
 			}
 
-			// 비트마스크 업데이트 (AI 판단용)
-			if (ANovaUnit* Unit = Cast<ANovaUnit>(TargetActor))
+			// 가시성 인터페이스를 통한 통합 업데이트
+			if (INovaVisibilityInterface* VisibilityInterface = Cast<INovaVisibilityInterface>(TargetActor))
 			{
-				Unit->SetVisibilityForTeam(CurrentTeamID, bVisible);
-				if (bIsLocalPlayerTeam) Unit->SetFogVisibility(bVisible);
-			}
-			else if (ANovaBase* Base = Cast<ANovaBase>(TargetActor))
-			{
-				Base->SetVisibilityForTeam(CurrentTeamID, bVisible);
-				if (bIsLocalPlayerTeam) Base->SetFogVisibility(bVisible);
+				INovaVisibilityInterface::Execute_SetVisibilityForTeam(TargetActor, CurrentTeamID, bVisible);
+				if (bIsLocalPlayerTeam)
+				{
+					INovaVisibilityInterface::Execute_SetFogVisibility(TargetActor, bVisible);
+				}
 			}
 		}
 	}

@@ -283,4 +283,12 @@ public:
 	/** 안개 가시성 상태를 설정합니다. */
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Visibility")
 	void SetFogVisibility(bool bVisible);
+
+	/** 특정 팀에게 이 유닛이 보이는지 확인 (비트 연산) */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Visibility")
+	bool IsVisibleToTeam(int32 CurrentTeamID) const;
+
+	/** 특정 팀에 대한 가시성 상태를 업데이트 (비트 연산) */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Nova|Visibility")
+	void SetVisibilityForTeam(int32 CurrentTeamID, bool bVisible);
 };

@@ -46,11 +46,24 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 	AActor* CurrentTargetActor = Cast<AActor>(BB->GetValueAsObject(TargetActorKey.SelectedKeyName));
 	if (CurrentTargetActor)
 	{
-		ANovaUnit* TargetUnit = Cast<ANovaUnit>(CurrentTargetActor);
-		
+		// 인터페이스를 통해 가시성 확인
+		bool bIsVisible = true;
+		if (INovaVisibilityInterface* VisibilityHandle = Cast<INovaVisibilityInterface>(CurrentTargetActor))
+		{
+			bIsVisible = INovaVisibilityInterface::Execute_IsVisibleToTeam(CurrentTargetActor, MyTeamID);
+		}
+
 		// 보이지 않거나 사망한 경우 타겟 해제
-		// [수정 전] if (TargetUnit && (!TargetUnit->GetFogVisibility() || TargetUnit->IsDead()))
-		if (TargetUnit && (!TargetUnit->IsVisibleToTeam(MyTeamID) || TargetUnit->IsDead()))
+		bool bIsDead = false;
+		if (IAbilitySystemInterface* ASCInterface = Cast<IAbilitySystemInterface>(CurrentTargetActor))
+		{
+			if (UAbilitySystemComponent* TargetASC = ASCInterface->GetAbilitySystemComponent())
+			{
+				bIsDead = TargetASC->GetNumericAttribute(UNovaAttributeSet::GetHealthAttribute()) <= 0.0f;
+			}
+		}
+
+		if (!bIsVisible || bIsDead)
 		{
 			BB->ClearValue(TargetActorKey.SelectedKeyName);
 			CurrentTargetActor = nullptr;
@@ -167,17 +180,11 @@ void UNovaBTService_FindTarget::TickNode(UBehaviorTreeComponent& OwnerComp, uint
 
 			if (!bCanAttack) continue;
 			
-			// 3-1. 시야에 보이지 않는 적은 탐색 대상에서 제외 (유닛 및 기지 모두 포함)
+			// 3-1. 시야에 보이지 않는 적은 탐색 대상에서 제외 (인터페이스 통합 활용)
 			bool bIsVisible = true;
-			if (TargetUnit)
+			if (INovaVisibilityInterface* VisibilityHandle = Cast<INovaVisibilityInterface>(PotentialTarget))
 			{
-				// [수정 전] bIsVisible = TargetUnit->GetFogVisibility();
-				bIsVisible = TargetUnit->IsVisibleToTeam(MyTeamID);
-			}
-			else if (ANovaBase* TargetBase = Cast<ANovaBase>(PotentialTarget))
-			{
-				// [수정 전] bIsVisible = TargetBase->GetFogVisibility();
-				bIsVisible = TargetBase->IsVisibleToTeam(MyTeamID);
+				bIsVisible = INovaVisibilityInterface::Execute_IsVisibleToTeam(PotentialTarget, MyTeamID);
 			}
 
 			if (!bIsVisible) continue;
