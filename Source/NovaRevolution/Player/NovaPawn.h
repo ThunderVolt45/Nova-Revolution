@@ -17,7 +17,7 @@ USTRUCT(BlueprintType)
 struct FCameraViewOffsets
 {
 	GENERATED_BODY()
-	
+
 	UPROPERTY()
 	float Top = 0.f;
 	UPROPERTY()
@@ -67,31 +67,31 @@ protected:
 
 	// 기본 줌 거리
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
-	float DefaultZoomLength = 1500.f;
-	
+	float DefaultZoomLength = 4000.f; //1500.f;
+
 	// 줌 최소/최대 제한
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
-	float MinZoomLength = 500.f;
+	float MinZoomLength = 3000.f; //500.f;
 
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
-	float MaxZoomLength = 2000.f;
+	float MaxZoomLength = 5000.f; //2000.f;
 
 	// 타겟 줌 거리
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
 	float TargetZoomLength = DefaultZoomLength;
-	
+
 	// 줌 속도 (보간 속도)
 	UPROPERTY(EditAnywhere, Category="Nova|Camera")
 	float ZoomInterpSpeed = 10.f;
 
 public:
 	void UpdateZoom(float Direction);
-	
+
 	void ResetCamera();
-	
+
 	UFUNCTION(BlueprintPure, Category = "Nova|Camera")
 	FVector2D GetCameraViewExtent() const;
-	
+
 	/** 사다리꼴 시야 범위를 계산하여 4방향 오프셋 반환 */
 	UFUNCTION(BlueprintPure, Category = "Nova|Camera")
 	FCameraViewOffsets GetCameraViewOffsets() const;

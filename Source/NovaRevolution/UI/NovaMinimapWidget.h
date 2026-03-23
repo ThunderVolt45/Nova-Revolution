@@ -56,6 +56,8 @@ protected:
 public:
 	virtual void NativeConstruct() override;
 
+	virtual void NativeTick(const FGeometry& MyGeometry, float InDT) override;
+	
 	/** 슬레이트 엔진의 그리기 함수 오버라이드 (유닛 점, 카메라 사각형 그리기) */
 	virtual int32 NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
 	                          const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId,

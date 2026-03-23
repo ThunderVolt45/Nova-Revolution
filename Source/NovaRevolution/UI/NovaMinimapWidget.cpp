@@ -23,20 +23,13 @@ void UNovaMinimapWidget::NativeConstruct()
 	MapManager = Cast<ANovaMapManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass()));
 	// 월드에서 FogManager 찾기
 	FogManager = Cast<ANovaFogManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaFogManager::StaticClass()));
-
 	// PlayerController 참조
 	NovaPC = Cast<ANovaPlayerController>(GetOwningPlayer());
 
 	// 다이나믹 머터리얼 생성 및 안개 RT 연결
 	if (MinimapMaterial && FogManager)
 	{
-		MinimapMaterialInst = UMaterialInstanceDynamic::Create(MinimapMaterial, this);
-		// M_Minimap에서 설정한 파라미터 이름 'FogTexture'에 CurrentFogRT를 전달
-		MinimapMaterialInst->SetTextureParameterValue(FName("FogTexture"), FogManager->GetCurrentFogRT());
-	}
-
-	if (MinimapMaterial && MapManager)
-	{
+		/*
 		MinimapMaterialInst = UMaterialInstanceDynamic::Create(MinimapMaterial, this);
 
 		// 1. 안개 텍스처 연결
@@ -48,7 +41,39 @@ void UNovaMinimapWidget::NativeConstruct()
 		{
 			MinimapMaterialInst->SetTextureParameterValue(FName("TerrainTexture"), BackgroundRT);
 		}
+		*/
+		// [수정] 다이나믹 머터리얼 생성
+		MinimapMaterialInst = UMaterialInstanceDynamic::Create(MinimapMaterial, this);
+
+		// 1. 영역 크기 계산
+		FBox MapBox = MapManager->GetMapBounds();
+		FBox FogBox = MapManager->GetFogBounds();
+		float MapSize = MapBox.Max.X - MapBox.Min.X;
+		float FogSize = FogBox.Max.X - FogBox.Min.X;
+
+		// 2. 비율(Ratio)과 오프셋(Offset) 계산
+		float Ratio = (FogSize > 0.f) ? (MapSize / FogSize) : 1.0f;
+		float Offset = (FogSize > 0.f) ? ((MapBox.Min.X - FogBox.Min.X) / FogSize) : 0.0f;
+
+		// 3. 머터리얼 파라미터 설정
+		MinimapMaterialInst->SetScalarParameterValue(FName("MapToFogRatio"), Ratio);
+		MinimapMaterialInst->SetScalarParameterValue(FName("MapToFogOffset"), Offset);
+
+		// 4. 텍스처 연결
+		if (UTextureRenderTarget2D* BackgroundRT = MapManager->GetMinimapBackgroundRT())
+		{
+			MinimapMaterialInst->SetTextureParameterValue(FName("TerrainTexture"), BackgroundRT);
+		}
+		if (FogManager)
+		{
+			MinimapMaterialInst->SetTextureParameterValue(FName("FogTexture"), FogManager->GetCurrentFogRT());
+		}
 	}
+}
+
+void UNovaMinimapWidget::NativeTick(const FGeometry& MyGeometry, float InDT)
+{
+	Super::NativeTick(MyGeometry, InDT);
 }
 
 int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry,
@@ -273,21 +298,6 @@ FReply UNovaMinimapWidget::NativeOnMouseMove(const FGeometry& InGeometry, const 
 
 void UNovaMinimapWidget::HandleMinimapClick(const FGeometry& MyGeometry, const FVector2D& MouseScreenPos)
 {
-	/*
-	// 스크린 좌표를 위젯 로컬 좌표로 변환
-	FVector2D LocalPos = MyGeometry.AbsoluteToLocal(MouseScreenPos);
-	FVector2D WidgetSize = MyGeometry.GetLocalSize();
-
-	// --- [축 역산 로직] ---
-	// 위젯 X (가로) -> 월드 Y (V)
-	// 위젯 Y (세로) -> 월드 X (U)
-	float TargetV = FMath::Clamp(LocalPos.X / WidgetSize.X, 0.0f, 1.0f);
-	float TargetU = 1.0f - FMath::Clamp(LocalPos.Y / WidgetSize.Y, 0.0f, 1.0f); // 세로 반전 복구
-
-	// 월드 좌표로 변환하여 카메라 이동
-	FVector TargetWorldPos = MapManager->UVToWorldLocation(FVector2D(TargetU, TargetV), 0.0f);
-	*/
-
 	// NovaPlayerController에서 카메라 위치 조정
 	if (NovaPC)
 	{

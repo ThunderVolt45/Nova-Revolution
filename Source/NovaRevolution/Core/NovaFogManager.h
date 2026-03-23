@@ -24,11 +24,6 @@ public:
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	// virtual void Tick(float DeltaTime) override;
-
-	// 맵의 실제 크기를 정의하는 볼륨 -> MapManager 관할로 이전
-	// UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Nova|Fog")
-	// TObjectPtr<UBoxComponent> FogVolume;
 	
 	/** 지도의 바운드 정보를 제공할 맵 매니저 */
 	UPROPERTY(Transient)	// 저장할 필요 없는 런타임 참조
@@ -77,7 +72,6 @@ private:
 
 public:
 	// --- Getter ---
-	
 	UTextureRenderTarget2D* GetCurrentFogRT() const {return CurrentFogRT;};
 	
 	// 월드 좌표를 렌더 타겟의 0~1 UV 좌표로 변환 (현실 좌표를 지도 좌표로 바꾸기)

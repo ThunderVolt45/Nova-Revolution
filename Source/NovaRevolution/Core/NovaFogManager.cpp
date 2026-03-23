@@ -12,7 +12,6 @@
 #include "NovaPlayerState.h"
 #include "NovaRevolution.h"
 #include "NovaUnit.h"
-#include "Components/BoxComponent.h"
 #include "GameFramework/GameStateBase.h"
 #include "GAS/NovaAttributeSet.h"
 #include "Kismet/GameplayStatics.h"
@@ -153,6 +152,10 @@ void ANovaFogManager::UpdateFog()
 		}
 	}
 
+	// 확장된 안개 바운드 정보 사용
+	FBox FogBounds = MapManager->GetFogBounds();
+	float FogWorldWidth = FogBounds.Max.X - FogBounds.Min.X;
+	
 	// --- 2차 순회: 각 팀별 가시성 판단 및 렌더링 ---
 	for (int32 CurrentTeamID : ActiveTeamSet)
 	{
@@ -169,9 +172,14 @@ void ANovaFogManager::UpdateFog()
 			{
 				for (const auto& Sight : *CurrentTeamSights)
 				{
-					FVector2D UV = WorldToFogUV(Sight.Location);
+					// FVector2D UV = WorldToFogUV(Sight.Location);
+					// [수정] 확장된 영역 전용 UV 함수 사용
+					FVector2D UV = MapManager->WorldToFogUV(Sight.Location);
 					float Radius = FMath::Sqrt(Sight.RadiusSq);
-					float CanvasSize = (Radius * 2.0f / WorldWidth) * TextureResolution;
+					
+					// float CanvasSize = (Radius * 2.0f / WorldWidth) * TextureResolution;
+					// [수정] 확장된 가로 길이를 기준으로 캔버스 크기 계산
+					float CanvasSize = (Radius * 2.0f / FogWorldWidth) * TextureResolution;
 
 					FCanvasTileItem TileItem(UV * TextureResolution - (CanvasSize * 0.5f),
 					                         BrushMaterial ? BrushMaterial->GetRenderProxy() : nullptr,
@@ -233,7 +241,7 @@ FVector2D ANovaFogManager::WorldToFogUV(const FVector& WorldLocation) const
 	if (MapManager)
 	{
 		// MapManager가 제공하는 공용 좌표 변환 함수 사용
-		return MapManager->WorldToMapUV(WorldLocation);
+		return MapManager->WorldToFogUV(WorldLocation);
 	}
 
 	return FVector2D(0.5f, 0.5f);
@@ -243,8 +251,8 @@ void ANovaFogManager::UpdateMPCParameters()
 {
 	if (!MapManager || !FogMPC) return;
 
-	// 월드 바운드 가져오기
-	FBox Bounds = MapManager->GetMapBounds();
+	// 확장된 안개 바운드 정보를 셰이더에 전달
+	FBox Bounds = MapManager->GetFogBounds();
 
 	// FogOrigin: 박스의 왼쪽 아래 (Min) 좌표
 	UKismetMaterialLibrary::SetVectorParameterValue(GetWorld(), FogMPC, "FogOrigin", FLinearColor(Bounds.Min));

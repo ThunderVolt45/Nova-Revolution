@@ -78,13 +78,17 @@ protected:
 	bool bIsMinimapInputMode = false;
 	
 	// 엣지 스크롤링 활성화 여부
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Camera")
 	bool bEnableEdgeScrolling = true;
 
 	// 화면 끝에서 몇 픽셀 이내일 때 화면을 이동시킬지 설정
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|Camera")
 	float EdgeScrollMargin = 15.f;
 
+	// 맵 밖 추가 이동 마진(위젯에 가려짐 방지) 
+	UPROPERTY(EditAnywhere, Category = "Nova|Camera")
+	float ExtraScrollMargins = 700;
+	
 	// 에디터에서 할당할 IMC
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
 	TObjectPtr<UInputMappingContext> IMC;
@@ -236,7 +240,7 @@ protected:
 	
 	// 카메라 위치를 맵 범위 내로 제한하는 함수
 	void ClampCameraLocation();
-	
+
 public:
 	/** 선택된 유닛 배열이 변경될 때 호출되는 델리게이트 */
 	UPROPERTY(BlueprintAssignable, Category = "Nova|UI")
