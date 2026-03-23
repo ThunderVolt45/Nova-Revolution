@@ -146,6 +146,12 @@ void ANovaGameMode::InitializePlayerBase()
 					// Z(고도)는 카메라 기존 높이 유지, X/Y만 기지 위치로 이동
 					PlayerPawn->SetActorLocation(FVector(BaseLoc.X, BaseLoc.Y, PawnLoc.Z));
 				}
+
+				// 플레이어의 PlayerState에 기지 등록
+				if (PS)
+				{
+					PS->SetPlayerBase(NewBase);
+				}
 			}
 
 			// 적군(TeamID > 1)일 경우 AI 컨트롤러 자동 스폰 및 연동
@@ -161,6 +167,8 @@ void ANovaGameMode::InitializePlayerBase()
 					if (ANovaPlayerState* AIPS = AIController->GetPlayerState<ANovaPlayerState>())
 					{
 						AIPS->SetTeamID(AssignedTeamID);
+						// AI의 PlayerState에도 기지 등록 (GCN 등에서 사용)
+						AIPS->SetPlayerBase(NewBase);
 					}
 					
 					AIController->CachedTeamID = AssignedTeamID;

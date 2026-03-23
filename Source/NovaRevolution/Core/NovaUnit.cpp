@@ -1671,7 +1671,7 @@ void ANovaUnit::UpdateHealthBar()
 #pragma endregion
 
 #pragma region Navigation & Fog of War
-bool ANovaUnit::IsVisibleToTeam(int32 CurrentTeamID) const
+bool ANovaUnit::IsVisibleToTeam_Implementation(int32 CurrentTeamID) const
 {
 	// 1. 유효하지 않은 팀 ID(-1 등)인 경우 처리
 	if (CurrentTeamID < 0 || CurrentTeamID >= 32)
@@ -1683,7 +1683,7 @@ bool ANovaUnit::IsVisibleToTeam(int32 CurrentTeamID) const
 	return (VisibilityMask & (1 << CurrentTeamID)) != 0;
 }
 
-void ANovaUnit::SetVisibilityForTeam(int32 CurrentTeamID, bool bVisible)
+void ANovaUnit::SetVisibilityForTeam_Implementation(int32 CurrentTeamID, bool bVisible)
 {
 	if (CurrentTeamID < 0 || CurrentTeamID >= 32) return;
 
@@ -1691,7 +1691,7 @@ void ANovaUnit::SetVisibilityForTeam(int32 CurrentTeamID, bool bVisible)
 	else VisibilityMask &= ~(1 << CurrentTeamID);
 }
 
-void ANovaUnit::SetFogVisibility(bool bVisible)
+void ANovaUnit::SetFogVisibility_Implementation(bool bVisible)
 {
 	if (bIsVisibleByFog == bVisible) return;
 	bIsVisibleByFog = bVisible;
@@ -1887,7 +1887,7 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 	// [핵심] bIsVisibleByFog를 반대값으로 설정하여 SetFogVisibility(true)가 반드시 실행되도록 강제합니다.
 	bIsVisibleByFog = false;
 	VisibilityMask = 0; // 추가: 가시성 비트마스크 초기화
-	SetFogVisibility(true);
+	SetFogVisibility_Implementation(true);
 
 	UpdateHealthBar();
 

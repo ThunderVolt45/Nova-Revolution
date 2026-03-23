@@ -11,6 +11,7 @@
 #include "Abilities/GameplayAbilityTargetTypes.h"
 #include "AbilitySystemBlueprintLibrary.h"
 #include "AbilitySystemInterface.h"
+#include "Kismet/GameplayStatics.h"
 
 
 UNovaSkillAbility::UNovaSkillAbility()
@@ -21,11 +22,37 @@ UNovaSkillAbility::UNovaSkillAbility()
 
 ANovaBase* UNovaSkillAbility::GetPlayerBase() const
 {
-	// 어빌리티의 AvatarActor는 PlayerState입니다.
-	if (ANovaPlayerState* PS = Cast<ANovaPlayerState>(GetAvatarActorFromActorInfo()))
+	// 1. 어빌리티의 AvatarActor인 PlayerState를 통해 기지 획득 시도
+	ANovaPlayerState* PS = Cast<ANovaPlayerState>(GetAvatarActorFromActorInfo());
+	if (PS)
 	{
-		return PS->GetPlayerBase();
+		if (ANovaBase* Base = PS->GetPlayerBase())
+		{
+			return Base;
+		}
 	}
+
+	// 2. [Fallback] PlayerState에 기지가 등록되지 않은 경우 (AI 등), TeamID로 직접 검색
+	if (PS)
+	{
+		int32 MyTeamID = PS->GetTeamID();
+		TArray<AActor*> AllBases;
+		UGameplayStatics::GetAllActorsOfClass(this, ANovaBase::StaticClass(), AllBases);
+
+		for (AActor* Actor : AllBases)
+		{
+			if (ANovaBase* Base = Cast<ANovaBase>(Actor))
+			{
+				if (Base->GetTeamID() == MyTeamID)
+				{
+					// 찾은 기지를 다음에 바로 쓸 수 있도록 PlayerState에 캐싱 시도 (선택 사항)
+					// const_cast<ANovaPlayerState*>(PS)->SetPlayerBase(Base); 
+					return Base;
+				}
+			}
+		}
+	}
+
 	return nullptr;
 }
 
@@ -101,6 +128,10 @@ void UNovaSkillAbility::ExecuteSkillGCN(const FGameplayAbilityTargetDataHandle& 
 	Params.Instigator = GetAvatarActorFromActorInfo();
 	Params.EffectContext = ASC->MakeEffectContext();
 
+	NOVA_LOG(Log, "SkillAbility: ExecuteSkillGCN starting... Tag: [%s], TargetType: [%d], Role: [%s]", 
+		*SkillGCNTag.ToString(), (int32)GCNTargetType, 
+		GetAvatarActorFromActorInfo() ? *UEnum::GetValueAsString(GetAvatarActorFromActorInfo()->GetLocalRole()) : TEXT("No Avatar"));
+
 	switch (GCNTargetType)
 	{
 	case ENovaSkillGCNTargetType::Avatar:
@@ -115,13 +146,19 @@ void UNovaSkillAbility::ExecuteSkillGCN(const FGameplayAbilityTargetDataHandle& 
 			{
 				if (UAbilitySystemComponent* BaseASC = Base->GetAbilitySystemComponent())
 				{
+					NOVA_LOG(Log, "SkillAbility: Executing GCN on Player Base [%s]'s ASC", *Base->GetName());
 					BaseASC->ExecuteGameplayCue(SkillGCNTag, Params);
 				}
 				else
 				{
+					NOVA_LOG(Log, "SkillAbility: Player Base [%s] has no ASC, executing on AvatarASC at location", *Base->GetName());
 					Params.Location = Base->GetActorLocation();
 					ASC->ExecuteGameplayCue(SkillGCNTag, Params);
 				}
+			}
+			else
+			{
+				NOVA_LOG(Warning, "SkillAbility: Failed to find Player Base for GCN execution");
 			}
 		}
 		break;

@@ -27,7 +27,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnBaseAttributeChanged, ANovaBase*,
 UCLASS()
 class NOVAREVOLUTION_API ANovaBase : public AActor, public IAbilitySystemInterface, public INovaSelectableInterface,
                                      public INovaTeamInterface, public INovaCommandInterface,
-                                     public INovaProductionInterface, public INovaHighlightInterface
+                                     public INovaProductionInterface, public INovaHighlightInterface,
+                                     public INovaVisibilityInterface
 {
 	GENERATED_BODY()
 
@@ -129,8 +130,14 @@ protected:
 	bool bIsVisibleByFog = true;
 
 public:
-	// 안개 가시성 설정 함수
-	void SetFogVisibility(bool bVisible);
+	// --- INovaVisibilityInterface ---
+	virtual bool GetFogVisibility_Implementation() const override { return bIsVisibleByFog; }
+	virtual void SetFogVisibility_Implementation(bool bVisible) override;
+	virtual bool IsVisibleToTeam_Implementation(int32 CurrentTeamID) const override;
+	virtual void SetVisibilityForTeam_Implementation(int32 CurrentTeamID, bool bVisible) override;
+
+	// 하위 호환성 및 기존 로직 유지를 위한 래퍼
+	void SetFogVisibility(bool bVisible) { SetFogVisibility_Implementation(bVisible); }
 
 	bool GetFogVisibility() const { return bIsVisibleByFog; }
 	
@@ -195,12 +202,6 @@ private:
 	FLinearColor SkillHighlightColor = FLinearColor::White;
 	
 public:
-	/** 특정 팀에게 이 유닛이 보이는지 확인 (비트 연산) */
-	UFUNCTION(BlueprintPure, Category = "Nova|Fog")
-	bool IsVisibleToTeam(int32 CurrentTeamID) const;
-
-	/** 특정 팀에 대한 가시성 상태를 업데이트 (비트 연산) */
-	void SetVisibilityForTeam(int32 CurrentTeamID, bool bVisible);
 
 private:
 	/** 팀별 가시성 비트마스크 (0번 비트: 팀 0, 1번 비트: 팀 1 ...) */
