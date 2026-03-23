@@ -99,23 +99,10 @@ ANovaPart* APreviewUnit::UpdatePart(TSubclassOf<ANovaPart> NewPartClass, TObject
             }
             
             // 부품에 필요한 기본 데이터 및 소유자 설정
-            CurrentPart->SetPartDataTable(PartDataTable);
+            CurrentPart->SetPartDataTable(PartSpecDataTable);
             CurrentPart->InitializePartSpec();
             CurrentPart->SetOwner(this);
         }
-        
-        // // --- 로비 전용 비주얼 보정 로직 ---
-        // // 인게임에서는 작게(0.25배) 표현되는 다리 파츠를 로비 프리뷰에서는 크게 보여주기 위한 배율 조정입니다.
-        // if (CurrentPart->GetPartSpec().PartType == ENovaPartType::Legs)
-        // {
-        //     // 다리 파츠만 4배로 확대 (인게임 0.25 * 4.0 = 실질적 1.0 배율 효과)
-        //     CurrentPart->SetActorScale3D(FVector(4.0f));
-        // }
-        // else
-        // {
-        //     // 나머지 몸통 및 무기 파츠는 표준 배율(1.0) 유지
-        //     CurrentPart->SetActorScale3D(FVector(1.0f));
-        // }
     }
     
     return CurrentPart;
@@ -136,8 +123,20 @@ void APreviewUnit::RefreshAttachments()
         }
 
         // [인게임 로직 복제 1] 다리는 유닛 중심에서 바닥으로 내려야 하므로 Z축 -90 오프셋을 적용합니다.
-        // ANovaUnit의 LegsOffset 설정값과 동일하게 맞추어 로비-인게임 간 이질감을 없앱니다.
-        CurrentLegs->SetActorRelativeLocation(FVector(0.f, 0.f, -90.f));
+        if (PartAssetDataTable)
+        {
+            float AdditionalOffset = 0.0f;
+            
+            FName LegID = CurrentLegs->GetPartID();
+            
+            if (FNovaPartAssetRow* AssetRow = PartAssetDataTable->FindRow<FNovaPartAssetRow>(LegID, TEXT("")))
+            {
+                AdditionalOffset = AssetRow->VisualZOffset;
+            }
+            
+            // ANovaUnit의 LegsOffset 설정값과 동일하게 맞추어 로비-인게임 간 이질감을 없앱니다.
+            CurrentLegs->SetActorRelativeLocation(FVector(0.f, 0.f, -90.f+(AdditionalOffset*UnitScale)));
+        }
         CurrentLegs->SetActorRelativeRotation(FRotator(0.f, -90.f, 0.f));
 
         if (UPrimitiveComponent* LegsMesh = CurrentLegs->GetMainMesh())

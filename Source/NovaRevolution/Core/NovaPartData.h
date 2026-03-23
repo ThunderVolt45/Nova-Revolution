@@ -142,6 +142,13 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Asset")
 	TSubclassOf<class ANovaPart> PartClass;
+	
+	/**
+ * [추가] 부품별 비주얼 오프셋 (특히 다리 높이 조절용)
+ * 인게임 스탯이 아닌 에셋 자체의 피벗 위치 차이를 보정하기 위한 값입니다.
+ */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Asset")
+	float VisualZOffset = 0.0f;
 
 	// 명칭, 설명, 아이콘 등의 UI 데이터는 유저님의 설계 의도에 따라 
 	// SpecRow 또는 별도의 UI 전용 테이블에서 처리하므로 여기서는 제외합니다. (필요시 이후 추가가능)
