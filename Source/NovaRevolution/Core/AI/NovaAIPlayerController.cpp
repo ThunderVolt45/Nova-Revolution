@@ -95,6 +95,8 @@ const FNovaAIBuildStep* ANovaAIPlayerController::GetCurrentBuildStep() const
 	// 긴급 방어 시 빌드 멈춤
 	if (bIsEmergencyDefenseActive) return nullptr;
 
+	if (bHasInjectedStep) return &InjectedBuildStep;
+
 	const TArray<FNovaAIBuildStep>& TargetArray = bIsMacroLooping ? SelectedBuildOrder.MacroLoopSteps : SelectedBuildOrder.OpeningSteps;
 
 	if (TargetArray.IsValidIndex(CurrentBuildStepIndex))
@@ -105,9 +107,36 @@ const FNovaAIBuildStep* ANovaAIPlayerController::GetCurrentBuildStep() const
 	return nullptr;
 }
 
+void ANovaAIPlayerController::InjectBuildStep(const FNovaAIBuildStep& NewStep)
+{
+	InjectedBuildStep = NewStep;
+	bHasInjectedStep = true;
+	NOVA_LOG(Log, "AI Player %s injected a dynamic build step (Type: %d, Slot: %d).", *GetName(), static_cast<int32>(NewStep.ActionType), NewStep.TargetSlot);
+}
+
+bool ANovaAIPlayerController::ConsumeMacroLoopFinishedEvent()
+{
+	bool bRet = bJustFinishedMacroLoop;
+	bJustFinishedMacroLoop = false;
+	return bRet;
+}
+
+void ANovaAIPlayerController::ClearInjectedBuildStep()
+{
+	bHasInjectedStep = false;
+	NOVA_LOG(Log, "AI Player %s cleared the injected build step.", *GetName());
+}
+
 void ANovaAIPlayerController::AdvanceBuildStep()
 {
 	if (bIsEmergencyDefenseActive) return;
+
+	if (bHasInjectedStep)
+	{
+		bHasInjectedStep = false;
+		LastStepStartTime = GetWorld()->GetTimeSeconds();
+		return;
+	}
 
 	CurrentBuildStepIndex++;
 	LastStepStartTime = GetWorld()->GetTimeSeconds();
@@ -127,6 +156,7 @@ void ANovaAIPlayerController::AdvanceBuildStep()
 		{
 			// 매크로 루프 끝 -> 처음으로 돌아가 무한 반복
 			CurrentBuildStepIndex = 0;
+			bJustFinishedMacroLoop = true;
 		}
 	}
 }

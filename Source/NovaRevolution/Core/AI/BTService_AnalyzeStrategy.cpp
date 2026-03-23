@@ -411,7 +411,7 @@ void UBTService_AnalyzeStrategy::AnalyzeOccasionalSkills(ANovaAIPlayerController
 		}
 	}
 
-	// [신규] 2. 자원 레벨업 (전력 우위 시)
+	// [수정] 2. 자원 레벨업 (전력 우위 시)
 	float MyTotalWatt = PS->GetTotalUnitWatt();
 	float EnemyTotalWatt = 0.0f;
 	for (AActor* Actor : AllUnits)
@@ -426,41 +426,61 @@ void UBTService_AnalyzeStrategy::AnalyzeOccasionalSkills(ANovaAIPlayerController
 		}
 	}
 
-	if (MyTotalWatt >= EnemyTotalWatt + WattPredominance)
+	bool bHasWattAdvantage = (MyTotalWatt >= EnemyTotalWatt + WattPredominance);
+
+	// 매크로 루프가 1사이클 종료되었을 때만 판단하여, 빌드 오더 진행 대신 자원 스킬을 단발성으로 주입
+	if (AIC->ConsumeMacroLoopFinishedEvent())
 	{
-		const TArray<FGameplayTag>& SlotTags = PS->GetSkillSlotTags();
-		int32 TargetSlot = -1;
-
-		// 와트 부족 & 만렙 아님 -> 와트 레벨업 시도
-		if (PS->GetCurrentWatt() < 500.0f && PS->GetWattLevel() < 6.0f)
+		if (bHasWattAdvantage)
 		{
-			for (int32 i = 0; i < SlotTags.Num(); ++i)
+			const TArray<FGameplayTag>& SlotTags = PS->GetSkillSlotTags();
+			int32 TargetSlot = -1;
+
+			// 와트 부족 & 만렙 아님 -> 와트 레벨업 시도
+			if (PS->GetCurrentWatt() < 500.0f && PS->GetWattLevel() < 6.0f)
 			{
-				if (SlotTags[i].MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_Watt))
+				for (int32 i = 0; i < SlotTags.Num(); ++i)
 				{
-					TargetSlot = i;
-					break;
+					if (SlotTags[i].MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_Watt))
+					{
+						TargetSlot = i;
+						break;
+					}
 				}
 			}
-		}
-		// 자원 풍족 시 SP 부족하면 SP 레벨업 시도
-		else if (PS->GetCurrentSP() < 40.0f && PS->GetSPLevel() < 6.0f)
-		{
-			for (int32 i = 0; i < SlotTags.Num(); ++i)
+			// 자원 풍족 시 SP 부족하면 SP 레벨업 시도
+			else if (PS->GetCurrentSP() < 40.0f && PS->GetSPLevel() < 6.0f)
 			{
-				if (SlotTags[i].MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_SP))
+				for (int32 i = 0; i < SlotTags.Num(); ++i)
 				{
-					TargetSlot = i;
-					break;
+					if (SlotTags[i].MatchesTag(NovaGameplayTags::Ability_Skill_ResourceLevelUp_SP))
+					{
+						TargetSlot = i;
+						break;
+					}
 				}
 			}
-		}
 
-		if (TargetSlot != -1)
+			if (TargetSlot != -1)
+			{
+				FNovaAIBuildStep SkillStep;
+				SkillStep.ActionType = ENovaAIBuildStepType::UseSkill;
+				SkillStep.TargetSlot = TargetSlot;
+				SkillStep.TargetCount = 1;
+
+				AIC->InjectBuildStep(SkillStep);
+				NOVA_LOG(Log, "AI Strategy: Evaluated Macro Loop End. Injecting Resource Level Up (Slot %d) - Unit Watt Lead: %.f", TargetSlot, MyTotalWatt - EnemyTotalWatt);
+				return;
+			}
+		}
+	}
+	else if (AIC->HasInjectedBuildStep())
+	{
+		// 이전에 자원 스킬이 주입되어 대기/실행 중인데, 우위를 상실했다면 주입 스텝 취소
+		if (!bHasWattAdvantage)
 		{
-			BB->SetValueAsInt(RecommendedSkillSlotKey.SelectedKeyName, TargetSlot);
-			NOVA_LOG(Log, "AI Strategy: Recommended Resource Level Up (Slot %d) - Unit Watt Lead: %.f", TargetSlot, MyTotalWatt - EnemyTotalWatt);
-			return;
+			AIC->ClearInjectedBuildStep();
+			NOVA_LOG(Warning, "AI Strategy: Lost Watt Advantage before executing resource skill! Canceling injected step.");
 		}
 	}
 }
