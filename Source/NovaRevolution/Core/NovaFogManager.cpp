@@ -5,14 +5,10 @@
 
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
-#include "HairStrandsInterface.h"
-#include "NovaBase.h"
 #include "NovaInterfaces.h"
 #include "NovaMapManager.h"
 #include "NovaPlayerState.h"
 #include "NovaRevolution.h"
-#include "NovaUnit.h"
-#include "Components/BoxComponent.h"
 #include "GameFramework/GameStateBase.h"
 #include "GAS/NovaAttributeSet.h"
 #include "Kismet/GameplayStatics.h"
@@ -62,11 +58,15 @@ void ANovaFogManager::UpdateFog()
 
 	// 로컬 플레이어 정보 가져오기
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC) return;
+	if (!PC)
+	{
+		NOVA_LOG(Warning, "PlayerController is NULL!");
+		return;
+	}
 	ANovaPlayerState* PS = PC->GetPlayerState<ANovaPlayerState>();
 	if (!PS)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("FogManager: PlayerState is NULL!"));
+		NOVA_LOG(Warning, "PlayerState is NULL!");
 		return;
 	}
 
@@ -98,14 +98,16 @@ void ANovaFogManager::UpdateFog()
 		}
 	}
 
-	// --- [최적화] 1차 순회: 모든 액터를 한 번만 순회하며 팀별 시야 소스 분류 ---
+	// --- 1차 순회: 모든 액터를 한 번만 순회하며 팀별 시야 소스 분류 ---
 	struct FSightSource
 	{
 		FVector Location;
 		float RadiusSq;
 	};
+	
 	// 팀 ID를 키로 하는 시야 소스 맵
 	TMap<int32, TArray<FSightSource>> TeamSightsMap;
+	
 	// 가시성 판단 대상이 될 모든 유닛/기지 리스트
 	TArray<AActor*> AllSelectableActors;
 
@@ -115,9 +117,16 @@ void ANovaFogManager::UpdateFog()
 		if (!Actor || Actor->IsA<APlayerState>()) continue;
 
 		INovaTeamInterface* TeamActor = Cast<INovaTeamInterface>(Actor);
+		INovaVisibilityInterface* VisibilityInterface = Cast<INovaVisibilityInterface>(Actor);
+
+		// 가시성 판단 대상 목록에 추가 (유닛, 기지, GCN 등)
+		if (TeamActor || VisibilityInterface)
+		{
+			AllSelectableActors.Add(Actor);
+		}
+
 		if (!TeamActor) continue;
 
-		AllSelectableActors.Add(Actor);
 		int32 ActorTeamID = TeamActor->GetTeamID();
 
 		// 이 액터가 시야를 제공할 수 있는지 확인 (ASC의 Sight 속성)
@@ -130,17 +139,20 @@ void ANovaFogManager::UpdateFog()
 			}
 		}
 
-		// 해당 팀의 시야 리스트에 추가
-		if (ActiveTeamSet.Contains(ActorTeamID))
+		// 해당 팀의 시야 리스트에 추가 (시야 제공 주체)
+		if (ActiveTeamSet.Contains(ActorTeamID) && VisibilityInterface)
 		{
 			TeamSightsMap.FindOrAdd(ActorTeamID).Add({Actor->GetActorLocation(), FMath::Square(SightRadius)});
 
-			// 자기 팀 유닛은 해당 팀에게 항상 보이도록 비트마스크 미리 설정
-			if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor)) Unit->SetVisibilityForTeam(ActorTeamID, true);
-			else if (ANovaBase* Base = Cast<ANovaBase>(Actor)) Base->SetVisibilityForTeam(ActorTeamID, true);
+			// 자기 팀 유닛은 해당 팀에게 항상 보이도록 설정
+			INovaVisibilityInterface::Execute_SetVisibilityForTeam(Actor, ActorTeamID, true);
 		}
 	}
 
+	// 확장된 안개 바운드 정보 사용
+	FBox FogBounds = MapManager->GetFogBounds();
+	float FogWorldWidth = FogBounds.Max.X - FogBounds.Min.X;
+	
 	// --- 2차 순회: 각 팀별 가시성 판단 및 렌더링 ---
 	for (int32 CurrentTeamID : ActiveTeamSet)
 	{
@@ -157,9 +169,14 @@ void ANovaFogManager::UpdateFog()
 			{
 				for (const auto& Sight : *CurrentTeamSights)
 				{
-					FVector2D UV = WorldToFogUV(Sight.Location);
+					// FVector2D UV = WorldToFogUV(Sight.Location);
+					// [수정] 확장된 영역 전용 UV 함수 사용
+					FVector2D UV = MapManager->WorldToFogUV(Sight.Location);
 					float Radius = FMath::Sqrt(Sight.RadiusSq);
-					float CanvasSize = (Radius * 2.0f / WorldWidth) * TextureResolution;
+					
+					// float CanvasSize = (Radius * 2.0f / WorldWidth) * TextureResolution;
+					// [수정] 확장된 가로 길이를 기준으로 캔버스 크기 계산
+					float CanvasSize = (Radius * 2.0f / FogWorldWidth) * TextureResolution;
 
 					FCanvasTileItem TileItem(UV * TextureResolution - (CanvasSize * 0.5f),
 					                         BrushMaterial ? BrushMaterial->GetRenderProxy() : nullptr,
@@ -175,15 +192,16 @@ void ANovaFogManager::UpdateFog()
 		for (AActor* TargetActor : AllSelectableActors)
 		{
 			INovaTeamInterface* TargetTeam = Cast<INovaTeamInterface>(TargetActor);
-			if (!TargetTeam) continue;
 
-			// 자기 팀 유닛은 이미 위에서 처리했으므로 건너뜀 (최적화)
-			if (TargetTeam->GetTeamID() == CurrentTeamID)
+			// 팀이 있는 경우, 자기 팀 유닛은 이미 위에서 시야 소스 단계에서 처리했으므로 건너뜀 (최적화)
+			if (TargetTeam && TargetTeam->GetTeamID() == CurrentTeamID)
 			{
 				if (bIsLocalPlayerTeam)
 				{
-					if (ANovaUnit* Unit = Cast<ANovaUnit>(TargetActor)) Unit->SetFogVisibility(true);
-					else if (ANovaBase* Base = Cast<ANovaBase>(TargetActor)) Base->SetFogVisibility(true);
+					if (INovaVisibilityInterface::Execute_GetFogVisibility(TargetActor) == false)
+					{
+						INovaVisibilityInterface::Execute_SetFogVisibility(TargetActor, true);
+					}
 				}
 				continue;
 			}
@@ -202,16 +220,14 @@ void ANovaFogManager::UpdateFog()
 				}
 			}
 
-			// 비트마스크 업데이트 (AI 판단용)
-			if (ANovaUnit* Unit = Cast<ANovaUnit>(TargetActor))
+			// 가시성 인터페이스를 통한 통합 업데이트
+			if (INovaVisibilityInterface* VisibilityInterface = Cast<INovaVisibilityInterface>(TargetActor))
 			{
-				Unit->SetVisibilityForTeam(CurrentTeamID, bVisible);
-				if (bIsLocalPlayerTeam) Unit->SetFogVisibility(bVisible);
-			}
-			else if (ANovaBase* Base = Cast<ANovaBase>(TargetActor))
-			{
-				Base->SetVisibilityForTeam(CurrentTeamID, bVisible);
-				if (bIsLocalPlayerTeam) Base->SetFogVisibility(bVisible);
+				INovaVisibilityInterface::Execute_SetVisibilityForTeam(TargetActor, CurrentTeamID, bVisible);
+				if (bIsLocalPlayerTeam)
+				{
+					INovaVisibilityInterface::Execute_SetFogVisibility(TargetActor, bVisible);
+				}
 			}
 		}
 	}
@@ -222,7 +238,7 @@ FVector2D ANovaFogManager::WorldToFogUV(const FVector& WorldLocation) const
 	if (MapManager)
 	{
 		// MapManager가 제공하는 공용 좌표 변환 함수 사용
-		return MapManager->WorldToMapUV(WorldLocation);
+		return MapManager->WorldToFogUV(WorldLocation);
 	}
 
 	return FVector2D(0.5f, 0.5f);
@@ -232,8 +248,8 @@ void ANovaFogManager::UpdateMPCParameters()
 {
 	if (!MapManager || !FogMPC) return;
 
-	// 월드 바운드 가져오기
-	FBox Bounds = MapManager->GetMapBounds();
+	// 확장된 안개 바운드 정보를 셰이더에 전달
+	FBox Bounds = MapManager->GetFogBounds();
 
 	// FogOrigin: 박스의 왼쪽 아래 (Min) 좌표
 	UKismetMaterialLibrary::SetVectorParameterValue(GetWorld(), FogMPC, "FogOrigin", FLinearColor(Bounds.Min));

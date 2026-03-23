@@ -15,7 +15,7 @@ ANovaPawn::ANovaPawn()
 
 	// Root 컴포넌트(충돌체로 사용 가능)
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-	
+
 	// Pawn이 회전해도 카메라 지지대는 회전하지 않도록 설정
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
@@ -44,6 +44,8 @@ ANovaPawn::ANovaPawn()
 	CameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComponent"));
 	CameraComponent->SetupAttachment(SpringArmComponent, USpringArmComponent::SocketName);
 	CameraComponent->SetRelativeLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+	CameraComponent->ProjectionMode = ECameraProjectionMode::Perspective;
+	// CameraComponent->OrthoWidth = TargetZoomLength;// 초기값 설정
 
 	// 이동 컴포넌트
 	MovementComponent = CreateDefaultSubobject<UFloatingPawnMovement>(TEXT("MovementComponent"));
@@ -59,17 +61,23 @@ ANovaPawn::ANovaPawn()
 void ANovaPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	// 현재 ArmLength를 TargetArmLength로 부드럽게 보간
-	if (!FMath::IsNearlyEqual(SpringArmComponent->TargetArmLength, TargetZoomLength))
-	{
-		SpringArmComponent->TargetArmLength = FMath::FInterpTo(
-			SpringArmComponent->TargetArmLength,
-			TargetZoomLength,
-			DeltaTime,
-			ZoomInterpSpeed
-		);
-	}
+	/*
+	// TargetZoomLength를 OrthoWidth로 부드럽게 보간
+	CameraComponent->OrthoWidth = FMath::FInterpTo(
+		CameraComponent->OrthoWidth,
+		TargetZoomLength, // TargetZoomLength를 직접 사용
+		DeltaTime,
+		ZoomInterpSpeed
+	);
+	*/
+	
+	// TargetZoomLength를 SpringArm의 길이로 부드럽게 보간
+	SpringArmComponent->TargetArmLength = FMath::FInterpTo(
+	SpringArmComponent->TargetArmLength,
+	TargetZoomLength,
+	DeltaTime,
+	ZoomInterpSpeed
+);
 }
 
 void ANovaPawn::UpdateZoom(float Direction)
@@ -116,15 +124,14 @@ FVector2D ANovaPawn::GetCameraViewExtent() const
 
 FCameraViewOffsets ANovaPawn::GetCameraViewOffsets() const
 {
+	/*
 	FCameraViewOffsets Offsets;
 	if (!CameraComponent) return Offsets;
 
-	// 1. 현재 카메라의 월드 위치와 회전 정보
-	FVector CamLoc = CameraComponent->GetComponentLocation();
-	FRotator CamRot = CameraComponent->GetComponentRotation();
-	float FOV = CameraComponent->FieldOfView;
+	// 1. 현재 화면의 가로 너비 (줌에 따라 실시간 반영)
+	float OrthoWidth = CameraComponent->OrthoWidth;
 
-	// 2. 화면 비율 계산
+	// 2. 화면 비율(Aspect Ratio) 계산 (기본 16:9)
 	float AspectRatio = 1.777f;
 	if (GEngine && GEngine->GameViewport)
 	{
@@ -133,47 +140,65 @@ FCameraViewOffsets ANovaPawn::GetCameraViewOffsets() const
 		if (ViewportSize.Y > 0) AspectRatio = ViewportSize.X / ViewportSize.Y;
 	}
 
-	// 3. 카메라 시야의 4개 모서리 방향(Ray) 계산
-	float HFOV_Rad = FMath::DegreesToRadians(FOV * 0.5f);
-	float VFOV_Rad = FMath::Atan(FMath::Tan(HFOV_Rad) / AspectRatio);
+	// 3. 직사각형 시야 범위 계산 (PawnLoc 중심에서 화면 끝까지의 거리)
+	// Orthographic 모드에서는 좌우 거리가 Width의 절반입니다.
+	float HalfWidth = OrthoWidth * 0.5f;
 
-	// 폰의 현재 위치 (Z=0 기준)
-	FVector PawnLoc = GetActorLocation();
-	FPlane GroundPlane(FVector::UpVector, 0.0f); // Z=0 평면
+	// 상하 거리는 AspectRatio에 따라 달라집니다 (Height = Width / AspectRatio)
+	float HalfHeight = HalfWidth / AspectRatio;
 
-	auto GetGroundIntersection = [&](float HorizontalMult, float VerticalMult) -> FVector
+	// 4. 오프셋 설정 (모든 방향이 대칭인 직사각형)
+	// RTS 조작계가 카메라를 75도로 내려다보고 있더라도 직교 투영은 왜곡이 없으므로
+	// 상하좌우가 동일한 거리로 계산되어야 완벽한 직사각형 클램핑이 가능합니다.
+	Offsets.Left = HalfWidth;
+	Offsets.Right = HalfWidth;
+	Offsets.Top = HalfHeight;
+	Offsets.Bottom = HalfHeight;
+
+	return Offsets;
+	*/
+	FCameraViewOffsets Offsets;
+	if (!CameraComponent || !SpringArmComponent) return Offsets;
+
+	// 1. 필요한 기본 정보 가져오기
+	float ArmLength = SpringArmComponent->TargetArmLength;
+	float Pitch = -SpringArmComponent->GetRelativeRotation().Pitch; // 보통 75도
+	float HalfHFOV = FMath::DegreesToRadians(CameraComponent->FieldOfView * 0.5f);
+
+	// 화면 비율 계산
+	float AspectRatio = 1.777f;
+	if (GEngine && GEngine->GameViewport)
 	{
-		// 카메라 앞방향을 기준으로 상하좌우 각도를 적용한 레이 생성
-		FVector RayDir = CamRot.RotateVector(FVector(
-			1.0f,
-			FMath::Tan(HFOV_Rad) * HorizontalMult,
-			FMath::Tan(VFOV_Rad) * VerticalMult
-		)).GetSafeNormal();
+		FVector2D ViewportSize;
+		GEngine->GameViewport->GetViewportSize(ViewportSize);
+		if (ViewportSize.Y > 0) AspectRatio = ViewportSize.X / ViewportSize.Y;
+	}
 
-		// 바닥(Z=0) 평면과의 교차점 계산 (P = CamLoc + T * RayDir)
-		if (!FMath::IsNearlyZero(RayDir.Z))
-		{
-			float T = -CamLoc.Z / RayDir.Z;
-			if (T > 0.f) // 카메라 앞쪽에서 교차할 때만
-			{
-				return CamLoc + (RayDir * T);
-			}
-		}
-		return CamLoc + RayDir * 1000.f; // 실패 시 근사치
-	};
+	// 2. 수직 FOV(VFOV) 계산
+	float HalfVFOV = FMath::Atan(FMath::Tan(HalfHFOV) / AspectRatio);
 
-	// 4개 모서리 교차점 구하기
-	FVector TopLeft = GetGroundIntersection(-1.f, 1.f);
-	FVector TopRight = GetGroundIntersection(1.f, 1.f);
-	FVector BottomLeft = GetGroundIntersection(-1.f, -1.f);
-	FVector BottomRight = GetGroundIntersection(1.f, -1.f);
+	// 3. 카메라 높이(Z)와 바닥 오프셋(X) 계산
+	float RadPitch = FMath::DegreesToRadians(Pitch);
+	float CamZ = ArmLength * FMath::Sin(RadPitch);
+	float CamXOffset = ArmLength * FMath::Cos(RadPitch);
 
-	// 4. 폰의 위치(중심)를 기준으로 4방향 최대 마진 추출
-	// 월드 X축이 위아래, 월드 Y축이 좌우라고 가정
-	Offsets.Top = FMath::Max(TopLeft.X - PawnLoc.X, TopRight.X - PawnLoc.X);
-	Offsets.Bottom = FMath::Max(PawnLoc.X - BottomLeft.X, PawnLoc.X - BottomRight.X);
-	Offsets.Left = FMath::Max(PawnLoc.Y - TopLeft.Y, PawnLoc.Y - BottomLeft.Y);
-	Offsets.Right = FMath::Max(TopRight.Y - PawnLoc.Y, BottomRight.Y - PawnLoc.Y);
+	// 4. 상하단 바닥 투영 거리 계산 (수직선 기준 각도 사용)
+	float CenterAngle = FMath::DegreesToRadians(90.f - Pitch); // 카메라 중심축이 수직선과 이루는 각도
+
+	// Pawn 위치(중심)로부터 상단/하단 경계까지의 월드 거리
+	float DistToTop = CamZ * FMath::Tan(CenterAngle + HalfVFOV);
+	float DistToBottom = CamZ * FMath::Tan(CenterAngle - HalfVFOV);
+
+	Offsets.Top = DistToTop - CamXOffset;
+	Offsets.Bottom = CamXOffset - DistToBottom;
+
+	// 5. 좌우 너비 계산 (RTS 클램핑을 위해 가장 넓은 상단 지점 기준 너비 사용)
+	// 실제로는 사다리꼴이지만, 현재 구조(Left/Right 하나씩)를 유지하기 위해 가장 넉넉한 값을 반환합니다.
+	float RayToTopDist = CamZ / FMath::Cos(CenterAngle + HalfVFOV); // 카메라에서 상단 경계까지의 직선 거리
+	float HalfWidthAtTop = RayToTopDist * FMath::Tan(HalfHFOV);
+
+	Offsets.Left = HalfWidthAtTop;
+	Offsets.Right = HalfWidthAtTop;
 
 	return Offsets;
 }

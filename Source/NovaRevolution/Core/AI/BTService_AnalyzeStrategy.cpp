@@ -7,7 +7,6 @@
 #include "Core/NovaUnit.h"
 #include "Core/NovaPart.h"
 #include "Core/NovaBase.h"
-#include "Core/NovaLog.h"
 #include "Engine/OverlapResult.h"
 #include "Kismet/GameplayStatics.h"
 #include "GAS/NovaAttributeSet.h"
