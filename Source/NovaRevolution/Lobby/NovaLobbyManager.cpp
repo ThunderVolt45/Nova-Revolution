@@ -10,6 +10,7 @@
 #include "Deck/NovaDeckManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Preview/PreviewUnit.h"
+#include "Core/NovaPartData.h"
 
 ANovaLobbyManager::ANovaLobbyManager() 
 { 
@@ -51,6 +52,54 @@ void ANovaLobbyManager::BeginPlay()
     }
 }
 
+FNovaPartSpecRow ANovaLobbyManager::GetTotalPendingSpec()
+{
+    FNovaPartSpecRow FinalSpec;
+    FinalSpec.PartName = TEXT("Combined Stats");
+
+    // 합산할 클래스 리스트 (다리, 몸통, 무기)
+    TArray<TSubclassOf<ANovaPart>> Classes;
+    Classes.Add(PendingAssemblyData.LegsClass);
+    Classes.Add(PendingAssemblyData.BodyClass);
+    Classes.Add(PendingAssemblyData.WeaponClass);
+
+    for (auto& PartClass : Classes)
+    {
+        if (!PartClass) continue;
+
+        if (ANovaPart* DefaultPart = PartClass.GetDefaultObject())
+        {
+            // [헬퍼 함수 호출!] 코드가 매우 직관적으로 변합니다.
+            FNovaPartSpecRow PartSpec = GetSpecByID(DefaultPart->GetPartID());
+
+            // 수치 합산
+            FinalSpec.Watt += PartSpec.Watt;
+            FinalSpec.Health += PartSpec.Health;
+            FinalSpec.Attack += PartSpec.Attack;
+            FinalSpec.Defense += PartSpec.Defense;
+            FinalSpec.Speed += PartSpec.Speed;
+            FinalSpec.FireRate += PartSpec.FireRate;
+            FinalSpec.Sight += PartSpec.Sight;
+            FinalSpec.Range += PartSpec.Range;
+            FinalSpec.MinRange += PartSpec.MinRange;
+            FinalSpec.SplashRange += PartSpec.SplashRange;
+
+            // 타입별 고유 속성 전파
+            if (PartSpec.PartType == ENovaPartType::Legs)
+            {
+                FinalSpec.MovementType = PartSpec.MovementType;
+            }
+            else if (PartSpec.PartType == ENovaPartType::Weapon)
+            {
+                FinalSpec.TargetType = PartSpec.TargetType;
+                FinalSpec.bHomingProjectile = PartSpec.bHomingProjectile;
+            }
+        }
+    }
+
+    return FinalSpec;
+}
+
 void ANovaLobbyManager::LoadDeckFromSave()
 {
     const FString SaveSlotName = TEXT("NovaPlayerSaveSlot");
@@ -66,6 +115,26 @@ void ANovaLobbyManager::LoadDeckFromSave()
 
     // 저장 파일이 없을 경우 초기 덱 슬롯(10개) 생성
     CurrentDeck.Units.SetNum(10);
+}
+
+FNovaPartSpecRow ANovaLobbyManager::GetSpecByID(FName PartID)
+{
+    // 데이터가 없을 경우를 대비한 기본 생성 구조체
+    FNovaPartSpecRow FoundSpec;
+
+    if (PartSpecTable && !PartID.IsNone())
+    {
+        // 데이터 테이블에서 해당 ID의 로우를 찾습니다.
+        static const FString ContextString(TEXT("LobbyManager_GetSpecByID"));
+        FNovaPartSpecRow* Row = PartSpecTable->FindRow<FNovaPartSpecRow>(PartID, ContextString);
+
+        if (Row)
+        {
+            // 찾았다면 해당 데이터를 복사해서 반환합니다.
+            FoundSpec = *Row;
+        }
+    }
+    return FoundSpec;
 }
 
 TSubclassOf<class ANovaPart> ANovaLobbyManager::GetFirstPartClass(ENovaPartType Category)
