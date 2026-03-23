@@ -4,6 +4,7 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Core/NovaPart.h"
 #include "Core/NovaObjectPoolSubsystem.h"
+#include "Engine/TextureRenderTarget2D.h"
 
 ANovaPartPreviewActor::ANovaPartPreviewActor()
 {
@@ -19,11 +20,22 @@ ANovaPartPreviewActor::ANovaPartPreviewActor()
     // 카메라 위치 및 각도 설정 (Nova 1492의 쿼터뷰 감성 재현)
     // BP에서 추가 수정이 있을 수 있습니다
     CaptureComponent->SetRelativeLocation(FVector(200.0f, 0.0f, 40.0f));
-    //CaptureComponent->SetRelativeRotation(FRotator(-15.0f, 180.0f, 0.0f));
-
-    // 배경을 제외하고 부품만 찍기 위한 설정
+    
+    CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorHDR;
     CaptureComponent->PrimitiveRenderMode = ESceneCapturePrimitiveRenderMode::PRM_UseShowOnlyList;
-    CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_FinalColorLDR;
+    
+    CaptureComponent->CaptureSource = ESceneCaptureSource::SCS_SceneColorHDR;
+    
+    // [추가] 캡처 시 배경 요소(안개, 하늘 등)를 강제로 끕니다.
+    CaptureComponent->ShowFlags.SetAtmosphere(false);
+    CaptureComponent->ShowFlags.SetSkyLighting(false);
+    CaptureComponent->ShowFlags.SetFog(false);
+    
+    // [추가] 캡처된 결과가 이전 프레임과 섞이지 않도록 Overwrite 모드 설정
+    CaptureComponent->CompositeMode = ESceneCaptureCompositeMode::SCCM_Overwrite;
+    
+    // [중요] 5.7 버전 이상에서는 텍스처 타겟의 감마와 알파 처리를 위해 아래 설정이 도움될 수 있습니다.
+    CaptureComponent->bAlwaysPersistRenderingState = true;
 
     // 2. [변경] 부품이 회전하는 모습을 보여주기 위해 매 프레임 촬영 활성화
     CaptureComponent->bCaptureEveryFrame = true;
@@ -46,6 +58,8 @@ void ANovaPartPreviewActor::UpdatePreview(TSubclassOf<ANovaPart> PartClass, UTex
 {
     UNovaObjectPoolSubsystem* Pool = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>();
     if (!Pool || !PartClass || !TargetTexture) return;
+    
+    TargetTexture->ClearColor = FLinearColor(0.f, 0.f, 0.f, 0.f);
 
     // 기존 부품이 있다면 풀(Pool)로 반환하여 재사용
     if (CurrentPreviewPart)
@@ -57,8 +71,13 @@ void ANovaPartPreviewActor::UpdatePreview(TSubclassOf<ANovaPart> PartClass, UTex
         CurrentPreviewPart = nullptr;
     }
 
+    
     // 촬영 리스트 초기화 및 새로운 렌더 타겟 연결
     CaptureComponent->ShowOnlyActors.Reset();
+    
+    // [추가] 렌더 타겟의 배경색을 투명하게 설정 (여기서 설정해야 합니다)
+    TargetTexture->ClearColor = FLinearColor(0.f, 0.f, 0.f, 0.f);
+    
     CaptureComponent->TextureTarget = TargetTexture;
 
     // 오브젝트 풀에서 새 부품 스폰
