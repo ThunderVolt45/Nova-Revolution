@@ -48,6 +48,9 @@ protected:
 	// UMG 에디터에서 'SlotButton'이라는 이름의 Button 위젯과 짝지어집니다.
 	UPROPERTY(meta = (BindWidget))
 	TObjectPtr<UButton> SlotButton;
+	
+	UPROPERTY(meta = (BindWidget))
+	TObjectPtr<class UTextBlock> SlotText;
 
 	// 현재 UI 슬롯이 담당하는 인덱스 (0~9)
 	int32 SlotIndex = 0;

@@ -42,10 +42,6 @@ protected:
 	UPROPERTY(meta = (BindWidget))
 	class UTextBlock* Txt_SlotNumber;
 
-	/** 현재 유닛의 이름을 표시하는 텍스트 블록 */
-	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* Txt_UnitName;
-
 	/** 조립 확정(저장) 버튼 */
 	UPROPERTY(meta = (BindWidget))
 	class UButton* Btn_Confirm;

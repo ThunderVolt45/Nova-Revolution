@@ -58,7 +58,11 @@ protected:
 	// --- 설정 데이터 및 소켓 정보 ---
 	/** 부품 정보를 조회하기 위한 데이터 테이블 */
 	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")
-	TObjectPtr<class UDataTable> PartDataTable;
+	TObjectPtr<class UDataTable> PartSpecDataTable;
+	
+	/** 부품 정보를 조회하기 위한 데이터 테이블 */
+	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")
+	TObjectPtr<class UDataTable> PartAssetDataTable;
 
 	/** 다리(Legs) 위에 몸통(Body)이 붙을 소켓 이름 */
 	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")

@@ -4,6 +4,7 @@
 #include "Lobby/UI/NovaDeckSlotWidget.h"
 #include "Components/Image.h"
 #include "Components/Button.h"
+#include "Components/TextBlock.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Lobby/NovaLobbyManager.h"
 #include "Lobby/NovaLobbyPlayerController.h"
@@ -22,6 +23,17 @@ void UNovaDeckSlotWidget::NativeConstruct()
 void UNovaDeckSlotWidget::InitSlot(int32 InSlotIndex, UTextureRenderTarget2D* RenderTarget)
 {
 	SlotIndex = InSlotIndex;
+	
+	// 텍스트 설정: "BU " + (인덱스 + 1)
+	if (SlotText)
+	{
+		// FString::Printf를 사용하여 포맷팅된 문자열 생성
+		// 인덱스가 0부터 시작하므로 사람이 보기 편하게 +1을 해줍니다.
+		FString DisplayName = FString::Printf(TEXT("BU %d"), SlotIndex + 1);
+
+		// UTextBlock에 텍스트 적용 (FText로 변환 필요)
+		SlotText->SetText(FText::FromString(DisplayName));
+	}
 
 	if (SlotImage && RenderTarget)
 	{

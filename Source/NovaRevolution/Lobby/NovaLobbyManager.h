@@ -68,6 +68,10 @@ public:
     const FNovaDeckInfo& GetCurrentDeck() const { return CurrentDeck; }
     int32 GetSelectedSlotIndex() const { return SelectedSlotIndex; }
     const FNovaUnitAssemblyData& GetPendingData() const { return PendingAssemblyData; }
+    
+    /** WorldPreviewUnit 정보용 위젯: 현재 임시 조립 데이터(Pending)의 모든 부품 스탯을 합산하여 반환합니다. */
+    UFUNCTION(BlueprintPure, Category = "Nova|Lobby")
+    FNovaPartSpecRow GetTotalPendingSpec();
 
 protected:
     /** 게임 시작 시 기존 저장된 덱 데이터를 로드하여 CurrentDeck을 채웁니다. */
@@ -103,4 +107,7 @@ protected:
     /** [신규] 레벨에 배치되어 격납고 전체 유닛 전시를 관리하는 덱 매니저 참조 */
     UPROPERTY(BlueprintReadOnly, Category = "Nova|Lobby")
     TObjectPtr<ANovaDeckManager> DeckManager;
+    
+    /** 특정 부품 ID로 스펙 정보를 찾아오는 헬퍼 */
+    FNovaPartSpecRow GetSpecByID(FName PartID);
 };

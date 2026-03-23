@@ -30,8 +30,7 @@ void UNovaUnitAssemblyControlWidget::NativeConstruct()
 	{
 		if (ANovaLobbyManager* Manager = PC->GetLobbyManager())
 		{
-			// [중요] 매니저의 OnAssemblyDataChanged 신호가 올 때마다 
-			// 내 UpdateStatus 함수가 자동으로 호출되도록 연결(Bind)합니다.
+			// [중요] 매니저의 OnAssemblyDataChanged 신호가 올 때마다 내 UpdateStatus 함수가 자동으로 호출되도록 연결
 			Manager->OnAssemblyDataChanged.AddDynamic(this, &UNovaUnitAssemblyControlWidget::UpdateStatus);
 
 			// 초기 동기화: 위젯이 켜진 순간의 현재 데이터를 한 번 반영합니다.
@@ -41,8 +40,6 @@ void UNovaUnitAssemblyControlWidget::NativeConstruct()
 		}
 		else
 		{
-			// [중요] 매니저를 찾지 못한 경우: 매니저가 아직 스폰되지 않았거나 참조가 꼬였을 가능성이 큽니다.
-			// 화면에 즉시 경고를 띄워 개발자가 문제를 인지하게 합니다.
 			NOVA_SCREEN(Warning, "Widget: LobbyManager not found during Construct. Check Actor Spawn Timing!");
 			NOVA_LOG(Error, "Widget: Failed to find LobbyManager from PlayerController.");
 		}
@@ -57,12 +54,7 @@ void UNovaUnitAssemblyControlWidget::UpdateStatus(int32 SlotIndex, const FString
 	{
 		Txt_SlotNumber->SetText(FText::AsNumber(SlotIndex + 1));
 	}
-
-	// 현재 조립 중인 유닛의 이름을 텍스트로 표시
-	if (Txt_UnitName)
-	{
-		Txt_UnitName->SetText(FText::FromString(UnitName));
-	}
+	
 }
 
 void UNovaUnitAssemblyControlWidget::OnConfirmClicked()
