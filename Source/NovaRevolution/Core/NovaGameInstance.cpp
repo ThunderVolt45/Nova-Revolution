@@ -11,9 +11,9 @@
 void UNovaGameInstance::Init()
 {
 	// 로딩 이미지 미리 로드 (로딩 화면 표시 시 지연 방지)
-	if (!LoadingImage.IsNull())
+	if (LoadingImage.IsValid())
 	{
-		LoadingTextureInstance = LoadingImage.LoadSynchronous();
+		LoadingTextureInstance = Cast<UTexture2D>(LoadingImage.TryLoad());
 		if (LoadingTextureInstance)
 		{
 			// GC 대상에서 제외하여 영구적으로 보관 (패키지 빌드 오류 방지)

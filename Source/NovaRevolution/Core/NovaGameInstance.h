@@ -25,9 +25,9 @@ public:
 	virtual void EndLoadingScreen(UWorld* InLoadedWorld);
 
 protected:
-	/** 로딩 화면 배경으로 사용할 이미지 (하나의 이미지만 공통 사용) */
+	/** 로딩 화면 배경으로 사용할 이미지 경로 (GC 감시를 피하기 위해 FSoftObjectPath 사용) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loading")
-	TSoftObjectPtr<UTexture2D> LoadingImage;
+	FSoftObjectPath LoadingImage;
 	
 private:
 	/** 
