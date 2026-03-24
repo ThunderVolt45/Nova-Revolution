@@ -20,9 +20,6 @@ class NOVAREVOLUTION_API UNovaSelectionComponent : public USceneComponent
 public:
 	UNovaSelectionComponent();
 
-protected:
-	virtual void BeginPlay() override;
-
 public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType,
 	                           FActorComponentTickFunction* ThisTickFunction) override;
@@ -36,16 +33,18 @@ public:
 	/** 액터의 크기와 공중 유닛 여부에 따라 컴포넌트 설정을 초기화합니다. */
 	void SetupSelection(float Radius, float HalfHeight, bool bIsAir);
 
-protected:
-	// --- 내부 관리 컴포넌트 ---
+public:
+	// --- 내부 관리 컴포넌트 (액터 생성자에서 직접 부착을 위해 public 공개) ---
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
 	TObjectPtr<UWidgetComponent> SelectionUIWidget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	TObjectPtr<UWidgetComponent> GroundMarkerWidget; // GroundMarkerWidget로 이름 변경 예정
+	TObjectPtr<UWidgetComponent> GroundMarkerWidget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Nova|UI")
-	TObjectPtr<UStaticMeshComponent> TraceLineMesh; // TraceLineMesh으로 이름 변경 예정
+	TObjectPtr<UStaticMeshComponent> TraceLineMesh;
+
+protected:
 
 	// --- 설정값 ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")

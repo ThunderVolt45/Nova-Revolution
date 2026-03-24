@@ -154,13 +154,15 @@ protected:
 	 * 실제 유효한 타겟 액터와 위치를 결정하는 통합 로직
 	 */
 	void DetermineCommandTarget(const FHitResult& HitResult, ECommandType InCommandType, FCommandData& OutCmdData);
-
+	
+public:
 	// 선택된 유닛들에게 실제 명령을 하달하는 헬퍼 함수
 	void IssueCommandToSelectedUnits(const FCommandData& CommandData);
 
 	// 명령 취소 (우클릭 시 대기 중인 명령 해제 - ESC로 취소 추가 예정)
 	void CancelPendingCommand();
 
+protected:
 	/**
 	 * 유닛 선택 및 카메라 포커싱 공통 로직(대상이 둘 이상일 경우 대상들의 중심으로 카메라 이동)
 	 * TagetActors : 선택할 액터 배열
