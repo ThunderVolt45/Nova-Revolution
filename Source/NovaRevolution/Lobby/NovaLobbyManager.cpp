@@ -17,6 +17,50 @@ ANovaLobbyManager::ANovaLobbyManager()
     PrimaryActorTick.bCanEverTick = false; 
 }
 
+bool ANovaLobbyManager::IsCurrentAssemblyValid(FString& OutErrorMessage)
+{
+    float LegCapacity = 0.0f;
+    float TotalWeight = 0.0f;
+
+    // 1. 다리(Legs)의 적재량(Weight) 가져오기
+    if (PendingAssemblyData.LegsClass)
+    {
+        if (ANovaPart* DefaultPart = PendingAssemblyData.LegsClass.GetDefaultObject())
+        {
+            FNovaPartSpecRow Spec = GetSpecByID(DefaultPart->GetPartID());
+            LegCapacity = Spec.Weight; // Legs의 Weight 필드를 '적재량'으로 정의하여 사용
+        }
+    }
+
+    // 2. 몸통(Body) 무게 합산
+    if (PendingAssemblyData.BodyClass)
+    {
+        if (ANovaPart* DefaultPart = PendingAssemblyData.BodyClass.GetDefaultObject())
+        {
+            TotalWeight += GetSpecByID(DefaultPart->GetPartID()).Weight;
+        }
+    }
+
+    // 3. 무기(Weapon) 무게 합산
+    if (PendingAssemblyData.WeaponClass)
+    {
+        if (ANovaPart* DefaultPart = PendingAssemblyData.WeaponClass.GetDefaultObject())
+        {
+            TotalWeight += GetSpecByID(DefaultPart->GetPartID()).Weight;
+        }
+    }
+
+    // 4. 비교 검사: 현재 합계가 다리의 적재량을 초과하는지 확인
+    if (TotalWeight > LegCapacity)
+    {
+        OutErrorMessage = FString::Printf(TEXT("무게 초과: %.1f / %.1f"), TotalWeight, LegCapacity);
+        return false;
+    }
+
+    return true;
+    
+}
+
 void ANovaLobbyManager::BeginPlay()
 {
     Super::BeginPlay();
@@ -37,16 +81,23 @@ void ANovaLobbyManager::BeginPlay()
 
     // 3. 진입 시 기본적으로 0번 슬롯 데이터를 편집 대상으로 로드
     SelectDeckSlot(0);
-
-    // 4. [초기 시각화] 로드된 전체 덱 정보를 격납고 전시장 각 슬롯에 순차적으로 배치
+    
+    // 4. [수정] 로드된 전체 덱 정보를 순회하며 초기화
     if (DeckManager)
     {
         for (int32 i = 0; i < CurrentDeck.Units.Num(); ++i)
         {
-            // 다리 파츠 정보가 있다면 유효한 유닛 데이터로 간주하고 전시장 업데이트
+            // 루트가 되는 다리(Legs) 클래스가 존재한다면 유닛이 조립된 상태로 판단
             if (CurrentDeck.Units[i].LegsClass)
             {
+                // 유닛 액터를 배치하고 SceneCapture를 통해 썸네일 생성
                 DeckManager->UpdateSlotUnit(i, CurrentDeck.Units[i]);
+            }
+            else
+            {
+                // [핵심] 조립되지 않은 빈 슬롯일 경우에도 명시적으로 클리어 호출!
+                // 이를 통해 SceneCapture가 실행되어 렌더 타겟의 ClearColor(투명)를 반영하게 됩니다.
+                DeckManager->ClearSlotUnit(i);
             }
         }
     }
@@ -255,6 +306,15 @@ void ANovaLobbyManager::SelectDeckSlot(int32 SlotIndex)
 void ANovaLobbyManager::ConfirmAssembly()
 {
     if (!CurrentDeck.Units.IsValidIndex(SelectedSlotIndex)) return;
+    
+    FString ErrorMsg;
+    // 조립 유효성 검사 (무게 제한 등)
+    if (!IsCurrentAssemblyValid(ErrorMsg))
+    {
+        // 화면에 에러 로그 출력 및 진행 차단
+        NOVA_SCREEN(Error, "조립 확정 불가: %s", *ErrorMsg);
+        return;
+    }
 
     // 1. 임시 편집 데이터(Pending)를 실제 덱 슬롯 데이터에 덮어씌워 확정(Commit)
     CurrentDeck.Units[SelectedSlotIndex] = PendingAssemblyData;
