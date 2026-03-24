@@ -71,6 +71,16 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 
 	const FNovaUnitAssemblyData& TargetData = CurrentDeck.Units[SlotIndex];
 	// NOVA_SCREEN(Log, "[SpawnTrace] 2. Deck Valid - UnitName: %s", *TargetData.UnitName);
+	
+	// 2. [추가] 빈 슬롯인지 확인
+	// 로비에서 부품이 하나도 장착되지 않은 슬롯(특히 루트가 되는 LegsClass가 없는 경우)은 
+	// 실제 생산 프로세스로 진입하지 않도록 차단합니다.
+	if (TargetData.LegsClass == nullptr)
+	{
+		NOVA_LOG(Warning, "Factory: 슬롯 %d번은 비어있습니다 (다리 부품 없음). 생산 요청을 무시합니다.", SlotIndex);
+		return false;
+	}
+	
 
 	// 6. 자원 검사 및 소비 로직
 	// 데이터 테이블을 참조하여 실제 유닛 생산 비용을 계산합니다.

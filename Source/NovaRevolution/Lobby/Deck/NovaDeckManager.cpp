@@ -76,22 +76,27 @@ void ANovaDeckManager::UpdateSlotUnit(int32 SlotIndex, const FNovaUnitAssemblyDa
 
 void ANovaDeckManager::ClearSlotUnit(int32 SlotIndex)
 {
-	// 슬롯 인덱스로 등록된 유닛이 있는지 확인 후 제거
+	// 1. 기존 스폰된 프리뷰 유닛 제거
+	// 해당 슬롯 인덱스에 매핑된 유닛이 있다면 월드에서 제거하고 맵(Map)에서도 삭제합니다.
 	if (TObjectPtr<APreviewUnit>* FoundUnit = SpawnedUnits.Find(SlotIndex))
 	{
-		if (*FoundUnit)
+		if (FoundUnit && *FoundUnit)
 		{
-			// 월드에서 액터 제거 (부품들은 내부 풀링 시스템에 의해 처리됨)
 			(*FoundUnit)->Destroy();
 		}
-        
-		// 관리 맵에서 해당 인덱스 삭제
 		SpawnedUnits.Remove(SlotIndex);
-		
-		if (DeckSlots.IsValidIndex(SlotIndex) && DeckSlots[SlotIndex])
+	}
+
+	// 2. [수정] 유닛 존재 여부와 상관없이 해당 슬롯 액터를 찾아 카메라(캡처)를 초기화
+	// 월드에 배치된 DeckSlot 액터들 중 인덱스가 일치하는 것을 찾습니다.
+	for (ANovaDeckSlot* Slot : DeckSlots)
+	{
+		if (Slot && Slot->GetSlotIndex() == SlotIndex)
 		{
-			// 타겟을 nullptr로 전달하여 캡처 리스트를 비우고 화면을 투명하게 처리합니다.
-			DeckSlots[SlotIndex]->SetCaptureTarget(nullptr);
+			// 타겟을 nullptr로 전달하여 호출합니다.
+			// 내부적으로 SceneCapture가 작동하면서 RenderTarget을 투명한 배경으로 밉니다.
+			Slot->SetCaptureTarget(nullptr);
+			break;
 		}
 	}
 }
