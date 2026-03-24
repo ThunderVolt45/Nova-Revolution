@@ -25,7 +25,8 @@ public class NovaRevolution : ModuleRules
 			"GameplayAbilities",
 			"GameplayTags",
 			"GameplayTasks",
-			"DeveloperSettings"
+			"DeveloperSettings",
+			"MoviePlayer"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });

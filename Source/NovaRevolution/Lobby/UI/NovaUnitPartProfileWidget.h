@@ -57,6 +57,10 @@ protected:
 	/** [신규] 무한 루프 방지를 위한 플래그 (UI 조작 시에만 true) */
 	bool bIsUserOperating = false;
 
+	/** [신규] 3D 프리뷰 업데이트 지연을 위한 타이머 핸들 및 전용 함수 */
+	FTimerHandle Update3DPreviewTimerHandle;
+	void Update3DPreview();
+
 	// --- PartSpec 데이터 테이블 ---
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Data")
 	TObjectPtr<UDataTable> PartSpecTable;

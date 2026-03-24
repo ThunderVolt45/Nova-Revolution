@@ -122,6 +122,21 @@ ANovaUnit::ANovaUnit()
 	SelectionComponent->SetupAttachment(RootComponent);
 	SelectionComponent->SetRelativeLocation(FVector::ZeroVector);
 
+	// [수정] 블루프린트 직렬화 버그 및 계층 구조 평탄화 대응
+	// 생성자에서 자식 컴포넌트들을 루트에 직접 SetupAttachment 해줍니다.
+	if (SelectionComponent->SelectionUIWidget)
+	{
+		SelectionComponent->SelectionUIWidget->SetupAttachment(RootComponent);
+	}
+	if (SelectionComponent->GroundMarkerWidget)
+	{
+		SelectionComponent->GroundMarkerWidget->SetupAttachment(RootComponent);
+	}
+	if (SelectionComponent->TraceLineMesh)
+	{
+		SelectionComponent->TraceLineMesh->SetupAttachment(RootComponent);
+	}
+
 	// 체력바 컴포넌트 추가
 	HealthBarComponent = CreateDefaultSubobject<UNovaHealthBarComponent>(TEXT("HealthBarComponent"));
 	HealthBarComponent->SetupAttachment(RootComponent);
