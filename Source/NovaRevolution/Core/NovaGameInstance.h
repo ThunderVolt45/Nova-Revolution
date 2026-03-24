@@ -28,9 +28,11 @@ protected:
 	/** 로딩 화면 배경으로 사용할 이미지 (하나의 이미지만 공통 사용) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loading")
 	TSoftObjectPtr<UTexture2D> LoadingImage;
-
+	
 private:
-	/** 가비지 컬렉션 방지를 위한 현재 로드된 텍스트 인스턴스 보관 */
-	UPROPERTY()
+	/** 
+	 * 가비지 컬렉션 방지를 위한 로드된 텍스트 인스턴스 보관
+	 * 패키지 빌드에서의 'Disregard for GC' 오류를 방지하기 위해 UPROPERTY 대신 raw pointer와 AddToRoot를 사용합니다.
+	 */
 	UTexture2D* LoadingTextureInstance;
 };

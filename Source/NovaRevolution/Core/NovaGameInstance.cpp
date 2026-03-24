@@ -5,6 +5,8 @@
 #include "MoviePlayer.h"
 #include "UI/SNovaLoadingScreenWidget.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Kismet/GameplayStatics.h"
+#include "UObject/UObjectGlobals.h"
 
 void UNovaGameInstance::Init()
 {
@@ -14,6 +16,9 @@ void UNovaGameInstance::Init()
 		LoadingTextureInstance = LoadingImage.LoadSynchronous();
 		if (LoadingTextureInstance)
 		{
+			// GC 대상에서 제외하여 영구적으로 보관 (패키지 빌드 오류 방지)
+			LoadingTextureInstance->AddToRoot();
+
 			// 이미지가 깨져 보이거나 늦게 로드되는 것을 방지하기 위해 스트리밍 비활성화 및 UI 그룹 설정
 			LoadingTextureInstance->NeverStream = true;
 			LoadingTextureInstance->LODGroup = TEXTUREGROUP_UI;
@@ -30,28 +35,32 @@ void UNovaGameInstance::Init()
 
 void UNovaGameInstance::BeginLoadingScreen(const FString& MapName)
 {
-	if (!IsRunningDedicatedServer())
+	if (IsRunningDedicatedServer()) return;
+
+	// 엔트리 맵(최초 진입점)으로 들어갈 때는 로딩 화면을 띄우지 않음
+	if (MapName.Contains(TEXT("Lvl_Entry")))
 	{
-		const FSlateBrush* BackgroundBrush = nullptr;
-
-		// 로드된 이미지가 있다면 브러쉬 생성 (4:3 비율로 강제 설정)
-		if (LoadingTextureInstance)
-		{
-			const float OriginalHeight = (float)LoadingTextureInstance->GetSizeY();
-			const float ForcedWidth = OriginalHeight * (4.0f / 3.0f);
-			BackgroundBrush = new FSlateImageBrush(LoadingTextureInstance, FVector2D(ForcedWidth, OriginalHeight));
-		}
-
-		FLoadingScreenAttributes LoadingScreen;
-		LoadingScreen.bAutoCompleteWhenLoadingCompletes = true;
-		LoadingScreen.WidgetLoadingScreen = SNew(SNovaLoadingScreenWidget)
-			.LoadingImageBrush(BackgroundBrush);
-
-		GetMoviePlayer()->SetupLoadingScreen(LoadingScreen);
+		return;
 	}
+
+	const FSlateBrush* BackgroundBrush = nullptr;
+
+	// 로드된 이미지가 있다면 브러쉬 생성 (4:3 비율로 강제 설정)
+	if (LoadingTextureInstance)
+	{
+		const float OriginalHeight = (float)LoadingTextureInstance->GetSizeY();
+		const float ForcedWidth = OriginalHeight * (4.0f / 3.0f);
+		BackgroundBrush = new FSlateImageBrush(LoadingTextureInstance, FVector2D(ForcedWidth, OriginalHeight));
+	}
+
+	FLoadingScreenAttributes LoadingScreen;
+	LoadingScreen.bAutoCompleteWhenLoadingCompletes = true;
+	LoadingScreen.WidgetLoadingScreen = SNew(SNovaLoadingScreenWidget).LoadingImageBrush(BackgroundBrush);
+
+	GetMoviePlayer()->SetupLoadingScreen(LoadingScreen);
 }
 
 void UNovaGameInstance::EndLoadingScreen(UWorld* InLoadedWorld)
 {
-	LoadingTextureInstance = nullptr;
+	// 텍스트 인스턴스를 여기서 null로 만들지 않습니다. (다음 로딩을 위해 캐싱 유지)
 }
