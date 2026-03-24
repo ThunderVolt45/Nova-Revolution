@@ -13,9 +13,7 @@ UNovaSelectionComponent::UNovaSelectionComponent()
 
 	// 1. 메인 선택 원 (유닛 발밑)
 	SelectionUIWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("SelectionUIWidget"));
-	
 	SelectionUIWidget->SetupAttachment(this);
-	
 	SelectionUIWidget->SetUsingAbsoluteLocation(false);
 	SelectionUIWidget->SetUsingAbsoluteScale(true);
 	SelectionUIWidget->SetUsingAbsoluteRotation(true);
@@ -48,22 +46,6 @@ UNovaSelectionComponent::UNovaSelectionComponent()
 	TraceLineMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	TraceLineMesh->SetVisibility(false);
 }
-
-
-// Called when the game starts
-void UNovaSelectionComponent::BeginPlay()
-{
-	Super::BeginPlay();
-	if (AActor* Owner = GetOwner())
-	{
-		if (USceneComponent* Root = Owner->GetRootComponent())
-		{
-			SelectionUIWidget->DetachFromComponent(FDetachmentTransformRules::KeepRelativeTransform);
-			SelectionUIWidget->AttachToComponent(Root, FAttachmentTransformRules::KeepRelativeTransform);
-		}
-	}
-}
-
 
 // Called every frame
 void UNovaSelectionComponent::TickComponent(float DeltaTime, ELevelTick TickType,

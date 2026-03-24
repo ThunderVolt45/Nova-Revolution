@@ -12,6 +12,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Lobby/NovaLobbyManager.h"
 #include "Lobby/NovaLobbyPlayerController.h"
+#include "TimerManager.h"
 
 void UNovaUnitPartProfileWidget::InitCategory(ENovaPartType Category)
 {
@@ -103,13 +104,13 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
     // 1. 현재 인덱스에 해당하는 부품 ID(RowName) 추출
     FName TargetID = CategoryPartIDs[CurrentIndex];
 
-    // 2. 데이터 테이블에서 해당 행(Row)의 상세 스펙 데이터 조회
+    // 2. 데이터 테이블에서 상세 스펙 데이터 조회
     static const FString ContextString(TEXT("Part Profile Update"));
     FNovaPartSpecRow* SpecData = PartSpecTable->FindRow<FNovaPartSpecRow>(TargetID, ContextString);
 
     if (SpecData)
     {
-        // A. 부품 명칭 텍스트 갱신 (예: 로드런너, 건봇 등)
+        // A. 부품 명칭 텍스트 갱신
         if (Txt_PartName)
         {
             Txt_PartName->SetText(FText::FromString(SpecData->PartName));
@@ -124,18 +125,36 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
 
         NOVA_LOG(Log, "Profile UI Updated: %s (Index: %d)", *TargetID.ToString(), CurrentIndex);
     }
-    
-    // 3. 파트 외형 프리뷰 업데이트
-    // 프리뷰 액터, 렌더 타겟, 에셋 테이블이 모두 유효할 때만 진행합니다.
+
+    // 3. [핵심] 3D 프리뷰 및 매니저 동기화는 무거운 작업이므로 디바운스(Debounce) 처리
+    // 유저가 매우 빠르게 '다음/이전'을 클릭할 경우, 마지막 클릭 시점에만 3D를 갱신합니다.
+    if (GetWorld())
+    {
+        GetWorld()->GetTimerManager().ClearTimer(Update3DPreviewTimerHandle);
+        GetWorld()->GetTimerManager().SetTimer(
+            Update3DPreviewTimerHandle,
+            this,
+            &UNovaUnitPartProfileWidget::Update3DPreview,
+            0.1f, // 0.1초의 지연 시간을 두어 연타 시의 프리뷰 스왑 부하를 방지
+            false
+        );
+    }
+}
+
+void UNovaUnitPartProfileWidget::Update3DPreview()
+{
+    if (!CategoryPartIDs.IsValidIndex(CurrentIndex)) return;
+    FName TargetID = CategoryPartIDs[CurrentIndex];
+
+    // 1. 개별 파트 프리뷰 업데이트
     if (PreviewActor && PreviewRenderTarget && PartAssetTable)
     {
-        // AssetTable에서 해당 부품의 실제 Blueprint 클래스(PartClass) 정보를 가져옴
         static const FString AssetContext(TEXT("Part Asset Lookup"));
         FNovaPartAssetRow* AssetRow = PartAssetTable->FindRow<FNovaPartAssetRow>(TargetID, AssetContext);
 
         if (AssetRow && AssetRow->PartClass)
         {
-            // 1. 위젯 내부의 개별 파트 프리뷰 업데이트
+            // 1. 위젯용 단독 파트 프리뷰 갱신
             PreviewActor->UpdatePreview(AssetRow->PartClass, PreviewRenderTarget);
             
             // 2. 다이나믹 머티리얼 생성 및 렌더 타겟 주입
@@ -166,37 +185,20 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
                 }
             }
             
-            NOVA_LOG(Log, "Preview Updated for Part: %s", *TargetID.ToString());
-            
-            //2. 중앙의 AssemblyPreviewUnit과 실시간 동기화, 위젯이 촬영을 위해 꺼낸 클래스 정보를 그대로 매니저에게 밀어넣습니다.
-            if (ANovaLobbyPlayerController* LobbyPC = Cast<ANovaLobbyPlayerController>(GetOwningPlayer()))
-            {
-                if (ANovaLobbyManager* Manager = LobbyPC->GetLobbyManager())
-                {
-                    // 이 함수 호출이 실행되는 즉시, 중앙 유닛도 해당 부품으로 갈아 끼웁니다.
-                    // 위젯의 카테고리(DefaultCategory)와 선택된 파츠 ID(TargetID)를 매니저에게 전송합니다.
-                    Manager->SelectPart(DefaultCategory, TargetID);
-                }
-            }
-            NOVA_LOG(Log, "Syncing Part with Assembly: %s", *TargetID.ToString());
-            
+            NOVA_LOG(Log, "3D Preview Updated for Part: %s", *TargetID.ToString());
         }
     }
     
-    // 1. 소유 중인 플레이어 컨트롤러를 로비 전용 컨트롤러로 캐스팅하여 가져옵니다.
+    // 2. 중앙의 AssemblyPreviewUnit 및 로비 매니저와 실시간 동기화
     if (ANovaLobbyPlayerController* LobbyPC = Cast<ANovaLobbyPlayerController>(GetOwningPlayer()))
     {
-        // 2. 컨트롤러가 보유한 로비 매니저 참조를 획득합니다.
         if (ANovaLobbyManager* Manager = LobbyPC->GetLobbyManager())
         {
-            // 3. 현재 위젯이 담당하는 카테고리(DefaultCategory)와 현재 선택된 파츠 ID(TargetID)를 매니저에게 전달합니다.
-            // 이 함수 호출을 통해 매니저는 덱 데이터를 갱신하고, 월드에 배치된 '전신 유닛'의 외형을 즉시 교체합니다.
+            // 이 함수 호출을 통해 중앙 유닛의 외형이 최종적으로 교체됩니다.
             Manager->SelectPart(DefaultCategory, TargetID);
-        
-            // 이 시점에서 '개별 부품 프리뷰'와 '전신 조립 모습'이 동시에 업데이트되는 시각적 동기화가 이루어집니다.
+            NOVA_LOG(Log, "Manager Sync Completed for Part: %s", *TargetID.ToString());
         }
     }
-    
 }
 
 void UNovaUnitPartProfileWidget::OnManagerDataChanged(int32 SlotIndex, const FString& UnitName,
