@@ -32,15 +32,15 @@ struct FNovaAIBuildStep
     GENERATED_BODY()
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
-    ENovaAIBuildStepType ActionType;
+    ENovaAIBuildStepType ActionType = ENovaAIBuildStepType::Wait;
 
     // 생산할 유닛 슬롯(0~9) 또는 시전할 스킬 슬롯 번호
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
-    int32 TargetSlot;
+    int32 TargetSlot = 0;
 
     // 유닛 생산 시 목표 수량, Wait 시 대기 초 단위 등
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "AI|BuildOrder")
-    int32 TargetCount;
+    int32 TargetCount = 0;
 };
 
 /**
