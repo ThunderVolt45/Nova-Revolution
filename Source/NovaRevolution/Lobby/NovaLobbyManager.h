@@ -36,6 +36,10 @@ public:
     /** UI에서 덱 매니저에 접근할 수 있도록 Getter 노출 */
     UFUNCTION(BlueprintCallable, Category = "Nova|Lobby")
     class ANovaDeckManager* GetDeckManager() const { return DeckManager; }
+    
+    /** 현재 편집 중인 조립 데이터가 무게 제한(Leg.Weight >= Body.Weight + Weapon.Weight)을 만족하는지 확인 */
+    UFUNCTION(BlueprintPure, Category = "Nova|Lobby")
+    bool IsCurrentAssemblyValid(FString& OutErrorMessage);
 
 protected:
     virtual void BeginPlay() override;

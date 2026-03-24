@@ -38,8 +38,8 @@ ANovaDeckSlot::ANovaDeckSlot()
     SceneCapture->SetRelativeLocation(FVector(300.0f, 0.0f, 150.0f));
     SceneCapture->SetRelativeRotation(FRotator(-15.0f, 180.0f, 0.0f));
 
-    // --- [핵심 변경 사항: 매 프레임 실시간 캡처 활성화] ---
-    SceneCapture->bCaptureEveryFrame = true; 
+    // --- [성능 최적화: 수동 캡처 방식으로 변경] ---
+    SceneCapture->bCaptureEveryFrame = false; 
     SceneCapture->bCaptureOnMovement = false;
 
     // 투명화 및 배경 제거를 위한 캡처 설정
@@ -62,8 +62,6 @@ ANovaDeckSlot::ANovaDeckSlot()
 
 void ANovaDeckSlot::BeginPlay()
 {
-    Super::BeginPlay();
-
     Super::BeginPlay();
 
     // BaseMesh에 유효한 머티리얼이 있다면 하이라이트 제어용 다이나믹 머티리얼 생성
@@ -154,6 +152,40 @@ void ANovaDeckSlot::SetCaptureTarget(AActor* TargetUnit)
         }
     }
     
-    // bCaptureEveryFrame이 true이므로 별도의 CaptureScene() 호출 없이 엔진이 자동 갱신합니다.
+    // --- [성능 및 품질 최적화: 지연 캡처 로직] ---
+
+    // 1. 기존에 예약된 타이머가 있다면 취소하여 중복 실행을 방지합니다.
+    if (GetWorld())
+    {
+        GetWorldTimerManager().ClearTimer(CaptureTimerHandle);
+    }
+
+    // 2. [즉시 캡처] 유저에게 즉각적인 피드백을 주기 위해 먼저 한 번 촬영합니다.
+    ExecuteCapture();
+
+    // 3. [지연 캡처] 0.1초 후에 한 번 더 촬영합니다.
+    // 이 짧은 지연 시간 동안 엔진이 메쉬에 머티리얼을 완전히 입히고 텍스처를 로드할 시간을 확보합니다.
+    // (텍스처 스트리밍으로 인한 흐릿한 썸네일 현상 방지)
+    if (GetWorld())
+    {
+        GetWorldTimerManager().SetTimer(
+            CaptureTimerHandle,
+            this,
+            &ANovaDeckSlot::ExecuteCapture,
+            1.0f,
+            false
+        );
+    }
     
+}
+
+void ANovaDeckSlot::ExecuteCapture()
+{
+    // SceneCapture 컴포넌트와 결과물이 저장될 RenderTarget이 유효한지 확인합니다.
+    if (SceneCapture && RenderTarget)
+    {
+        // 실제로 렌더 타겟에 현재 설정된 ShowOnlyActors 유닛의 모습을 그립니다.
+        // 수동 호출(CaptureScene)을 통해 필요한 시점에만 렌더링 자원을 사용합니다.
+        SceneCapture->CaptureScene();
+    }
 }
