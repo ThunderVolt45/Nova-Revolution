@@ -69,7 +69,11 @@ void ANovaLobbyPlayerController::StartGame(FName InGameLevelName)
 	{
 		LobbyManager->SaveCurrentDeck();
 	}
-
-	// 이후 전투 레벨이나 지정된 다음 레벨로 이동하는 로직이 이어집니다.
-	// UGameplayStatics::OpenLevel(GetWorld(), InGameLevelName);
+	
+	// 2. 레벨 이동 실행
+	// 에디터에서 전달받은 이름이 없으면 기본 이름 사용
+	FName FinalLevelName = InGameLevelName.IsNone() ? FName("LVL_NovaMap_Dessert") : InGameLevelName;
+	
+	UGameplayStatics::OpenLevel(GetWorld(), FinalLevelName);
+	
 }

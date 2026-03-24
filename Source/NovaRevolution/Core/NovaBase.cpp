@@ -16,6 +16,7 @@
 #include "Components/WidgetComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "NavModifierComponent.h"
+#include "NovaPart.h"
 #include "NavAreas/NavArea_Null.h"
 #include "Player/NovaPlayerController.h"
 #include "UI/NovaHealthBarComponent.h"
@@ -298,6 +299,13 @@ bool ANovaBase::CanProduceUnit(int32 SlotIndex) const
 	if (!CurrentDeck.Units.IsValidIndex(SlotIndex)) return false;
 
 	const FNovaUnitAssemblyData& TargetData = CurrentDeck.Units[SlotIndex];
+	
+	// (추가)빈 슬롯 여부 확인
+	// 로비에서 조립되지 않은 빈 슬롯(다리 부품이 없는 경우)은 생산할 수 없습니다.
+	if (TargetData.LegsClass == nullptr)
+	{
+		return false;
+	}
 
 	// 2. 와트 비용 계산
 	float ProductionCost = Factory->CalculateTotalWattCost(TargetData);
