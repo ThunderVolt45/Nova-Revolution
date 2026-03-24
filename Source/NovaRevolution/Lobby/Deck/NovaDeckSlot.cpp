@@ -172,7 +172,7 @@ void ANovaDeckSlot::SetCaptureTarget(AActor* TargetUnit)
             CaptureTimerHandle,
             this,
             &ANovaDeckSlot::ExecuteCapture,
-            0.1f,
+            1.0f,
             false
         );
     }
