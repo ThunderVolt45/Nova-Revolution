@@ -5,6 +5,7 @@
 
 #include "Components/BoxComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetRenderingLibrary.h"
 
 // Sets default values
@@ -16,7 +17,7 @@ ANovaMapManager::ANovaMapManager()
 	// 실제 맵 범위를 정의할 박스 컴포넌트 생성
 	MapBounds = CreateDefaultSubobject<UBoxComponent>(TEXT("MapBounds"));
 	RootComponent = MapBounds;
-	
+
 	// 기본 설정 (에디터에서 육안으로 확인하기 편하게 설정)
 	MapBounds->SetBoxExtent(FVector(10000.f, 10000.f, 500.f));
 	MapBounds->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -66,7 +67,12 @@ void ANovaMapManager::BeginPlay()
 
 	// Standalone 모드에서는 월드 로딩 완료를 위해 약간의 지연 후 캡처하는 것이 안전함
 	FTimerHandle CaptureTimerHandle;
-	GetWorldTimerManager().SetTimer(CaptureTimerHandle, this, &ANovaMapManager::CaptureMapBackground, 0.2f, false);
+	// GetWorldTimerManager().SetTimer(CaptureTimerHandle, this, &ANovaMapManager::CaptureMapBackground, 0.2f, false);
+	GetWorldTimerManager().SetTimer(CaptureTimerHandle, [this]()
+	{
+		CaptureMapBackground(); // 최종 촬영
+		ClearMinimapCapture(); // 이제 더 이상 필요 없으므로 파괴
+	}, 0.2f, false);
 }
 
 void ANovaMapManager::SetupBoundaryWalls()
@@ -222,6 +228,19 @@ void ANovaMapManager::UnregisterActor(AActor* Actor)
 void ANovaMapManager::CaptureMapBackground()
 {
 	if (!MinimapCapture || !MinimapBackgroundRT || !MapBounds) return;
+	
+	// 관리 중인 액터(RegisteredActors) 조회
+	TArray<AActor*> ActorsToHide;
+	for (const TWeakObjectPtr<AActor>& WeakActor : RegisteredActors)
+	{
+		if (AActor* Actor = WeakActor.Get())
+		{
+			ActorsToHide.Add(Actor);
+		}
+	}
+	
+	// MinimapCapture에서 지정한 Actor들을 제외
+	MinimapCapture->HiddenActors = ActorsToHide;
 
 	// 1. 맵 박스의 중앙 위치와 크기 계산
 	FBox Bounds = MapBounds->CalcBounds(GetActorTransform()).GetBox();
@@ -246,5 +265,26 @@ void ANovaMapManager::CaptureMapBackground()
 	// 실제 1회 캡처 수행
 	MinimapCapture->CaptureScene();
 
+	// 숨김 리스트 비우기 (메모리 참조 해제)
+	MinimapCapture->HiddenActors.Empty();
+	
 	// NOVA_LOG(Log, TEXT("MapManager: Map Background Captured (Width: %.f)"), MinimapCapture->OrthoWidth);
+}
+
+void ANovaMapManager::ClearMinimapCapture()
+{
+	if (MinimapCapture)
+	{
+		// 1. 렌더 타겟 연결 해제 (참조 제거)
+		MinimapCapture->TextureTarget = nullptr;
+
+		// 2. 컴포넌트 비활성화
+		MinimapCapture->SetActive(false);
+
+		// 3. 컴포넌트 완전 제거 (메모리 해제)
+		MinimapCapture->DestroyComponent();
+
+		// 4. 포인터 초기화 (안전성 확보)
+		MinimapCapture = nullptr;
+	}
 }

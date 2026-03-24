@@ -103,4 +103,8 @@ public:
 
 	/** 생성된 미니맵 배경 렌더 타겟을 반환 */
 	UTextureRenderTarget2D* GetMinimapBackgroundRT() const { return MinimapBackgroundRT; }
+	
+	/** 촬영이 완전히 끝난 후 캡처 컴포넌트를 제거하여 리소스를 해제합니다. */
+	UFUNCTION(BlueprintCallable, Category = "Nova|Minimap")
+	void ClearMinimapCapture();
 };
