@@ -82,4 +82,16 @@ protected:
 	/** 캡처된 이미지가 저장될 렌더 타겟 에셋 (각 슬롯의 BP에서 1~10번 슬롯용 렌더 타겟을 개별 할당) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Deck|Capture")
 	TObjectPtr<UTextureRenderTarget2D> RenderTarget;
+	
+private:
+	/** * 지연 캡처(Delayed Capture)를 제어하기 위한 핸들입니다. 
+	 * 부품 부착 직후에 바로 캡처하면 프레임 업데이트 타이밍에 따라 
+	 * 간헐적으로 부품이 누락되는 현상을 방지하기 위해 사용합니다.
+	 */
+	FTimerHandle CaptureTimerHandle;
+
+	/** * 실제로 SceneCapture를 실행하는 헬퍼 함수입니다. 
+	 * 타이머에 의해 호출되거나 직접 호출되어 RenderTarget에 씬을 기록합니다.
+	 */
+	void ExecuteCapture();
 };
