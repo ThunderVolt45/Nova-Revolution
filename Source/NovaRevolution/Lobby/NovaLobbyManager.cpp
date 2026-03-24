@@ -147,6 +147,13 @@ FNovaPartSpecRow ANovaLobbyManager::GetTotalPendingSpec()
             }
         }
     }
+    
+    // [로직 추가] 방어력이 음수가 될 경우 0으로 보정
+    // 특정 부품 조합이나 수치 합산 과정에서 발생할 수 있는 오류를 방지합니다.
+    if (FinalSpec.Defense < 0.0f)
+    {
+        FinalSpec.Defense = 0.0f;
+    }
 
     return FinalSpec;
 }
