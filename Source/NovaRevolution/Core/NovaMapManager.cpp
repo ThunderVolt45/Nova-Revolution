@@ -70,8 +70,11 @@ void ANovaMapManager::BeginPlay()
 	// GetWorldTimerManager().SetTimer(CaptureTimerHandle, this, &ANovaMapManager::CaptureMapBackground, 0.2f, false);
 	GetWorldTimerManager().SetTimer(CaptureTimerHandle, [this]()
 	{
-		CaptureMapBackground(); // 최종 촬영
-		ClearMinimapCapture(); // 이제 더 이상 필요 없으므로 파괴
+		if (IsValid(this))
+		{
+			CaptureMapBackground(); // 최종 촬영
+			ClearMinimapCapture(); // 이제 더 이상 필요 없으므로 파괴
+		}
 	}, 0.2f, false);
 }
 
@@ -228,7 +231,7 @@ void ANovaMapManager::UnregisterActor(AActor* Actor)
 void ANovaMapManager::CaptureMapBackground()
 {
 	if (!MinimapCapture || !MinimapBackgroundRT || !MapBounds) return;
-	
+
 	// 관리 중인 액터(RegisteredActors) 조회
 	TArray<AActor*> ActorsToHide;
 	for (const TWeakObjectPtr<AActor>& WeakActor : RegisteredActors)
@@ -238,7 +241,7 @@ void ANovaMapManager::CaptureMapBackground()
 			ActorsToHide.Add(Actor);
 		}
 	}
-	
+
 	// MinimapCapture에서 지정한 Actor들을 제외
 	MinimapCapture->HiddenActors = ActorsToHide;
 
@@ -267,7 +270,7 @@ void ANovaMapManager::CaptureMapBackground()
 
 	// 숨김 리스트 비우기 (메모리 참조 해제)
 	MinimapCapture->HiddenActors.Empty();
-	
+
 	// NOVA_LOG(Log, TEXT("MapManager: Map Background Captured (Width: %.f)"), MinimapCapture->OrthoWidth);
 }
 

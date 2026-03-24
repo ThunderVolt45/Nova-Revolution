@@ -231,6 +231,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI|Command")
 	TObjectPtr<UNiagaraSystem> AttackCommandEffect;
 
+	/** 게임 결과(승리/패배)를 표시할 위젯 클래스 (블루프린트에서 할당) */
+	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
+	TSubclassOf<UUserWidget> GameResultWidgetClass;
+	
 	// 명령 종류에 따른 시각화 실행 함수
 	void SpawnCommandVisualEffect(const FVector& Loc, ECommandType CommandType, AActor* TargetActor = nullptr);
 
@@ -254,4 +258,7 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Nova|Camera")
 	void SetCameraLocation(const FVector& TargetWorldPos);
+	
+	UFUNCTION(BlueprintCallable, Category = "Nova|UI")
+	void ShowGameResult(bool bIsWinner);
 };

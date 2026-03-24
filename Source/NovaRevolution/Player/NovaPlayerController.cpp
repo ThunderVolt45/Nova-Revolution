@@ -21,6 +21,7 @@
 #include "Core/NovaUnit.h"
 #include "GameFramework/HUD.h"
 #include "Kismet/GameplayStatics.h"
+#include "UI/NovaGameResultWidget.h"
 #include "UI/NovaHUD.h"
 // #include "Core/AI/NovaAIController.h"
 
@@ -159,7 +160,7 @@ void ANovaPlayerController::PlayerTick(float DeltaTime)
 			}
 		}
 	}
-	
+
 	// 이동 처리가 끝난 후 마지막에 위치를 제한
 	ClampCameraLocation();
 }
@@ -813,6 +814,49 @@ void ANovaPlayerController::PerformBoxSelection()
 	}
 }
 
+void ANovaPlayerController::DetermineCommandTarget(const FHitResult& HitResult, ECommandType InCommandType,
+                                                   FCommandData& OutCmdData)
+{
+	// 기본값 설정
+	OutCmdData.CommandType = InCommandType;
+	OutCmdData.TargetLocation = HitResult.Location;
+	OutCmdData.TargetActor = nullptr;
+
+	AActor* HitActor = HitResult.GetActor();
+	if (!HitActor) return;
+
+	// 인터페이스 캐스팅
+	INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(HitActor);
+	INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(HitActor);
+
+	if (Selectable)
+	{
+		// 로컬 플레이어 팀 ID 확인
+		int32 LocalTeamID = -1;
+		if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
+		{
+			LocalTeamID = PS->GetTeamID();
+		}
+
+		bool bIsFriendly = TeamInterface && TeamInterface->GetTeamID() == LocalTeamID;
+		// [버그 수정의 핵심] 안개 속 적(IsSelectable == false)은 타겟팅 대상에서 제외
+		bool bIsVisible = Selectable->IsSelectable();
+
+		// 시야에 보이는 경우에만 타겟으로 인정
+		if (bIsVisible)
+		{
+			OutCmdData.TargetActor = HitActor;
+
+			// 스마트 명령 처리: 우클릭(Move) 시 적군을 찍었다면 자동으로 Attack으로 전환
+			if (InCommandType == ECommandType::Move && !bIsFriendly)
+			{
+				OutCmdData.CommandType = ECommandType::Attack;
+			}
+		}
+	}
+}
+
+
 // 유닛들에게 명령 전송
 void ANovaPlayerController::IssueCommandToSelectedUnits(const FCommandData& CommandData)
 {
@@ -926,7 +970,7 @@ void ANovaPlayerController::GetCursorHitResult(FHitResult& OutHitResult)
 		OutHitResult.bBlockingHit = true;
 		return;
 	}
-	
+
 	// 평소에는 기존체럼 실제 마우스 커서 아래를 추적
 	GetHitResultUnderCursor(ECC_Visibility, false, OutHitResult);
 }
@@ -1012,7 +1056,7 @@ void ANovaPlayerController::InjectMinimapInput(const FVector& WorldLocation, FGa
 		// 지형 감지 실패 시 최소한 0으로 설정
 		CorrectedLocation.Z = 0.f;
 	}
-	
+
 	// 가상 상태 활성화
 	bIsMinimapInputMode = true;
 	MinimapClickLocation = CorrectedLocation;
@@ -1099,10 +1143,10 @@ void ANovaPlayerController::ClampCameraLocation()
 
 	FBox MapBox = MapManager->GetMapBounds();
 	FVector CurrentLoc = NovaPawn->GetActorLocation();
-	
+
 	// 1. 비대칭 4방향 마진 가져오기
 	FCameraViewOffsets Offsets = NovaPawn->GetCameraViewOffsets();
-	
+
 	// 2. 각 방향별로 Clamp (위아래, 좌우가 각각의 마진을 가짐)
 	// 맵의 MaxX(상단)는 Top 마진을 사용, MinX(하단)는 Bottom 마진을 사용
 	float MinX = FMath::Min(MapBox.Min.X + Offsets.Bottom - ExtraScrollMargins, MapBox.GetCenter().X);
@@ -1133,44 +1177,29 @@ void ANovaPlayerController::SetCameraLocation(const FVector& TargetWorldPos)
 	}
 }
 
-void ANovaPlayerController::DetermineCommandTarget(const FHitResult& HitResult, ECommandType InCommandType,
-                                                   FCommandData& OutCmdData)
+void ANovaPlayerController::ShowGameResult(bool bIsWinner)
 {
-	// 기본값 설정
-	OutCmdData.CommandType = InCommandType;
-	OutCmdData.TargetLocation = HitResult.Location;
-	OutCmdData.TargetActor = nullptr;
-
-	AActor* HitActor = HitResult.GetActor();
-	if (!HitActor) return;
-
-	// 인터페이스 캐스팅
-	INovaSelectableInterface* Selectable = Cast<INovaSelectableInterface>(HitActor);
-	INovaTeamInterface* TeamInterface = Cast<INovaTeamInterface>(HitActor);
-
-	if (Selectable)
+	// 위젯 클래스가 설정되어 있는지 확인
+	if (!GameResultWidgetClass)
 	{
-		// 로컬 플레이어 팀 ID 확인
-		int32 LocalTeamID = -1;
-		if (ANovaPlayerState* PS = GetPlayerState<ANovaPlayerState>())
-		{
-			LocalTeamID = PS->GetTeamID();
-		}
+		NOVA_LOG(Error, "GameResultWidgetClass is NOT assigned in BP_NovaPlayerController!");
+		return;
+	}
 
-		bool bIsFriendly = TeamInterface && TeamInterface->GetTeamID() == LocalTeamID;
-		// [버그 수정의 핵심] 안개 속 적(IsSelectable == false)은 타겟팅 대상에서 제외
-		bool bIsVisible = Selectable->IsSelectable();
+	// 결과 위젯 생성 및 표시
+	UNovaGameResultWidget* ResultWidget = CreateWidget<UNovaGameResultWidget>(this, GameResultWidgetClass);
+	if (ResultWidget)
+	{
+		ResultWidget->AddToViewport();
+		
+		ResultWidget->SetGameResult(bIsWinner);
 
-		// 시야에 보이는 경우에만 타겟으로 인정
-		if (bIsVisible)
-		{
-			OutCmdData.TargetActor = HitActor;
+		// 입력 모드를 UI 전용으로 변경 (유닛 조작 차단)
+		// FInputModeUIOnly InputMode;
+		// InputMode.SetWidgetToFocus(ResultWidget->TakeWidget());
+		// SetInputMode(InputMode);
 
-			// 스마트 명령 처리: 우클릭(Move) 시 적군을 찍었다면 자동으로 Attack으로 전환
-			if (InCommandType == ECommandType::Move && !bIsFriendly)
-			{
-				OutCmdData.CommandType = ECommandType::Attack;
-			}
-		}
+		// 게임을 일시 정지
+		// UGameplayStatics::SetGamePaused(GetWorld(), true);
 	}
 }
