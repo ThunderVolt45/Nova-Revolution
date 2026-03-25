@@ -8,7 +8,6 @@
 #include "GameFramework/PlayerController.h"
 #include "NovaPlayerController.generated.h"
 
-class ANovaMapManager;
 // 인 게임 내 유닛 하단의 체력바용
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShowHealthBarsChanged, bool, bShow);
 
@@ -80,14 +79,10 @@ protected:
 	// 엣지 스크롤링 활성화 여부
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Camera")
 	bool bEnableEdgeScrolling = true;
-
+	
 	// 화면 끝에서 몇 픽셀 이내일 때 화면을 이동시킬지 설정
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Camera")
 	float EdgeScrollMargin = 15.f;
-
-	// 맵 밖 추가 이동 마진(위젯에 가려짐 방지) 
-	UPROPERTY(EditAnywhere, Category = "Nova|Camera")
-	float ExtraScrollMargins = 700;
 	
 	// 에디터에서 할당할 IMC
 	UPROPERTY(EditDefaultsOnly, Category = "Nova|Input")
@@ -116,10 +111,6 @@ protected:
 	// 현재 대기 중인 명령 타입 (None이 아니면 다음 좌클릭 시 해당 명령 수행)
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Command")
 	ECommandType PendingCommandType = ECommandType::None;
-
-	// 맵 범위를 가져오기 위한 매니저 참조
-	UPROPERTY(Transient)
-	TObjectPtr<ANovaMapManager> MapManager;
 	
 	// 드래그 시작 시점의 화면 좌표 (픽셀 단위)
 	FVector2D DragStartPos;
@@ -243,9 +234,6 @@ protected:
 	
 	// 선택 대상이 변할 때 UI변화를 적용할 함수
 	void NotifySelectionChanged();
-	
-	// 카메라 위치를 맵 범위 내로 제한하는 함수
-	void ClampCameraLocation();
 
 public:
 	/** 선택된 유닛 배열이 변경될 때 호출되는 델리게이트 */

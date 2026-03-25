@@ -220,8 +220,15 @@ void ANovaUnit::BeginPlay()
 		MoveCmd.CommandType = ECommandType::Move;
 		MoveCmd.TargetLocation = InitialRallyLocation;
 
-		IssueCommand(MoveCmd);
-		// NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
+		// 유닛이 막 스폰되었을 때 물리/내비메시 안착 전에 이동을 시작하면 와리가리(Jitter)가 발생할 수 있으므로 약간 지연시킵니다.
+		FTimerHandle TimerHandle;
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateWeakLambda(this, [this, MoveCmd]()
+		{
+			if (IsValid(this) && !bIsDead)
+			{
+				IssueCommand(MoveCmd);
+			}
+		}), 0.1f, false);
 	}
 }
 
@@ -387,16 +394,16 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 		if (GetTeamID() != OtherUnit->GetTeamID()) continue;
 
 		ECommandType OtherCommand = ECommandType::None;
+		
 		if (ANovaAIController* OtherAI = Cast<ANovaAIController>(OtherUnit->GetController()))
 		{
 			OtherCommand = OtherAI->GetCurrentCommand();
 		}
 
-		// 상대 유닛이 Idle, Stop, Attack, Patrol 중일 때 상대를 밀어냅니다.
-		if (OtherCommand == ECommandType::None ||
-			OtherCommand == ECommandType::Stop ||
-			OtherCommand == ECommandType::Attack ||
-			OtherCommand == ECommandType::Patrol)
+		// 상대 유닛의 속도(Velocity)가 거의 0에 가까워 막히거나 정지된 상태이며,
+		// 위치 사수(Hold)나 완전 정지(Halt)처럼 자리를 굳건히 지켜야 하는 상태가 아닐 때만 상대를 밀어냅니다.
+		if (OtherUnit->GetVelocity().SizeSquared() < 10.0f && 
+			OtherCommand != ECommandType::Hold && OtherCommand != ECommandType::Halt)
 		{
 			// 상대를 밀어낼 방향 (-Diff는 OtherUnit이 나에게서 멀어지는 방향)
 			// 초당 120.0f 속도로 밀어냄
@@ -1923,10 +1930,20 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		FCommandData MoveCmd;
 		MoveCmd.CommandType = ECommandType::Move;
 		MoveCmd.TargetLocation = InitialRallyLocation;
-		IssueCommand(MoveCmd);
+		
+		// 유닛이 막 스폰되었을 때 물리/내비메시 안착 전에 이동을 시작하면 와리가리(Jitter)가 발생할 수 있으므로 약간 지연시킵니다.
+		FTimerHandle TimerHandle;
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateWeakLambda(this, [this, MoveCmd]()
+		{
+			if (IsValid(this) && !bIsDead)
+			{
+				IssueCommand(MoveCmd);
+			}
+		}), 0.1f, false);
 	}
 
-	// NOVA_LOG(Log, "Unit %s Re-initialized from Pool with new assembly.", *GetName());
+	// [추가] 풀에서 스폰 시에도 초기 회전값 리셋
+	LastYaw = GetActorRotation().Yaw;
 }
 
 void ANovaUnit::OnReturnToPool_Implementation()

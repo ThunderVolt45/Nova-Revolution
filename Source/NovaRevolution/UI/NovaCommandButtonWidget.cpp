@@ -22,7 +22,7 @@ void UNovaCommandButtonWidget::NativePreConstruct()
 void UNovaCommandButtonWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-	
+
 	if (CommandButton) CommandButton->OnClicked.AddDynamic(this, &UNovaCommandButtonWidget::OnButtonClicked);
 
 	if (ANovaPlayerController* PC = Cast<ANovaPlayerController>(GetOwningPlayer()))
@@ -87,7 +87,7 @@ bool UNovaCommandButtonWidget::HasControllableUnit(const TArray<AActor*>& Select
 			}
 		}
 	}
-	
+
 	// 첫 번째 유닛이 내 것이 아니거나 명령 불가 대상이면
 	return false;
 }

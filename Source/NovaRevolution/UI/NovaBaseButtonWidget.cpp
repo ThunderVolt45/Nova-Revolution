@@ -109,7 +109,7 @@ void UNovaBaseButtonWidget::TryCacheDeckData()
 void UNovaBaseButtonWidget::UpdateUIFromCache()
 {
 	if (!bIsDataCached || !ButtonImage) return;
-	
+
 	// 현재는 유닛 이름이 있으면 유효한 것으로 보고, 필요한 연출을 수행합니다.
 	if (!CachedUnitData.UnitName.IsEmpty())
 	{
@@ -133,7 +133,7 @@ bool UNovaBaseButtonWidget::IsBaseSelected(const TArray<AActor*>& SelectedUnits)
 
 		// 내 팀의 'Base'인지 확인
 		return (TeamInterface && TeamInterface->GetTeamID() == PS->GetTeamID() &&
-				SelectableInterface && SelectableInterface->GetSelectableType() == ENovaSelectableType::Base);
+			SelectableInterface && SelectableInterface->GetSelectableType() == ENovaSelectableType::Base);
 	}
 
 	return false;
