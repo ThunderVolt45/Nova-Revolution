@@ -439,8 +439,8 @@ public:
 	virtual int32 GetTeamID() const override { return TeamID; }
 
 	// 하위 호환성 및 기존 로직 유지를 위한 래퍼 (필요 시)
-	void SetFogVisibility(bool bVisible) { SetFogVisibility_Implementation(bVisible); }
-	bool GetFogVisibility() const { return GetFogVisibility_Implementation(); }
+	// void SetFogVisibility(bool bVisible) { SetFogVisibility_Implementation(bVisible); }
+	// bool GetFogVisibility() const { return GetFogVisibility_Implementation(); }
 
 	/** 유닛이 NavMesh 상에서 장애물로 작동할지 여부를 설정합니다. */
 	void SetNavigationObstacle(bool bIsObstacle);

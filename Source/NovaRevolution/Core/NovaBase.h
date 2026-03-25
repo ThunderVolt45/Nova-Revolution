@@ -137,9 +137,9 @@ public:
 	virtual void SetVisibilityForTeam_Implementation(int32 CurrentTeamID, bool bVisible) override;
 
 	// 하위 호환성 및 기존 로직 유지를 위한 래퍼
-	void SetFogVisibility(bool bVisible) { SetFogVisibility_Implementation(bVisible); }
+	// void SetFogVisibility(bool bVisible) { SetFogVisibility_Implementation(bVisible); }
 
-	bool GetFogVisibility() const { return bIsVisibleByFog; }
+	// bool GetFogVisibility() const { return bIsVisibleByFog; }
 	
 	// UI에서 바인딩할 수 있도록 선언
 	UPROPERTY(BlueprintAssignable, Category="Nova|UI")
