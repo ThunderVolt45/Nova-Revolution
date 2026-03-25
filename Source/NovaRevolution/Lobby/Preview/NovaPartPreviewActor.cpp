@@ -34,9 +34,6 @@ ANovaPartPreviewActor::ANovaPartPreviewActor()
     // [추가] 캡처된 결과가 이전 프레임과 섞이지 않도록 Overwrite 모드 설정
     CaptureComponent->CompositeMode = ESceneCaptureCompositeMode::SCCM_Overwrite;
     
-    // [추가] 캡처 시 레이 트레이싱 비활성화 (캐시 크래시 방지용)
-    CaptureComponent->bUseRayTracingIfEnabled = false;
-    
     // [중요] 5.7 버전 이상에서는 텍스처 타겟의 감마와 알파 처리를 위해 아래 설정이 도움될 수 있습니다.
     CaptureComponent->bAlwaysPersistRenderingState = true;
 

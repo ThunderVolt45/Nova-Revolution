@@ -55,9 +55,6 @@ ANovaDeckSlot::ANovaDeckSlot()
     SceneCapture->ShowFlags.SetFog(false);
     SceneCapture->ShowFlags.SetVolumetricFog(false);
     
-    // [추가] 레이 트레이싱 렌더링을 완전히 꺼서 구조체 캐시 크래시 방지
-    SceneCapture->bUseRayTracingIfEnabled = false;
-
     // 성능 최적화: 매 프레임 실행되는 틱(Tick) 로직이 필요 없으므로 비활성화합니다.
     PrimaryActorTick.bCanEverTick = false;
 }

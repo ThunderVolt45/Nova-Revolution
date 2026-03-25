@@ -201,7 +201,8 @@ void UNovaUnitPartProfileWidget::OnManagerDataChanged(int32 SlotIndex, const FSt
     if (bIsUserOperating) return;
 
     // 1. 내 위젯의 카테고리에 해당하는 파츠 클래스 추출
-    TSubclassOf<class ANovaPart> TargetClass = nullptr;
+    TSubclassOf<ANovaPart> TargetClass;
+    
     switch (DefaultCategory)
     {
     case ENovaPartType::Legs:
@@ -213,6 +214,8 @@ void UNovaUnitPartProfileWidget::OnManagerDataChanged(int32 SlotIndex, const FSt
     case ENovaPartType::Weapon:
         TargetClass = AssemblyData.WeaponClass;
         break;
+    default:
+        return;
     }
 
     if (!TargetClass) return;
