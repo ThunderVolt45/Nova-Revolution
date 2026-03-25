@@ -63,10 +63,10 @@ protected:
 	UFUNCTION()
 	void HandleSelectionChanged(const TArray<AActor*>& SelectedUnits);
 
-	/** [신규] 덱 정보를 한 번만 가져와 캐싱하는 함수 */
+	/** 덱 정보를 한 번만 가져와 캐싱하는 함수 */
 	void TryCacheDeckData();
 
-	/** [신규] 캐싱된 데이터를 바탕으로 아이콘/이름 등 UI 업데이트 */
+	/** 캐싱된 데이터를 바탕으로 UI 업데이트 */
 	void UpdateUIFromCache();
 
 	/** 기지가 선택되었는지 확인하는 헬퍼 함수 */
