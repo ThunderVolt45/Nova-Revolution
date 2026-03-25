@@ -11,6 +11,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Preview/PreviewUnit.h"
 #include "Core/NovaPartData.h"
+#include "Blueprint/UserWidget.h"                                                                    
+#include "Lobby/UI/NovaWarningPopupWidget.h" 
 
 ANovaLobbyManager::ANovaLobbyManager() 
 { 
@@ -320,6 +322,26 @@ void ANovaLobbyManager::ConfirmAssembly()
     {
         // 화면에 에러 로그 출력 및 진행 차단
         NOVA_SCREEN(Error, "조립 확정 불가: %s", *ErrorMsg);
+        
+        // 2. [추가] 유저용 팝업 위젯 생성 및 표시
+        if (WarningPopupClass)
+        {
+            if (APlayerController* PC = GetWorld()->GetFirstPlayerController())
+            {
+                // 위젯 인스턴스 생성
+                UNovaWarningPopupWidget* Popup = CreateWidget<UNovaWarningPopupWidget>(PC, WarningPopupClass);
+                if (Popup)
+                {
+                    // 에러 메시지 전달 및 뷰포트에 추가
+                    Popup->SetMessage(FText::FromString(ErrorMsg));
+                    
+                    // Z-Order를 높게 설정(999)하여 다른 UI 요소들보다 항상 위에 보이도록 합니다.
+                    Popup->AddToViewport(999);
+                }
+            }
+        }
+        
+        // 조립 불가 상태이므로 함수 종료 (저장 로직으로 넘어가지 않음)
         return;
     }
 

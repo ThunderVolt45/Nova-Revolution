@@ -112,6 +112,10 @@ protected:
     UPROPERTY(BlueprintReadOnly, Category = "Nova|Lobby")
     TObjectPtr<ANovaDeckManager> DeckManager;
     
+    /** 팝업으로 띄울 위젯 클래스 (에디터에서 WBP_WarningPopup 등을 할당) */
+    UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
+    TSubclassOf<class UNovaWarningPopupWidget> WarningPopupClass;
+    
     /** 특정 부품 ID로 스펙 정보를 찾아오는 헬퍼 */
     FNovaPartSpecRow GetSpecByID(FName PartID);
 };
