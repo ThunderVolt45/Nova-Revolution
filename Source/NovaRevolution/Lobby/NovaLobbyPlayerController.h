@@ -23,7 +23,7 @@ public:
 
 	/** 게임 시작 (저장 후 인게임 레벨로 이동) */
 	UFUNCTION(BlueprintCallable, Category = "Nova|Lobby")
-	void StartGame(FName InGameLevelName = TEXT("LvL_NovaMap_Dessert"));
+	void StartGame(FName InGameLevelName = TEXT("LVL_Nova_Station"));
 	
 	/** 월드에 존재하는 로비 매니저 인스턴스를 반환합니다. */
 	UFUNCTION(BlueprintPure, Category = "Nova|Lobby")
