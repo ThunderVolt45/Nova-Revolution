@@ -35,7 +35,7 @@ ANovaTargetActor_GroundRadius::ANovaTargetActor_GroundRadius()
 	CollisionCapsule->SetCapsuleHalfHeight(1000.0f); // 공중 유닛을 잡기 위한 충분한 높이
 
 	// 4. 디버깅용 시각화 활성화
-	CollisionCapsule->SetHiddenInGame(false);
+	//CollisionCapsule->SetHiddenInGame(false);
 }
 
 void ANovaTargetActor_GroundRadius::Tick(float DeltaSeconds)
