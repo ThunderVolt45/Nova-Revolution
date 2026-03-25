@@ -29,19 +29,6 @@ void UNovaMinimapWidget::NativeConstruct()
 	// 다이나믹 머터리얼 생성 및 안개 RT 연결
 	if (MinimapMaterial && FogManager)
 	{
-		/*
-		MinimapMaterialInst = UMaterialInstanceDynamic::Create(MinimapMaterial, this);
-
-		// 1. 안개 텍스처 연결
-		if (FogManager)
-			MinimapMaterialInst->SetTextureParameterValue(FName("FogTexture"), FogManager->GetCurrentFogRT());
-
-		// 2. 캡처된 배경 지형 텍스처 연결 (머터리얼 파라미터 이름: 'TerrainTexture')
-		if (UTextureRenderTarget2D* BackgroundRT = MapManager->GetMinimapBackgroundRT())
-		{
-			MinimapMaterialInst->SetTextureParameterValue(FName("TerrainTexture"), BackgroundRT);
-		}
-		*/
 		// [수정] 다이나믹 머터리얼 생성
 		MinimapMaterialInst = UMaterialInstanceDynamic::Create(MinimapMaterial, this);
 
@@ -120,11 +107,15 @@ int32 UNovaMinimapWidget::NativePaint(const FPaintArgs& Args, const FGeometry& A
 		{
 			if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
 			{
-				bVisibleOnMinimap = Unit->GetFogVisibility();
+				// bVisibleOnMinimap = Unit->GetFogVisibility();
+				// 정적 함수인 Execute_GetFogVisibility를 사용하여 호출
+				bVisibleOnMinimap = INovaVisibilityInterface::Execute_GetFogVisibility(Unit);
 			}
 			if (ANovaBase* Base = Cast<ANovaBase>(Actor))
 			{
-				bVisibleOnMinimap = Base->GetFogVisibility();
+				// bVisibleOnMinimap = Base->GetFogVisibility();
+				// 정적 함수인 Execute_GetFogVisibility를 사용하여 호출
+				bVisibleOnMinimap = INovaVisibilityInterface::Execute_GetFogVisibility(Base);
 			}
 		}
 

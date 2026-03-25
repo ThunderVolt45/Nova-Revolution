@@ -70,7 +70,9 @@ void ANovaPart::OnReturnToPool_Implementation()
 	{
 		if (Attachment.Component.IsValid() && Attachment.Parent.IsValid())
 		{
-			Attachment.Component->AttachToComponent(Attachment.Parent.Get(), FAttachmentTransformRules::SnapToTargetIncludingScale, Attachment.SocketName);
+			Attachment.Component->AttachToComponent(Attachment.Parent.Get(),
+			                                        FAttachmentTransformRules::SnapToTargetIncludingScale,
+			                                        Attachment.SocketName);
 			Attachment.Component->SetRelativeTransform(Attachment.RelativeTransform);
 		}
 	}
@@ -89,7 +91,7 @@ void ANovaPart::UpdateAiming(float DeltaTime)
 {
 	// 1. 목표 각도로 부드럽게 보간 (FInterpTo)
 	CurrentPitch = FMath::FInterpTo(CurrentPitch, TargetPitch, DeltaTime, AimInterpSpeed);
-	
+
 	// 2. ABP 연동 대신 액터 자체의 상대 회전을 제어
 	SetActorRelativeRotation(FRotator(0.f, 0.f, -CurrentPitch));
 }
@@ -123,16 +125,17 @@ void ANovaPart::InitializePartSpec()
 {
 	if (PartDataTable && !PartID.IsNone())
 	{
-		FNovaPartSpecRow* FoundRow = PartDataTable->FindRow<FNovaPartSpecRow>(PartID, TEXT("ANovaPart::InitializePartSpec"));
+		FNovaPartSpecRow* FoundRow = PartDataTable->FindRow<FNovaPartSpecRow>(
+			PartID, TEXT("ANovaPart::InitializePartSpec"));
 		if (FoundRow)
 		{
 			PartSpec = *FoundRow;
 			// NOVA_LOG(Log, "Part '%s' initialized with Spec from DataTable (PartID: %s)", *GetName(), *PartID.ToString());
 			return;
 		}
-		
-		NOVA_CHECK(false, "Failed to find PartID '%s' in DataTable '%s' for Part '%s'", 
-			*PartID.ToString(), *PartDataTable->GetName(), *GetName());
+
+		NOVA_CHECK(false, "Failed to find PartID '%s' in DataTable '%s' for Part '%s'",
+		           *PartID.ToString(), *PartDataTable->GetName(), *GetName());
 	}
 }
 
@@ -143,7 +146,7 @@ UPrimitiveComponent* ANovaPart::GetMainMesh() const
 		// NOVA_LOG(Log, "Part '%s': MainMesh is SkeletalMesh", *GetName());
 		return SkeletalMesh;
 	}
-	
+
 	if (StaticMesh && StaticMesh->GetStaticMesh())
 	{
 		// NOVA_LOG(Log, "Part '%s': MainMesh is StaticMesh", *GetName());
@@ -263,15 +266,16 @@ void ANovaPart::PlayFireEffects(FVector TargetLocation)
 {
 	// 1. 애니메이션 재생
 	PlayAttackAnimation();
- 
+
 	// 2. GameplayCue 실행 (발사 효과)
 	if (FireCueTag.IsValid())
 	{
 		// 유닛 본체(IAbilitySystemInterface 구현체)를 찾습니다.
 		AActor* AbilityOwner = GetOwner();
-		
+
 		// 만약 Owner가 인터페이스를 구현하지 않는다면, 부착된 부모 액터들을 거슬러 올라가며 찾습니다.
-		if (AbilityOwner == nullptr || AbilityOwner->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()) == nullptr)
+		if (AbilityOwner == nullptr || AbilityOwner->GetInterfaceAddress(UAbilitySystemInterface::StaticClass()) ==
+			nullptr)
 		{
 			AActor* CurrentSearch = this;
 			while (CurrentSearch)
@@ -285,13 +289,13 @@ void ANovaPart::PlayFireEffects(FVector TargetLocation)
 				CurrentSearch = ParentActor;
 			}
 		}
- 
+
 		if (IAbilitySystemInterface* ASI = Cast<IAbilitySystemInterface>(AbilityOwner))
 		{
 			if (UAbilitySystemComponent* ASC = ASI->GetAbilitySystemComponent())
 			{
 				UPrimitiveComponent* Mesh = GetMainMesh();
-				
+
 				// 지정된 모든 총구 소켓에서 동시에 효과 발생
 				if (MuzzleSocketNames.Num() > 0 && Mesh)
 				{
@@ -300,7 +304,7 @@ void ANovaPart::PlayFireEffects(FVector TargetLocation)
 						FGameplayCueParameters Params;
 						Params.Location = Mesh->GetSocketLocation(SocketName);
 						Params.Normal = Mesh->GetSocketRotation(SocketName).Vector();
-						
+
 						// FGameplayCueParameters에는 Origin 필드가 없으므로, EffectContext를 통해 전달합니다.
 						FGameplayEffectContextHandle ContextHandle = ASC->MakeEffectContext();
 						ContextHandle.AddOrigin(TargetLocation);
@@ -309,7 +313,7 @@ void ANovaPart::PlayFireEffects(FVector TargetLocation)
 						Params.Instigator = AbilityOwner;
 						Params.EffectCauser = this;
 						Params.TargetAttachComponent = Mesh; // 소켓을 찾을 대상 컴포넌트를 명시
-						
+
 						ASC->ExecuteGameplayCue(FireCueTag, Params);
 					}
 				}
@@ -318,7 +322,7 @@ void ANovaPart::PlayFireEffects(FVector TargetLocation)
 					FGameplayCueParameters Params;
 					Params.Location = GetActorLocation();
 					Params.Normal = GetActorForwardVector();
-					
+
 					FGameplayEffectContextHandle ContextHandle = ASC->MakeEffectContext();
 					ContextHandle.AddOrigin(TargetLocation);
 					Params.EffectContext = ContextHandle;
@@ -326,14 +330,15 @@ void ANovaPart::PlayFireEffects(FVector TargetLocation)
 					Params.Instigator = AbilityOwner;
 					Params.EffectCauser = this;
 					Params.TargetAttachComponent = Mesh;
-					
+
 					ASC->ExecuteGameplayCue(FireCueTag, Params);
 				}
 			}
 		}
 		else
 		{
-			NOVA_LOG(Warning, "PlayFireEffects: Could not find AbilitySystemInterface on Owner or Parent of %s", *GetName());
+			NOVA_LOG(Warning, "PlayFireEffects: Could not find AbilitySystemInterface on Owner or Parent of %s",
+			         *GetName());
 		}
 	}
 }
@@ -369,6 +374,12 @@ void ANovaPart::SetCharredAlpha(float Alpha)
 
 void ANovaPart::ExplodeAndDetach(FVector Impulse)
 {
+	// [추가] 객체 유효성 검사 (이미 파괴 중이거나 유효하지 않으면 중단)
+	if (!IsValid(this) || !RootComponent)
+	{
+		return;
+	}
+
 	// 1. 부모로부터 분리 (월드 변환 유지)
 	DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
 
@@ -378,16 +389,20 @@ void ANovaPart::ExplodeAndDetach(FVector Impulse)
 
 	for (UPrimitiveComponent* MeshComp : PrimitiveComps)
 	{
-		if (MeshComp && MeshComp != RootComponent)
+		// [중요] 각 컴포넌트의 유효성과 물리 설정 가능 여부 확인
+		if (IsValid(MeshComp) && MeshComp != RootComponent)
 		{
-			MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-			MeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
-			MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-			MeshComp->SetSimulatePhysics(true);
-			MeshComp->SetCanEverAffectNavigation(false);
-			
-			// 튕겨나가는 힘 적용
-			MeshComp->AddImpulse(Impulse, NAME_None, true);
+			if (MeshComp && MeshComp != RootComponent)
+			{
+				MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+				MeshComp->SetCollisionProfileName(TEXT("PhysicsActor"));
+				MeshComp->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+				MeshComp->SetSimulatePhysics(true);
+				MeshComp->SetCanEverAffectNavigation(false);
+
+				// 튕겨나가는 힘 적용
+				MeshComp->AddImpulse(Impulse, NAME_None, true);
+			}
 		}
 	}
 
@@ -395,6 +410,12 @@ void ANovaPart::ExplodeAndDetach(FVector Impulse)
 	FTimerHandle ReturnTimer;
 	GetWorld()->GetTimerManager().SetTimer(ReturnTimer, [this]()
 	{
+		// 실행 시점에 이 객체가 여전히 유효한지 확인
+		if (!IsValid(this))
+		{
+			return;
+		}
+
 		if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())
 		{
 			PoolSubsystem->ReturnToPool(this);
