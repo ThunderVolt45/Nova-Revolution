@@ -27,7 +27,7 @@ protected:
 
 	/** 이동할 인게임 레벨 이름 (에디터의 디테일 패널에서 수정 가능) */
 	UPROPERTY(EditAnywhere, Category = "Nova|Lobby")
-	FName TargetLevelName = TEXT("LVL_NovaMap_Dessert");
+	FName TargetLevelName = TEXT("LVL_Nova_Station");
 
 protected:
 	/** * 위젯 블루프린트(WBP)에서 'Btn_Start'라는 이름으로 버튼을 배치해야 합니다. 
