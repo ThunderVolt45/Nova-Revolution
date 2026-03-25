@@ -46,7 +46,16 @@ EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& Owne
 	}
 
 	// 새로운 명령이 하달되어 ExecuteTask가 실행될 때, 즉시 이동을 시작하여 반응성 확보
-	if (!Target && !GoalLocation.IsZero())
+	if (Target)
+	{
+		float Range = GetAttackRange(MyUnit);
+		if (!MyUnit->IsTargetInRange(Target, Range))
+		{
+			// 오차 방지를 위해 사거리의 50% 지점까지만 이동 (충분히 안으로 들어오도록 유도)
+			AIC->MoveToActorOptimized(Target, Range * 0.5f);
+		}
+	}
+	else if (!GoalLocation.IsZero())
 	{
 		AIC->MoveToLocationOptimized(GoalLocation, 10.0f);
 	}
@@ -174,8 +183,8 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 			{
 				// NOVA_LOG(Log, "[Attack Task] IsTargetInRange returned FALSE. Moving to target.");
 				
-				// 추격 함수 호출
-				AIC->MoveToActorOptimized(Target, 10.0f); 
+				// 추격 함수 호출 (AcceptanceRadius를 사거리의 50%로 설정하여 확실하고 안정적인 사거리 진입 보장)
+				AIC->MoveToActorOptimized(Target, Range * 0.5f);
 			}
 		}
 
