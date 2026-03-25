@@ -339,10 +339,20 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 
 	// [개선] 지상 유닛이 고정된 장애물(기지 등)을 타켓팅할 때, 
 	// 타겟 위치가 NavMesh 구멍(Null Area) 내부면 이동이 시작되지 않으므로 강제 보정합니다.
-	if (MyUnit && MyUnit->GetMovementType() == ENovaMovementType::Ground)
+	if (MyUnit)
 	{
-		// 속도가 거의 없는 경우 (기지 등 고정 객체)
-		if (TargetActor->GetVelocity().IsNearlyZero())
+		// 공중 유닛이 지상 타겟(기지 등)을 쫓는 경우: 타겟의 수평 위치 + 자신의 공중 고도 기반으로 이동
+		if (MyUnit->GetMovementType() == ENovaMovementType::Air && !bIsTargetAir)
+		{
+			FVector TargetLoc = TargetActor->GetActorLocation();
+			TargetLoc.Z = MyUnit->GetDefaultAirZ(); // 자신의 공중 고도로 고정
+			
+			MoveToLocation(TargetLoc, AcceptanceRadius, true, true, false, true, UNovaNavigationFilter_Move::StaticClass(), true);
+			return;
+		}
+
+		// 지상 유닛인 경우의 고정 객체(기지 등) 보정
+		if (MyUnit->GetMovementType() == ENovaMovementType::Ground && TargetActor->GetVelocity().IsNearlyZero())
 		{
 			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 			if (NavSys)
