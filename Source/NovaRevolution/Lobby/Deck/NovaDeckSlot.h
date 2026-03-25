@@ -94,4 +94,7 @@ private:
 	 * 타이머에 의해 호출되거나 직접 호출되어 RenderTarget에 씬을 기록합니다.
 	 */
 	void ExecuteCapture();
+
+	/** [추가] 0.5초간의 매 프레임 캡처를 중단하는 함수 */
+	void StopEveryFrameCapture();
 };

@@ -6,7 +6,6 @@
 #include "NovaRevolution.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/StaticMeshComponent.h"
-#include "Components/SpotLightComponent.h"
 #include "Core/NovaLog.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Lobby/NovaLobbyPlayerController.h"
@@ -55,6 +54,9 @@ ANovaDeckSlot::ANovaDeckSlot()
     SceneCapture->ShowFlags.SetSkyLighting(false);
     SceneCapture->ShowFlags.SetFog(false);
     SceneCapture->ShowFlags.SetVolumetricFog(false);
+    
+    // [추가] 레이 트레이싱 렌더링을 완전히 꺼서 구조체 캐시 크래시 방지
+    SceneCapture->bUseRayTracingIfEnabled = false;
 
     // 성능 최적화: 매 프레임 실행되는 틱(Tick) 로직이 필요 없으므로 비활성화합니다.
     PrimaryActorTick.bCanEverTick = false;
@@ -153,30 +155,43 @@ void ANovaDeckSlot::SetCaptureTarget(AActor* TargetUnit)
     }
     
     // --- [성능 및 품질 최적화: 지연 캡처 로직] ---
-
     // 1. 기존에 예약된 타이머가 있다면 취소하여 중복 실행을 방지합니다.
     if (GetWorld())
     {
         GetWorldTimerManager().ClearTimer(CaptureTimerHandle);
     }
 
-    // 2. [즉시 캡처] 유저에게 즉각적인 피드백을 주기 위해 먼저 한 번 촬영합니다.
-    ExecuteCapture();
-
-    // 3. [지연 캡처] 0.1초 후에 한 번 더 촬영합니다.
-    // 이 짧은 지연 시간 동안 엔진이 메쉬에 머티리얼을 완전히 입히고 텍스처를 로드할 시간을 확보합니다.
-    // (텍스처 스트리밍으로 인한 흐릿한 썸네일 현상 방지)
-    if (GetWorld())
+    // 2. 0.5초 동안 비동기 스트리밍되는 텍스처들이 모두 로드될 수 있도록 매 프레임 캡처를 활성화합니다.
+    if (SceneCapture)
     {
-        GetWorldTimerManager().SetTimer(
-            CaptureTimerHandle,
-            this,
-            &ANovaDeckSlot::ExecuteCapture,
-            1.0f,
-            false
-        );
+        SceneCapture->bCaptureEveryFrame = true;
+        
+        // 0.5초 뒤에 캡처를 중단하도록 타이머 설정
+        if (GetWorld())
+        {
+            GetWorldTimerManager().SetTimer(
+                CaptureTimerHandle,
+                this,
+                &ANovaDeckSlot::StopEveryFrameCapture,
+                0.5f,
+                false
+            );
+        }
     }
-    
+}
+
+void ANovaDeckSlot::StopEveryFrameCapture()
+{
+    if (SceneCapture)
+    {
+        // 0.5초가 지났으므로 매 프레임 캡처를 끄고 정적인 상태로 유지합니다.
+        SceneCapture->bCaptureEveryFrame = false;
+        
+        // 마지막으로 한 번 더 명시적으로 캡처하여 최상의 화질을 보장합니다.
+        // SceneCapture->CaptureScene();
+        
+        NOVA_LOG(Log, "Deck Slot %d: 0.5s Warmup Capture Finished.", SlotIndex);
+    }
 }
 
 void ANovaDeckSlot::ExecuteCapture()
