@@ -220,8 +220,15 @@ void ANovaUnit::BeginPlay()
 		MoveCmd.CommandType = ECommandType::Move;
 		MoveCmd.TargetLocation = InitialRallyLocation;
 
-		IssueCommand(MoveCmd);
-		// NOVA_LOG(Log, "Unit %s is moving to initial rally point: %s", *GetName(), *InitialRallyLocation.ToString());
+		// 유닛이 막 스폰되었을 때 물리/내비메시 안착 전에 이동을 시작하면 와리가리(Jitter)가 발생할 수 있으므로 약간 지연시킵니다.
+		FTimerHandle TimerHandle;
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateWeakLambda(this, [this, MoveCmd]()
+		{
+			if (IsValid(this) && !bIsDead)
+			{
+				IssueCommand(MoveCmd);
+			}
+		}), 0.1f, false);
 	}
 }
 
@@ -1923,10 +1930,20 @@ void ANovaUnit::OnSpawnFromPool_Implementation()
 		FCommandData MoveCmd;
 		MoveCmd.CommandType = ECommandType::Move;
 		MoveCmd.TargetLocation = InitialRallyLocation;
-		IssueCommand(MoveCmd);
+		
+		// 유닛이 막 스폰되었을 때 물리/내비메시 안착 전에 이동을 시작하면 와리가리(Jitter)가 발생할 수 있으므로 약간 지연시킵니다.
+		FTimerHandle TimerHandle;
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle, FTimerDelegate::CreateWeakLambda(this, [this, MoveCmd]()
+		{
+			if (IsValid(this) && !bIsDead)
+			{
+				IssueCommand(MoveCmd);
+			}
+		}), 0.1f, false);
 	}
 
-	// NOVA_LOG(Log, "Unit %s Re-initialized from Pool with new assembly.", *GetName());
+	// [추가] 풀에서 스폰 시에도 초기 회전값 리셋
+	LastYaw = GetActorRotation().Yaw;
 }
 
 void ANovaUnit::OnReturnToPool_Implementation()
