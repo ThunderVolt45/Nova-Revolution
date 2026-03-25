@@ -72,7 +72,8 @@ void ANovaLobbyPlayerController::StartGame(FName InGameLevelName)
 	
 	// 2. 레벨 이동 실행
 	// 에디터에서 전달받은 이름이 없으면 기본 이름 사용
-	FName FinalLevelName = InGameLevelName.IsNone() ? FName("LVL_NovaMap_Dessert") : InGameLevelName;
+	// FName FinalLevelName = InGameLevelName.IsNone() ? FName("LVL_NovaMap_Dessert") : InGameLevelName;
+	FName FinalLevelName = InGameLevelName.IsNone() ? FName("LVL_Nova_Station") : InGameLevelName;
 	
 	UGameplayStatics::OpenLevel(GetWorld(), FinalLevelName);
 	
