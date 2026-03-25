@@ -161,6 +161,8 @@ EBlackboardNotificationResult ANovaAIController::OnCommandTypeChanged(const UBla
 
 void ANovaAIController::IssueCommand(const FCommandData& CommandData)
 {
+	if (bIsAIStopped) return;
+
 	if (BlackboardComponent && BlackboardComponent->GetBlackboardAsset())
 	{
 		APawn* MyPawn = GetPawn();
@@ -611,6 +613,13 @@ void ANovaAIController::ActivateAbilityByTag(const FGameplayTag& AbilityTag, AAc
 
 void ANovaAIController::OnPawnDeath()
 {
+	StopAI();
+}
+
+void ANovaAIController::StopAI()
+{
+	bIsAIStopped = true;
+
 	if (BehaviorTreeComponent)
 	{
 		BehaviorTreeComponent->StopTree(EBTStopMode::Safe);
@@ -621,6 +630,8 @@ void ANovaAIController::OnPawnDeath()
 
 void ANovaAIController::RestartLogic()
 {
+	bIsAIStopped = false;
+	
 	if (BehaviorTreeComponent)
 	{
 		BehaviorTreeComponent->RestartLogic();

@@ -2,6 +2,8 @@
 
 #include "NovaGameMode.h"
 #include "NovaRevolution.h"
+#include "NovaUnit.h"
+#include "AI/NovaAIController.h"
 #include "Core/NovaBase.h"
 #include "Core/NovaPlayerState.h"
 #include "Core/NovaSaveGame.h"
@@ -231,7 +233,33 @@ void ANovaGameMode::OnBaseDestroyed(ANovaBase* DestroyedBase)
 
 void ANovaGameMode::EndMatch(int32 WinningTeamID)
 {
+	if (bIsMatchEnded) return;
+	bIsMatchEnded = true;
+
 	NOVA_SCREEN(Warning, "WINNER: Team %d", WinningTeamID);
+
+	// 게임이 종료되면 모든 AI 컨트롤러(사령관) 동작 정지
+	for (auto& Elem : TeamAIControllers)
+	{
+		if (ANovaAIPlayerController* AIC = Elem.Value)
+		{
+			AIC->StopAI();
+		}
+	}
+
+	// 필드에 존재하는 모든 유닛의 AI 동작 정지
+	TArray<AActor*> AllUnits;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANovaUnit::StaticClass(), AllUnits);
+	for (AActor* Actor : AllUnits)
+	{
+		if (ANovaUnit* Unit = Cast<ANovaUnit>(Actor))
+		{
+			if (ANovaAIController* UnitAIC = Cast<ANovaAIController>(Unit->GetController()))
+			{
+				UnitAIC->StopAI();
+			}
+		}
+	}
 
 	if (UNovaAudioSubsystem* AudioSubsystem = GetGameInstance()->GetSubsystem<UNovaAudioSubsystem>())
 	{
