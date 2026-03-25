@@ -11,6 +11,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 #include "Core/NovaAudioSubsystem.h"
+#include "Player/NovaPlayerController.h"
 
 ANovaGameMode::ANovaGameMode()
 {
@@ -263,6 +264,24 @@ void ANovaGameMode::EndMatch(int32 WinningTeamID)
 					AudioSubsystem->PlayBGM(DefeatBGM, false);
 				}
 			}
+		}
+	}
+	
+	// 로컬 플레이어 컨트롤러를 가져와 위젯 표시 함수 호출
+	if (ANovaPlayerController* NovaPC = Cast<ANovaPlayerController>(GetWorld()->GetFirstPlayerController()))
+	{
+		if (ANovaPlayerState* PS = NovaPC->GetPlayerState<ANovaPlayerState>())
+		{
+			int32 MyTeamID = PS->GetTeamID();
+			// 플레이어의 팀 ID와 승리 팀 ID를 비교하여 승리 여부 판단
+			bool bIsWinner = (PS->GetTeamID() == WinningTeamID);
+
+			// [디버그 로그 추가]
+			NOVA_SCREEN(Warning, "Match Result Check - MyTeam: %d, WinnerTeam: %d, Result: %s",
+				MyTeamID, WinningTeamID, bIsWinner ? TEXT("WIN") : TEXT("LOSE"));
+			
+			// NovaPC의 게임 결과 함수 호출
+			NovaPC->ShowGameResult(bIsWinner);
 		}
 	}
 }

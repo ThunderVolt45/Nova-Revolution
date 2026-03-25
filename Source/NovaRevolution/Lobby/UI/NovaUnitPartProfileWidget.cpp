@@ -126,18 +126,11 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
         NOVA_LOG(Log, "Profile UI Updated: %s (Index: %d)", *TargetID.ToString(), CurrentIndex);
     }
 
-    // 3. [핵심] 3D 프리뷰 및 매니저 동기화는 무거운 작업이므로 디바운스(Debounce) 처리
-    // 유저가 매우 빠르게 '다음/이전'을 클릭할 경우, 마지막 클릭 시점에만 3D를 갱신합니다.
+    // 3. [핵심] 3D 프리뷰 및 매니저 동기화를 다음 프레임(NextTick)으로 예약
+    // 파츠 부착 및 연산이 현재 프레임에 완료된 후, 안정적으로 캡처와 동기화가 일어나도록 합니다.
     if (GetWorld())
     {
-        GetWorld()->GetTimerManager().ClearTimer(Update3DPreviewTimerHandle);
-        GetWorld()->GetTimerManager().SetTimer(
-            Update3DPreviewTimerHandle,
-            this,
-            &UNovaUnitPartProfileWidget::Update3DPreview,
-            0.1f, // 0.1초의 지연 시간을 두어 연타 시의 프리뷰 스왑 부하를 방지
-            false
-        );
+        GetWorld()->GetTimerManager().SetTimerForNextTick(this, &UNovaUnitPartProfileWidget::Update3DPreview);
     }
 }
 
@@ -208,12 +201,21 @@ void UNovaUnitPartProfileWidget::OnManagerDataChanged(int32 SlotIndex, const FSt
     if (bIsUserOperating) return;
 
     // 1. 내 위젯의 카테고리에 해당하는 파츠 클래스 추출
-    TSubclassOf<class ANovaPart> TargetClass = nullptr;
+    TSubclassOf<ANovaPart> TargetClass;
+    
     switch (DefaultCategory)
     {
-    case ENovaPartType::Legs:   TargetClass = AssemblyData.LegsClass; break;
-    case ENovaPartType::Body:   TargetClass = AssemblyData.BodyClass; break;
-    case ENovaPartType::Weapon: TargetClass = AssemblyData.WeaponClass; break;
+    case ENovaPartType::Legs:
+        TargetClass = AssemblyData.LegsClass;
+        break;
+    case ENovaPartType::Body:
+        TargetClass = AssemblyData.BodyClass;
+        break;
+    case ENovaPartType::Weapon:
+        TargetClass = AssemblyData.WeaponClass;
+        break;
+    default:
+        return;
     }
 
     if (!TargetClass) return;

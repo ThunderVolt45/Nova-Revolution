@@ -19,7 +19,4 @@ protected:
 	/** 게임 시작 시 로드할 실제 첫 레벨 (에디터에서 지정) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Loading")
 	TSoftObjectPtr<UWorld> StartupTargetLevel;
-
-	/** 비동기 로딩 완료 콜백 */
-	void OnStartupLevelLoaded(const FName& PackageName, UPackage* LoadedPackage, EAsyncLoadingResult::Type Result);
 };
