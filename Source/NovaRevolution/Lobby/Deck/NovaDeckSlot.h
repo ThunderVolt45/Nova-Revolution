@@ -85,16 +85,15 @@ protected:
 	
 private:
 	/** * 지연 캡처(Delayed Capture)를 제어하기 위한 핸들입니다. 
-	 * 부품 부착 직후에 바로 캡처하면 프레임 업데이트 타이밍에 따라 
-	 * 간헐적으로 부품이 누락되는 현상을 방지하기 위해 사용합니다.
+	 * 0.5초간의 워밍업 캡처가 완료된 후 시스템을 정지시키는 데 사용합니다.
 	 */
 	FTimerHandle CaptureTimerHandle;
 
-	/** * 실제로 SceneCapture를 실행하는 헬퍼 함수입니다. 
-	 * 타이머에 의해 호출되거나 직접 호출되어 RenderTarget에 씬을 기록합니다.
+	/** 실제로 SceneCapture를 실행하는 헬퍼 함수입니다. 
+	 * 필요 시 수동으로 씬을 기록합니다.
 	 */
-	void ExecuteCapture();
+	void ExecuteCapture() const;
 
-	/** [추가] 0.5초간의 매 프레임 캡처를 중단하는 함수 */
-	void StopEveryFrameCapture();
+	/** 0.5초간의 매 프레임 캡처를 중단하는 함수 */
+	void StopEveryFrameCapture() const;
 };

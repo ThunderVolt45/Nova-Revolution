@@ -161,11 +161,11 @@ void ANovaDeckSlot::SetCaptureTarget(AActor* TargetUnit)
         GetWorldTimerManager().ClearTimer(CaptureTimerHandle);
     }
 
-    // 2. 0.5초 동안 비동기 스트리밍되는 텍스처들이 모두 로드될 수 있도록 매 프레임 캡처를 활성화합니다.
+    // 2. 0.5초 동안 엔진 렌더러가 데이터를 충분히 준비할 수 있도록 매 프레임 캡처를 활성화합니다.
     if (SceneCapture)
     {
         SceneCapture->bCaptureEveryFrame = true;
-        
+
         // 0.5초 뒤에 캡처를 중단하도록 타이머 설정
         if (GetWorld())
         {
@@ -180,27 +180,24 @@ void ANovaDeckSlot::SetCaptureTarget(AActor* TargetUnit)
     }
 }
 
-void ANovaDeckSlot::StopEveryFrameCapture()
+void ANovaDeckSlot::StopEveryFrameCapture() const
 {
     if (SceneCapture)
     {
         // 0.5초가 지났으므로 매 프레임 캡처를 끄고 정적인 상태로 유지합니다.
         SceneCapture->bCaptureEveryFrame = false;
         
-        // 마지막으로 한 번 더 명시적으로 캡처하여 최상의 화질을 보장합니다.
-        // SceneCapture->CaptureScene();
-        
         NOVA_LOG(Log, "Deck Slot %d: 0.5s Warmup Capture Finished.", SlotIndex);
     }
 }
 
-void ANovaDeckSlot::ExecuteCapture()
+
+void ANovaDeckSlot::ExecuteCapture() const
 {
     // SceneCapture 컴포넌트와 결과물이 저장될 RenderTarget이 유효한지 확인합니다.
     if (SceneCapture && RenderTarget)
     {
         // 실제로 렌더 타겟에 현재 설정된 ShowOnlyActors 유닛의 모습을 그립니다.
-        // 수동 호출(CaptureScene)을 통해 필요한 시점에만 렌더링 자원을 사용합니다.
         SceneCapture->CaptureScene();
     }
 }
