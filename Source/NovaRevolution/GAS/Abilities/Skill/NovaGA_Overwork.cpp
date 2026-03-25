@@ -43,7 +43,7 @@ void UNovaGA_Overwork::ActivateAbility(const FGameplayAbilitySpecHandle Handle, 
     float StopDuration = (RefillAmount / RegenRate) * 1.3f;
     
     // 4. 비용 지불
-    ApplySkillCost();              // 한 줄로 공통 소모 처리
+    ApplySkillCost();
 
     // 5. Watt 즉시 회복 (SetByCaller 활용)
     if (WattRefillGEClass)
@@ -75,7 +75,7 @@ void UNovaGA_Overwork::ActivateAbility(const FGameplayAbilitySpecHandle Handle, 
     // 7. 시각 효과 실행 (통합 GCN 시스템 사용)
     ExecuteSkillGCN(FGameplayAbilityTargetDataHandle());
 
-    NOVA_SCREEN(Log, "Base Overwork Activated: Refilled %.0f, Stopped for %.2f sec", RefillAmount, StopDuration);
+    // NOVA_SCREEN(Log, "Base Overwork Activated: Refilled %.0f, Stopped for %.2f sec", RefillAmount, StopDuration);
     EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
 }
 

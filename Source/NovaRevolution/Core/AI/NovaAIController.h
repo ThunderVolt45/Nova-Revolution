@@ -53,6 +53,9 @@ public:
 	/** 빙의된 유닛이 사망했을 때 호출되어 AI 동작을 정지합니다. */
 	void OnPawnDeath();
 
+	/** AI 로직(비헤이비어 트리)을 완전히 정지시킵니다. (게임 종료 시 등) */
+	void StopAI();
+
 	/** AI 로직(비헤이비어 트리)을 처음부터 다시 시작합니다. */
 	void RestartLogic();
 
@@ -122,4 +125,7 @@ private:
 	static const FName TargetActorKey;
 	static const FName CommandTypeKey;
 	static const FName IsFocusAttackKey;
+
+	/** AI 동작이 강제로 정지되었는지 여부 (게임 종료 시 등) */
+	bool bIsAIStopped = false;
 };

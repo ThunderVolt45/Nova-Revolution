@@ -88,4 +88,8 @@ protected:
 	/** 패배 시 재생할 BGM */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Nova|Audio")
 	TObjectPtr<USoundBase> DefeatBGM;
+
+private:
+	/** 게임이 종료되었는지 여부 */
+	bool bIsMatchEnded = false;
 };
