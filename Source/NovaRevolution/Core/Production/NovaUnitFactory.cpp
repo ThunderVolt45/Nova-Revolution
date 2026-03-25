@@ -1,4 +1,6 @@
 #include "Core/Production/NovaUnitFactory.h"
+
+#include "NavigationSystem.h"
 #include "Core/NovaGameMode.h"
 #include "Core/NovaInterfaces.h"
 #include "Core/NovaPlayerState.h"
@@ -96,6 +98,19 @@ bool UNovaUnitFactory::RequestSpawnUnitFromDeck(int32 SlotIndex, AActor* Spawner
 	// 7. 스폰 위치 결정 (기지 전방 오프셋)
 	FTransform SpawnTransform = Spawner->GetActorTransform();
 	FVector SpawnLocation = SpawnTransform.GetLocation() + Spawner->GetActorForwardVector() * 350.f;
+
+	// [수정] 스폰 지점이 NavMesh 구멍(기지 내부)이나 영역 밖일 경우를 대비해 유효한 내비메시 지점으로 투영
+	UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+	if (NavSys)
+	{
+		FNavLocation ProjectedLocation;
+		// 500 유닛 범위 내에서 가장 가까운 유효한 NavMesh 지점을 찾습니다.
+		if (NavSys->ProjectPointToNavigation(SpawnLocation, ProjectedLocation, FVector(500.f, 500.f, 500.f)))
+		{
+			SpawnLocation = ProjectedLocation.Location;
+		}
+	}
+
 	SpawnTransform.SetLocation(SpawnLocation);
 	
 	// 유닛의 크기가 기지(Spawner)의 스케일을 따라가지 않도록 (1, 1, 1)로 초기화
@@ -175,7 +190,7 @@ class ANovaUnit* UNovaUnitFactory::ExecuteUnitProduction(const FNovaUnitAssembly
 	}
 	
 	// NOVA_SCREEN(Log, "[SpawnTrace] Execute: UnitClass Loaded - %s", *UnitClass->GetName());
-	ANovaUnit* NewUnit = nullptr;
+	ANovaUnit* NewUnit;
 
 	// 1. 오브젝트 풀 서브시스템에서 유닛을 가져옵니다. (자동 활성화를 끕니다)
 	if (UNovaObjectPoolSubsystem* PoolSubsystem = GetWorld()->GetSubsystem<UNovaObjectPoolSubsystem>())

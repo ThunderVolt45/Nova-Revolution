@@ -33,7 +33,7 @@ EBTNodeResult::Type UNovaBTTask_MoveToLocation::ExecuteTask(UBehaviorTreeCompone
 	// 목표 지점 읽기
 	FVector GoalLocation = OwnerComp.GetBlackboardComponent()->GetValueAsVector(TargetLocationKey.SelectedKeyName);
 
-	// [수정] 지상 유닛인 경우 도달 불가능한 위치 보정
+	// 지상 유닛인 경우 도달 불가능한 위치 보정
 	if (MoveType == ENovaMovementType::Ground)
 	{
 		UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());

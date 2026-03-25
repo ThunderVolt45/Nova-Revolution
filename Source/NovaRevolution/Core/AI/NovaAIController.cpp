@@ -45,17 +45,31 @@ void ANovaAIController::Tick(float DeltaTime)
 	if (bIsMoving)
 	{
 		UpdateStuckDetection(DeltaTime);
+		StationaryTimer = 0.0f; // 이동 중이면 정지 타이머 초기화
 	}
 	else
 	{
 		StuckTimer = 0.0f;
+		StationaryTimer += DeltaTime; // 정지 중이면 타이머 누적
 	}
 
 	// [핵심] 유닛이 엔진 내비게이션을 통해 이동 중이 아닐 때만 장애물로 작동하게 함.
-	// 이를 통해 순찰 대기 중이거나 공격 사거리 내에서 제자리에 서서 공격할 때 자동으로 장애물이 됩니다.
+	// [보완] 와리가리(Zigzag) 방지를 위해 즉시 전환하지 않고 일정 시간(ObstacleTransitionDelay) 이상 정지했을 때만 전환.
 	if (ANovaUnit* MyUnit = Cast<ANovaUnit>(GetPawn()))
 	{
-		MyUnit->SetNavigationObstacle(!bIsMoving);
+		// 이동 중이면 즉시 장애물 해제 (경로 탐색 방해 방지)
+		if (bIsMoving)
+		{
+			MyUnit->SetNavigationObstacle(false);
+		}
+		else
+		{
+			// 정지 중일 때는 타이머가 임계값을 넘었을 때만 장애물로 전환
+			if (StationaryTimer >= ObstacleTransitionDelay)
+			{
+				MyUnit->SetNavigationObstacle(true);
+			}
+		}
 	}
 }
 

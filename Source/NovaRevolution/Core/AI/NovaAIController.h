@@ -100,6 +100,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
 	float BypassDistance = 250.f;
 
+	/** 유닛이 멈춘 후 장애물로 전환되기까지 대기하는 시간 (초) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|AI")
+	float ObstacleTransitionDelay = 0.5f;
+
 private:
 	/** 마지막으로 공격 어빌리티를 사용한 시간 (통합 쿨다운 관리용) */
 	float LastAttackTime = 0.0f;
@@ -109,6 +113,9 @@ private:
 
 	/** 마지막으로 위치를 체크했던 좌표 */
 	FVector LastStuckCheckLocation = FVector::ZeroVector;
+
+	/** 유닛이 정지 상태로 유지된 누적 시간 (장애물 전환용) */
+	float StationaryTimer = 0.0f;
 
 	/** 블랙보드 키 이름 정의 */
 	static const FName TargetLocationKey;

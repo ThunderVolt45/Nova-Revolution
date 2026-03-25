@@ -3,6 +3,7 @@
 #include "Core/AI/NovaBTTask_Attack.h"
 #include "Core/AI/NovaAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "NavigationSystem.h"
 #include "Core/NovaUnit.h"
 #include "Core/NovaTypes.h"
 #include "AbilitySystemComponent.h"
@@ -45,7 +46,9 @@ EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& Owne
 		return EBTNodeResult::Failed;
 	}
 
-	// 새로운 명령이 하달되어 ExecuteTask가 실행될 때, 즉시 이동을 시작하여 반응성 확보
+	ENovaMovementType MoveType = MyUnit ? MyUnit->GetMovementType() : ENovaMovementType::Ground;
+
+	// 목표로 액터가 전달되었을 경우
 	if (Target)
 	{
 		float Range = GetAttackRange(MyUnit);
@@ -55,8 +58,30 @@ EBTNodeResult::Type UNovaBTTask_Attack::ExecuteTask(UBehaviorTreeComponent& Owne
 			AIC->MoveToActorOptimized(Target, Range * 0.5f);
 		}
 	}
+	// 목표로 위치가 전달되었을 경우
 	else if (!GoalLocation.IsZero())
 	{
+		// 지상 유닛인 경우 도달 불가능한 위치 보정
+		if (MoveType == ENovaMovementType::Ground)
+		{
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			if (NavSys)
+			{
+				FNavLocation ProjectedLocation;
+				// 수평 1000, 수직 2000 범위 내에서 가장 가까운 유효한 NavMesh 지점을 탐색합니다.
+				if (NavSys->ProjectPointToNavigation(GoalLocation, ProjectedLocation, FVector(1000.f, 1000.f, 2000.f)))
+				{
+					GoalLocation = ProjectedLocation.Location;
+				}
+				else
+				{
+					// 투영에 실패했다는 것은 근처에 NavMesh가 아예 없다는 의미일 수 있음
+					// 이때는 태스크를 실패시키기보다 최소한 현재 위치에서 그 방향으로 조금이라도 시도하도록 GoalLocation 유지
+					// (엔진의 AllowPartialPath가 나머지를 처리)
+				}
+			}
+		}
+		
 		AIC->MoveToLocationOptimized(GoalLocation, 10.0f);
 	}
 
@@ -113,6 +138,7 @@ void UNovaBTTask_Attack::TickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 
 				FinishLatentTask(OwnerComp, EBTNodeResult::Succeeded);
 			}
+
 			// 공격 이동(Attack-Move)인 경우 타겟만 제거하고 태스크를 유지하여 원래 목적지 이동 재개 유도
 			return;
 		}
