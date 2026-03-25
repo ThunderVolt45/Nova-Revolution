@@ -321,6 +321,29 @@ void ANovaAIController::MoveToActorOptimized(AActor* TargetActor, float Acceptan
 		}
 	}
 
+	// [개선] 지상 유닛이 고정된 장애물(기지 등)을 타켓팅할 때, 
+	// 타겟 위치가 NavMesh 구멍(Null Area) 내부면 이동이 시작되지 않으므로 강제 보정합니다.
+	if (MyUnit && MyUnit->GetMovementType() == ENovaMovementType::Ground)
+	{
+		// 속도가 거의 없는 경우 (기지 등 고정 객체)
+		if (TargetActor->GetVelocity().IsNearlyZero())
+		{
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			if (NavSys)
+			{
+				FNavLocation ProjectedLocation;
+				
+				// 가장 가까운 유효 내비메시 지점을 찾습니다.
+				if (NavSys->ProjectPointToNavigation(TargetActor->GetActorLocation(), ProjectedLocation, FVector(400.f, 400.f, 100.f)))
+				{
+					// 보정된 위치로 MoveToLocation을 수행하면 경로 생성이 보장됩니다.
+					MoveToLocation(ProjectedLocation.Location, AcceptanceRadius, true, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
+					return;
+				}
+			}
+		}
+	}
+
 	// 일반적인 타겟 추적 시 필터 적용 (공중 유닛도 엔진 이동 사용)
 	MoveToActor(TargetActor, AcceptanceRadius, true, true, true, UNovaNavigationFilter_Move::StaticClass(), true);
 }
