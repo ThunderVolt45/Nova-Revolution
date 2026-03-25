@@ -222,31 +222,6 @@ void UNovaUnitPartProfileWidget::Update3DPreview()
             NOVA_LOG(Log, "3D Preview Updated for Part: %s", *TargetID.ToString());
         }
     }
-    
-    // [완료] 데이터 동기화 로직은 UpdateDisplay에서 이미 수행되었습니다.
-    
-    // // 2. 중앙의 AssemblyPreviewUnit 및 로비 매니저와 실시간 동기화
-    // if (ANovaLobbyPlayerController* LobbyPC = Cast<ANovaLobbyPlayerController>(GetOwningPlayer()))
-    // {
-    //     if (ANovaLobbyManager* Manager = LobbyPC->GetLobbyManager())
-    //     {
-    //         // 이 함수 호출을 통해 중앙 유닛의 외형이 최종적으로 교체됩니다.
-    //         Manager->SelectPart(DefaultCategory, TargetID);
-    //         NOVA_LOG(Log, "Manager Sync Completed for Part: %s", *TargetID.ToString());
-    //     }
-    // }
-    // 2. [핵심 수정] 매니저의 '전체 조립 데이터' 업데이트 (유저 조작 시에만 실행)
-    // 초기화 루프가 아닌, 유저가 직접 버튼을 클릭했을 때만 매니저의 데이터를 변경합니다.
-    
-    // if (bIsUserOperating)
-    // {
-    //     if (ANovaLobbyManager* Manager = Cast<ANovaLobbyManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaLobbyManager::StaticClass())))
-    //     {
-    //         // 현재 카테고리(DefaultCategory)에 선택한 파트 ID를 적용하여 
-    //         // 로비 중앙의 메인 프리뷰 유닛과 PendingData를 동기화합니다.
-    //         Manager->SelectPart(DefaultCategory, TargetID);
-    //     }
-    // }
 }
 
 void UNovaUnitPartProfileWidget::OnManagerDataChanged(int32 SlotIndex, const FString& UnitName,
