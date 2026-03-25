@@ -1057,7 +1057,7 @@ void ANovaUnit::Die()
 
 	// 일정 시간 후 오브젝트 풀로 반환 (사망 애니메이션 대기)
 	FTimerHandle ReturnToPoolTimer;
-	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, [this]()
+	GetWorld()->GetTimerManager().SetTimer(ReturnToPoolTimer, FTimerDelegate::CreateWeakLambda(this, [this]()
 	{
 		// 제거 시점에 폭발 효과(GCN) 실행
 		if (ExplosionCueTag.IsValid() && AbilitySystemComponent)
@@ -1110,7 +1110,7 @@ void ANovaUnit::Die()
 		{
 			Destroy();
 		}
-	}, TimeToDestroy, false);
+	}), TimeToDestroy, false);
 }
 
 void ANovaUnit::UpdateCharredEffect(float Alpha)

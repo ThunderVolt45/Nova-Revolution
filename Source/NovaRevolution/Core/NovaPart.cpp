@@ -408,7 +408,7 @@ void ANovaPart::ExplodeAndDetach(FVector Impulse)
 
 	// 3. 일정 시간 후 오브젝트 풀로 반납 (자가 반납)
 	FTimerHandle ReturnTimer;
-	GetWorld()->GetTimerManager().SetTimer(ReturnTimer, [this]()
+	GetWorld()->GetTimerManager().SetTimer(ReturnTimer, FTimerDelegate::CreateWeakLambda(this, [this]()
 	{
 		// 실행 시점에 이 객체가 여전히 유효한지 확인
 		if (!IsValid(this))
@@ -424,5 +424,5 @@ void ANovaPart::ExplodeAndDetach(FVector Impulse)
 		{
 			Destroy();
 		}
-	}, 5.0f, false);
+	}), 5.0f, false);
 }
