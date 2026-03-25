@@ -4,8 +4,10 @@
 #include "Player/NovaPawn.h"
 
 #include "Camera/CameraComponent.h"
+#include "Core/NovaMapManager.h"
 #include "GameFramework/FloatingPawnMovement.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 ANovaPawn::ANovaPawn()
@@ -61,23 +63,31 @@ ANovaPawn::ANovaPawn()
 void ANovaPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	/*
-	// TargetZoomLength를 OrthoWidth로 부드럽게 보간
-	CameraComponent->OrthoWidth = FMath::FInterpTo(
-		CameraComponent->OrthoWidth,
-		TargetZoomLength, // TargetZoomLength를 직접 사용
+
+	// TargetZoomLength를 SpringArm의 길이로 부드럽게 보간
+	SpringArmComponent->TargetArmLength = FMath::FInterpTo(
+		SpringArmComponent->TargetArmLength,
+		TargetZoomLength,
 		DeltaTime,
 		ZoomInterpSpeed
 	);
-	*/
 	
-	// TargetZoomLength를 SpringArm의 길이로 부드럽게 보간
-	SpringArmComponent->TargetArmLength = FMath::FInterpTo(
-	SpringArmComponent->TargetArmLength,
-	TargetZoomLength,
-	DeltaTime,
-	ZoomInterpSpeed
-);
+	// 이동 계산이 끝난 후 즉시 위치 제한(렌더링 직전)
+	ClampLocation();
+}
+
+void ANovaPawn::BeginPlay()
+{
+	Super::BeginPlay();
+	
+	// 월드에서 MapManager 찾아서 캐싱
+	MapManager = Cast<ANovaMapManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaMapManager::StaticClass()));
+
+	// 이동 컴포넌트가 먼저 계산된 후 Pawn의 Tick이 실행되도록 설정 (떨림 방지)
+	if (MovementComponent)
+	{
+		AddTickPrerequisiteComponent(MovementComponent);
+	}
 }
 
 void ANovaPawn::UpdateZoom(float Direction)
@@ -124,48 +134,19 @@ FVector2D ANovaPawn::GetCameraViewExtent() const
 
 FCameraViewOffsets ANovaPawn::GetCameraViewOffsets() const
 {
-	/*
-	FCameraViewOffsets Offsets;
-	if (!CameraComponent) return Offsets;
-
-	// 1. 현재 화면의 가로 너비 (줌에 따라 실시간 반영)
-	float OrthoWidth = CameraComponent->OrthoWidth;
-
-	// 2. 화면 비율(Aspect Ratio) 계산 (기본 16:9)
-	float AspectRatio = 1.777f;
-	if (GEngine && GEngine->GameViewport)
-	{
-		FVector2D ViewportSize;
-		GEngine->GameViewport->GetViewportSize(ViewportSize);
-		if (ViewportSize.Y > 0) AspectRatio = ViewportSize.X / ViewportSize.Y;
-	}
-
-	// 3. 직사각형 시야 범위 계산 (PawnLoc 중심에서 화면 끝까지의 거리)
-	// Orthographic 모드에서는 좌우 거리가 Width의 절반입니다.
-	float HalfWidth = OrthoWidth * 0.5f;
-
-	// 상하 거리는 AspectRatio에 따라 달라집니다 (Height = Width / AspectRatio)
-	float HalfHeight = HalfWidth / AspectRatio;
-
-	// 4. 오프셋 설정 (모든 방향이 대칭인 직사각형)
-	// RTS 조작계가 카메라를 75도로 내려다보고 있더라도 직교 투영은 왜곡이 없으므로
-	// 상하좌우가 동일한 거리로 계산되어야 완벽한 직사각형 클램핑이 가능합니다.
-	Offsets.Left = HalfWidth;
-	Offsets.Right = HalfWidth;
-	Offsets.Top = HalfHeight;
-	Offsets.Bottom = HalfHeight;
-
-	return Offsets;
-	*/
 	FCameraViewOffsets Offsets;
 	if (!CameraComponent || !SpringArmComponent) return Offsets;
 
-	// 1. 필요한 기본 정보 가져오기
-	float ArmLength = SpringArmComponent->TargetArmLength;
-	float Pitch = -SpringArmComponent->GetRelativeRotation().Pitch; // 보통 75도
-	float HalfHFOV = FMath::DegreesToRadians(CameraComponent->FieldOfView * 0.5f);
+	// 1. 카메라의 실제 월드 위치와 회전값 가져오기
+	FVector CamLoc = CameraComponent->GetComponentLocation();
+	FRotator CamRot = CameraComponent->GetComponentRotation();
+	float CamZ = CamLoc.Z; // 지면(Z=0)으로부터의 실제 높이
 
-	// 화면 비율 계산
+	// 카메라가 지면에 너무 가까우면 계산 오류가 날 수 있으므로 최소값 방어
+	if (CamZ < 10.f) CamZ = 10.f;
+
+	// 2. FOV 및 화면 비율 계산
+	float HalfHFOV = FMath::DegreesToRadians(CameraComponent->FieldOfView * 0.5f);
 	float AspectRatio = 1.777f;
 	if (GEngine && GEngine->GameViewport)
 	{
@@ -174,31 +155,94 @@ FCameraViewOffsets ANovaPawn::GetCameraViewOffsets() const
 		if (ViewportSize.Y > 0) AspectRatio = ViewportSize.X / ViewportSize.Y;
 	}
 
-	// 2. 수직 FOV(VFOV) 계산
-	float HalfVFOV = FMath::Atan(FMath::Tan(HalfHFOV) / AspectRatio);
+	// 3. 카메라 방향 벡터들
+	FVector CamForward = CamRot.Vector();
+	FVector CamRight = FRotationMatrix(CamRot).GetUnitAxis(EAxis::Y);
+	FVector CamUp = FRotationMatrix(CamRot).GetUnitAxis(EAxis::Z);
 
-	// 3. 카메라 높이(Z)와 바닥 오프셋(X) 계산
-	float RadPitch = FMath::DegreesToRadians(Pitch);
-	float CamZ = ArmLength * FMath::Sin(RadPitch);
-	float CamXOffset = ArmLength * FMath::Cos(RadPitch);
+	// 4. 카메라의 4개 모서리 방향 벡터 계산
+	// 줌 0일 때도 카메라의 실제 위치에서 바닥(Z=0) 평면으로 레이를 쏴서 교차점을 찾습니다.
+	auto GetPlaneIntersection = [&](float HorizontalMultiplier, float VerticalMultiplier) -> FVector
+	{
+		// 화면 모서리로 향하는 방향 벡터
+		FVector RayDir = CamForward
+			+ (CamRight * FMath::Tan(HalfHFOV) * HorizontalMultiplier)
+			+ (CamUp * (FMath::Tan(HalfHFOV) / AspectRatio) * VerticalMultiplier);
+		RayDir.Normalize();
 
-	// 4. 상하단 바닥 투영 거리 계산 (수직선 기준 각도 사용)
-	float CenterAngle = FMath::DegreesToRadians(90.f - Pitch); // 카메라 중심축이 수직선과 이루는 각도
+		// 지면(Z=0)과의 교차점 계산
+		if (FMath::IsNearlyZero(RayDir.Z)) return CamLoc + RayDir * 10000.f;
 
-	// Pawn 위치(중심)로부터 상단/하단 경계까지의 월드 거리
-	float DistToTop = CamZ * FMath::Tan(CenterAngle + HalfVFOV);
-	float DistToBottom = CamZ * FMath::Tan(CenterAngle - HalfVFOV);
+		float t = -CamLoc.Z / RayDir.Z;
+		return CamLoc + RayDir * t;
+	};
 
-	Offsets.Top = DistToTop - CamXOffset;
-	Offsets.Bottom = CamXOffset - DistToBottom;
+	// 4개 꼭짓점의 월드 좌표
+	FVector TopLeft = GetPlaneIntersection(-1.f, 1.f);
+	FVector TopRight = GetPlaneIntersection(1.f, 1.f);
+	FVector BottomLeft = GetPlaneIntersection(-1.f, -1.f);
+	FVector BottomRight = GetPlaneIntersection(1.f, -1.f);
 
-	// 5. 좌우 너비 계산 (RTS 클램핑을 위해 가장 넓은 상단 지점 기준 너비 사용)
-	// 실제로는 사다리꼴이지만, 현재 구조(Left/Right 하나씩)를 유지하기 위해 가장 넉넉한 값을 반환합니다.
-	float RayToTopDist = CamZ / FMath::Cos(CenterAngle + HalfVFOV); // 카메라에서 상단 경계까지의 직선 거리
-	float HalfWidthAtTop = RayToTopDist * FMath::Tan(HalfHFOV);
+	// 5. 폰 위치(GetActorLocation)를 기준으로 오프셋 계산
+	FVector PawnLoc = GetActorLocation();
 
-	Offsets.Left = HalfWidthAtTop;
-	Offsets.Right = HalfWidthAtTop;
+	// 월드 X는 위아래(Top/Bottom), 월드 Y는 좌우(Left/Right)
+	Offsets.Top = (TopLeft.X + TopRight.X) * 0.5f - PawnLoc.X;
+	Offsets.Bottom = PawnLoc.X - (BottomLeft.X + BottomRight.X) * 0.5f;
+	Offsets.Left = PawnLoc.Y - (TopLeft.Y + BottomLeft.Y) * 0.5f;
+	Offsets.Right = (TopRight.Y + BottomRight.Y) * 0.5f - PawnLoc.Y;
 
 	return Offsets;
+}
+
+void ANovaPawn::ClampLocation()
+{
+	if (!MapManager) return;
+
+	FBox MapBox = MapManager->GetMapBounds();
+	FVector CurrentLoc = GetActorLocation();
+
+	// 현재 카메라 시야에 따른 오프셋 계산
+	FCameraViewOffsets Offsets = GetCameraViewOffsets();
+
+	// 맵 경계 계산
+	float MinX = FMath::Min(MapBox.Min.X + Offsets.Bottom - ExtraScrollMargins, MapBox.GetCenter().X);
+	float MaxX = FMath::Max(MapBox.Max.X - Offsets.Top, MapBox.GetCenter().X);
+	float MinY = FMath::Min(MapBox.Min.Y + Offsets.Left, MapBox.GetCenter().Y);
+	float MaxY = FMath::Max(MapBox.Max.Y - Offsets.Right, MapBox.GetCenter().Y);
+
+	FVector ClampedLoc = CurrentLoc;
+	ClampedLoc.X = FMath::Clamp(CurrentLoc.X, MinX, MaxX);
+	ClampedLoc.Y = FMath::Clamp(CurrentLoc.Y, MinY, MaxY);
+
+	// 실제 위치가 범위를 벗어났다면
+	if (!CurrentLoc.Equals(ClampedLoc, 0.1f))
+	{
+		SetActorLocation(ClampedLoc);
+
+		// 어느 축이 나갔는지 판정하여 속도 제어 (떨림 방지 2단계)
+		bool bOutX = !FMath::IsNearlyEqual(CurrentLoc.X, ClampedLoc.X, 0.1f);
+		bool bOutY = !FMath::IsNearlyEqual(CurrentLoc.Y, ClampedLoc.Y, 0.1f);
+
+		StopMovementOnAxis(bOutX, bOutY);
+	}
+}
+
+void ANovaPawn::StopMovementOnAxis(bool bStopX, bool bStopY)
+{
+	if (MovementComponent)
+	{
+		FVector NewVelocity = MovementComponent->Velocity;
+
+		if (bStopX) NewVelocity.X = 0.f;
+		if (bStopY) NewVelocity.Y = 0.f;
+
+		MovementComponent->Velocity = NewVelocity;
+
+		// 만약 두 축 모두 멈춰야 한다면 아예 이동 입력을 비웁니다.
+		if (bStopX && bStopY)
+		{
+			MovementComponent->StopMovementImmediately();
+		}
+	}
 }
