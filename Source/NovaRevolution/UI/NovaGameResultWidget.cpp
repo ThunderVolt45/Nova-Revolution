@@ -48,7 +48,10 @@ void UNovaGameResultWidget::OnQuitToLobbyClicked()
 	UGameplayStatics::SetGamePaused(GetWorld(), false);
 
 	// 로비 레벨로 이동
-	UGameplayStatics::OpenLevel(this, LobbyLevelName);
+	// UGameplayStatics::OpenLevel(this, LobbyLevelName);
+	
+	// 동기 로드 및 레벨 전환 수행
+	UGameplayStatics::OpenLevelBySoftObjectPtr(this, LobbyLevel);
 }
 
 /*
