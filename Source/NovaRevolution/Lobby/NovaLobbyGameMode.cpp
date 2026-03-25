@@ -4,6 +4,7 @@
 #include "Lobby/NovaLobbyGameMode.h"
 
 #include "NovaRevolution.h"
+#include "Core/NovaAudioSubsystem.h"
 #include "Lobby/NovaLobbyPlayerController.h"
 #include "Core/NovaPartData.h"
 #include "Core/NovaObjectPoolSubsystem.h"
@@ -49,5 +50,17 @@ void ANovaLobbyGameMode::BeginPlay()
 	else
 	{
 		NOVA_LOG(Warning, "Lobby GameMode: PartAssetDataTable is not assigned. Cannot preload parts.");
+	}
+	
+	// 로비 전용 BGM 재생 로직
+	if (LobbyBGM)
+	{
+		// GameInstance를 통해 전역적으로 유지되는 AudioSubsystem 획득
+		if (UNovaAudioSubsystem* AudioSubsystem = GetGameInstance()->GetSubsystem<UNovaAudioSubsystem>())
+		{
+			// 서브시스템 내부에 정의된 PlayBGM을 호출하여 로비 음악 재생 시작
+			// 일반적으로 서브시스템 내부에서 기존 음악 Fade Out 및 새 음악 Fade In 처리가 포함됩니다.
+			AudioSubsystem->PlayBGM(LobbyBGM);
+		}
 	}
 }
