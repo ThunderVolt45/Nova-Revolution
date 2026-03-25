@@ -386,18 +386,17 @@ void ANovaUnit::HandleUnitOverlaps(float DeltaTime)
 		// --- 아군 길막힘 방지 밀어내기 로직 ---
 		if (GetTeamID() != OtherUnit->GetTeamID()) continue;
 
-		bool bOtherIsMoving = false;
 		ECommandType OtherCommand = ECommandType::None;
 		
 		if (ANovaAIController* OtherAI = Cast<ANovaAIController>(OtherUnit->GetController()))
 		{
-			bOtherIsMoving = OtherAI->IsMoveInProgress();
 			OtherCommand = OtherAI->GetCurrentCommand();
 		}
 
-		// 상대 유닛이 내비게이션 경로 이동 중이 아니며, 
+		// 상대 유닛의 속도(Velocity)가 거의 0에 가까워 막히거나 정지된 상태이며,
 		// 위치 사수(Hold)나 완전 정지(Halt)처럼 자리를 굳건히 지켜야 하는 상태가 아닐 때만 상대를 밀어냅니다.
-		if (!bOtherIsMoving && OtherCommand != ECommandType::Hold && OtherCommand != ECommandType::Halt)
+		if (OtherUnit->GetVelocity().SizeSquared() < 10.0f && 
+			OtherCommand != ECommandType::Hold && OtherCommand != ECommandType::Halt)
 		{
 			// 상대를 밀어낼 방향 (-Diff는 OtherUnit이 나에게서 멀어지는 방향)
 			// 초당 120.0f 속도로 밀어냄
