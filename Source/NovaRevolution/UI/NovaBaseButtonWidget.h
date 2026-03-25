@@ -48,10 +48,10 @@ protected:
 	/** 게임 시작 시 캐싱해둘 유닛 데이터 */
 	UPROPERTY(BlueprintReadOnly, Category = "Nova|Base")
 	FNovaUnitAssemblyData CachedUnitData;
-	
+
 	/** 데이터 캐싱 성공 여부 */
 	bool bIsDataCached = false;
-	
+
 	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
 
@@ -71,6 +71,4 @@ protected:
 
 	/** 기지가 선택되었는지 확인하는 헬퍼 함수 */
 	bool IsBaseSelected(const TArray<AActor*>& SelectedUnits) const;
-
-	
 };

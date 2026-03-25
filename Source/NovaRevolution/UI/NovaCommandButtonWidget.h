@@ -14,16 +14,16 @@ UCLASS()
 class NOVAREVOLUTION_API UNovaCommandButtonWidget : public UUserWidget
 {
 	GENERATED_BODY()
-	
+
 public:
 	/** 이 버튼이 수행할 명령 타입 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Command")
 	ECommandType CommandType = ECommandType::None;
-	
+
 	/** 버튼에 표시될 명령 아이콘 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|UI")
 	TObjectPtr<UTexture2D> CommandIcon;
-	
+
 protected:
 	/** 블루프린트 위젯의 Image 컴포넌트와 바인딩 (이름: CommandImage) */
 	UPROPERTY(meta = (BindWidget))
@@ -32,7 +32,7 @@ protected:
 	/** 블루프린트 위젯의 Button 컴포넌트와 바인딩 (이름: CommandButton) */
 	UPROPERTY(meta = (BindWidget))
 	class UButton* CommandButton;
-	
+
 	virtual void NativePreConstruct() override;
 	virtual void NativeConstruct() override;
 
