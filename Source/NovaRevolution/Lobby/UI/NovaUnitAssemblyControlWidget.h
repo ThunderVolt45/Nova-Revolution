@@ -39,8 +39,8 @@ protected:
 	// --- 위젯 바인딩 (WBP의 계층 구조 내 이름과 일치해야 함) ---
 
 	/** 현재 편집 중인 슬롯의 인덱스를 표시하는 텍스트 블록 */
-	UPROPERTY(meta = (BindWidget))
-	class UTextBlock* Txt_SlotNumber;
+	// UPROPERTY(meta = (BindWidget))
+	// class UTextBlock* Txt_SlotNumber;
 
 	/** 조립 확정(저장) 버튼 */
 	UPROPERTY(meta = (BindWidget))

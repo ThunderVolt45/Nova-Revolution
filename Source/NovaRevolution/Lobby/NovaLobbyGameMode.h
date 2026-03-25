@@ -19,6 +19,10 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	
+	/** 로비 레벨 진입 시 자동으로 재생될 배경 음악 에셋 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Lobby")
+	TObjectPtr<class USoundBase> LobbyBGM;
 
 public:
 	/** 로비 진입 시 미리 메모리에 로드(Preload)할 부품 데이터 테이블 */
