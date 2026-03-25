@@ -45,6 +45,10 @@ protected:
 	bool bIsWinner = false;
 
 	/** 로비 맵의 실제 이름 */
-	UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
-	FName LobbyLevelName = FName("LVL_Unit_Assembly_Lobby"); // FName LobbyLevelName = FName("Lvl_Entry");
+	// UPROPERTY(EditDefaultsOnly, Category = "Nova|UI")
+	// FName LobbyLevelName = FName("LVL_Unit_Assembly_Lobby");
+	
+	/** 로비 레벨 (에디터에서 지정) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Nova|Level")
+	TSoftObjectPtr<UWorld> LobbyLevel;
 };
