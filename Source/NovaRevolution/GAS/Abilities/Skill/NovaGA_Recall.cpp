@@ -10,6 +10,7 @@
 #include "Core/NovaLog.h"
 #include "Player/NovaPlayerController.h"
 #include "NavigationSystem.h"
+#include "Components/CapsuleComponent.h"
 
 UNovaGA_Recall::UNovaGA_Recall()
 {
@@ -141,6 +142,9 @@ void UNovaGA_Recall::OnTargetDataReadyCallback(const FGameplayAbilityTargetDataH
                         FinalLocation = NavLoc.Location;
                     }
                 }
+
+                // [추가] 지상 유닛의 경우 캡슐 절반 높이만큼 Z축을 들어올려 지면에 발이 닿게 합니다.
+                FinalLocation.Z += Unit->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
             }
 
             // 공중 유닛인 경우, 유닛이 유지해야 할 기본 고도(DefaultAirZ)를 Z축에 더해줍니다.

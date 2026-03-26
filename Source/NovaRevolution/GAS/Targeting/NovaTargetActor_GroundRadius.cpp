@@ -110,11 +110,11 @@ void ANovaTargetActor_GroundRadius::Tick(float DeltaSeconds)
 			}
 		}
 		UnitNames.RemoveFromEnd(TEXT(", "));
-		NOVA_SCREEN(Log, "Units in Range (%d): %s", CurrentUnits.Num(), *UnitNames);
+		// NOVA_SCREEN(Log, "Units in Range (%d): %s", CurrentUnits.Num(), *UnitNames);
 	}
 	else
 	{
-		NOVA_SCREEN(Log, "No Allied Units in Range.");
+		// NOVA_SCREEN(Log, "No Allied Units in Range.");
 	}
 
 	// 지면(XY평면)에 평행한 원 그리기
