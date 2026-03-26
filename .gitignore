@@ -93,3 +93,9 @@ __pycache__/
 
 .gemini/
 gha-creds-*.json
+Docs/AI_PLAYER_SYSTEM.md
+Docs/OBJECT_POOL_SYSTEM.md
+Docs/PLAYER_GAS_SYSTEM.md
+Docs/UNIT_AI_ARCHITECTURE.md
+Docs/UNIT_COMBAT_GAS_SYSTEM.md
+Docs/UNIT_GAS_SYSTEM.md
