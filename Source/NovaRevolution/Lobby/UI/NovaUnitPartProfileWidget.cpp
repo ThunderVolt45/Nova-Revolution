@@ -16,42 +16,69 @@
 
 void UNovaUnitPartProfileWidget::InitCategory(ENovaPartType Category)
 {
-    if (!PartSpecTable) return;
+    if (!PartSpecTable || !PartAssetTable) return;
 
     CategoryPartIDs.Empty();
 
-    // 1. 데이터 테이블의 모든 행(RowName)을 가져와 현재 카테고리에 맞는 부품만 필터링
+    // 1. 카테고리에 맞는 부품 ID 리스트 생성
     TArray<FName> AllRowNames = PartSpecTable->GetRowNames();
     for (const FName& RowName : AllRowNames)
     {
-        FNovaPartSpecRow* Spec = PartSpecTable->FindRow<FNovaPartSpecRow>(RowName, TEXT(""));
-        if (Spec && Spec->PartType == Category)
+        if (FNovaPartSpecRow* Spec = PartSpecTable->FindRow<FNovaPartSpecRow>(RowName, TEXT("")))
         {
-            CategoryPartIDs.Add(RowName);
+            if (Spec->PartType == Category)
+            {
+                CategoryPartIDs.Add(RowName);
+            }
         }
     }
-    // 2. 리스트의 첫 번째 항목으로 초기 인덱스 설정 및 화면 갱신
-    CurrentIndex = 0;
-    
-    // 런타임에 태그를 기반으로 레벨 내 배치된 프리뷰 액터를 찾아 연결합니다.
-    // 에디터에서 직접 할당하지 않았더라도 태그가 일치하면 자동으로 바인딩됩니다.
+
+    // 2. 매니저의 현재 조립 데이터와 UI 인덱스 동기화
+    CurrentIndex = 0; 
+    if (ANovaLobbyManager* Manager = Cast<ANovaLobbyManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaLobbyManager::StaticClass())))
+    {
+        const FNovaUnitAssemblyData& Pending = Manager->GetPendingData();
+        TSubclassOf<ANovaPart> CurrentClass = nullptr;
+
+        // 카테고리별 현재 클래스 추출
+        switch (Category)
+        {
+            case ENovaPartType::Legs:   CurrentClass = Pending.LegsClass; break;
+            case ENovaPartType::Body:   CurrentClass = Pending.BodyClass; break;
+            case ENovaPartType::Weapon: CurrentClass = Pending.WeaponClass; break;
+            default: break;
+        }
+
+        // 추출된 클래스가 리스트의 몇 번째인지 검색
+        if (CurrentClass)
+        {
+            for (int32 i = 0; i < CategoryPartIDs.Num(); ++i)
+            {
+                if (FNovaPartAssetRow* AssetRow = PartAssetTable->FindRow<FNovaPartAssetRow>(CategoryPartIDs[i], TEXT("")))
+                {
+                    if (AssetRow->PartClass == CurrentClass)
+                    {
+                        CurrentIndex = i;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. 월드 내 프리뷰 액터 검색 및 바인딩
     if (!PreviewActor && !PreviewActorTag.IsNone())
     {
         TArray<AActor*> FoundActors;
         UGameplayStatics::GetAllActorsWithTag(GetWorld(), PreviewActorTag, FoundActors);
-
         if (FoundActors.Num() > 0)
         {
-            // 첫 번째로 발견된 일치하는 태그의 액터를 프리뷰 액터로 캐스팅하여 할당
             PreviewActor = Cast<ANovaPartPreviewActor>(FoundActors[0]);
-        
-            if (PreviewActor)
-            {
-                NOVA_LOG(Log, "Successfully bound PreviewActor via Tag: %s", *PreviewActorTag.ToString());
-            }
         }
     }
-    
+
+    // 4. 초기화 모드로 디스플레이 갱신 (사용자 조작에 의한 데이터 변경 방지)
+    bIsUserOperating = false;
     UpdateDisplay();
 }
 
@@ -59,11 +86,14 @@ void UNovaUnitPartProfileWidget::InitCategory(ENovaPartType Category)
 
 void UNovaUnitPartProfileWidget::ShowNextPart()
 {
+    // 표시할 부품 리스트가 없으면 중단
     if (CategoryPartIDs.Num() == 0) return;
-    
-    // 리스트 끝에 도달하면 다시 처음(0)으로 돌아가는 순환 구조
+    bIsUserOperating = true;
     CurrentIndex = (CurrentIndex + 1) % CategoryPartIDs.Num();
     UpdateDisplay();
+
+    // 4. 작업 완료 후 플래그 OFF: 의도치 않은 데이터 오염 방지
+    bIsUserOperating = false;
 }
 
 void UNovaUnitPartProfileWidget::ShowPrevPart()
@@ -125,6 +155,17 @@ void UNovaUnitPartProfileWidget::UpdateDisplay()
 
         NOVA_LOG(Log, "Profile UI Updated: %s (Index: %d)", *TargetID.ToString(), CurrentIndex);
     }
+    
+    // 2. [핵심 수정] 매니저의 '전체 조립 데이터' 업데이트
+    // 유저 조작 시에만 실행하여, 초기화 도중 데이터가 덮어씌워지는 것을 방지합니다.
+    if (bIsUserOperating)
+    {
+        if (ANovaLobbyManager* Manager = Cast<ANovaLobbyManager>(UGameplayStatics::GetActorOfClass(GetWorld(), ANovaLobbyManager::StaticClass())))
+        {
+            // 매니저에게 어떤 파트가 선택되었는지 알림 -> 메인 프리뷰 유닛 메시 교체 유발
+            Manager->SelectPart(DefaultCategory, TargetID);
+        }
+    }
 
     // 3. [핵심] 3D 프리뷰 및 매니저 동기화를 다음 프레임(NextTick)으로 예약
     // 파츠 부착 및 연산이 현재 프레임에 완료된 후, 안정적으로 캡처와 동기화가 일어나도록 합니다.
@@ -179,17 +220,6 @@ void UNovaUnitPartProfileWidget::Update3DPreview()
             }
             
             NOVA_LOG(Log, "3D Preview Updated for Part: %s", *TargetID.ToString());
-        }
-    }
-    
-    // 2. 중앙의 AssemblyPreviewUnit 및 로비 매니저와 실시간 동기화
-    if (ANovaLobbyPlayerController* LobbyPC = Cast<ANovaLobbyPlayerController>(GetOwningPlayer()))
-    {
-        if (ANovaLobbyManager* Manager = LobbyPC->GetLobbyManager())
-        {
-            // 이 함수 호출을 통해 중앙 유닛의 외형이 최종적으로 교체됩니다.
-            Manager->SelectPart(DefaultCategory, TargetID);
-            NOVA_LOG(Log, "Manager Sync Completed for Part: %s", *TargetID.ToString());
         }
     }
 }
