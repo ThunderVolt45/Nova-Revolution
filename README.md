@@ -1,9 +1,11 @@
 # Nova Revolution
 
+<img width="960" height="540" alt="스크린샷 2026-06-30 105958" src="https://github.com/user-attachments/assets/d4e5e799-b019-4bc8-9884-21a9e3238613" />
+
+<p></p>
+
 **Nova Revolution**은 고전 RTS 게임 **노바 1492**를 언리얼 엔진 5로 리메이크한 팀 포트폴리오 프로젝트입니다.
 플레이어는 다양한 부품을 조합해 자신만의 커스텀 유닛을 제작하고, 이를 실시간으로 생산·지휘하여 적 기지를 파괴하는 것을 목표로 합니다.
-
-> 언리얼 8기 4조 팀 프로젝트
 
 ---
 
@@ -15,9 +17,7 @@
 - [기술 스택](#기술-스택)
 - [프로젝트 구조](#프로젝트-구조)
 - [빌드 및 실행](#빌드-및-실행)
-- [개발 규약](#개발-규약)
 - [문서](#문서)
-- [팀](#팀)
 - [라이선스](#라이선스)
 
 ---
@@ -35,8 +35,8 @@
 ## 게임 플레이
 
 - **장르:** 실시간 전략 (RTS)
-- **플랫폼:** Windows
-- **게임 모드:** AI 1vs1 대전
+- **플랫폼:** PC (Windows)
+- **게임 모드:** 1vs1 PvE 대전
 - **승리 조건:** 적의 기지를 파괴하면 승리, 아군의 기지가 파괴되면 패배
 
 각 플레이어는 하나의 기지와 소량의 자원으로 시작합니다. 추가 건물은 건설할 수 없으며,
@@ -113,17 +113,6 @@ NovaRevolution/
 3. `NovaRevolution.sln`을 Visual Studio에서 열고 **Development Editor / Win64** 구성으로 빌드합니다.
 4. 빌드가 완료되면 `NovaRevolution.uproject`를 실행합니다.
 
-## 개발 규약
-
-- **데이터 주도 개발:** GAS, GameplayTag, GameplayCue, Data Asset, Data Table을 적극 활용합니다.
-- **명시적 실패:** 오류 상황은 `check()`, `ensure()`, `CastChecked<>()` 등으로 명시적으로 실패시킵니다.
-- **C++ 우선:** 구현 가능한 로직은 C++로 작성하고, UI·VFX·애니메이션·데이터는 Blueprint로 작업합니다.
-- **명명·폴더 규칙:** 언리얼 엔진 표준 명명 규칙(`BP_`, `M_`, `T_`, `S_` 등)과 폴더 구조를 따릅니다.
-- **주석:** 고유 명사를 제외한 모든 주석은 한글로 작성합니다.
-- **바이너리 충돌 최소화:** Git LFS를 사용하지 않으므로 `.uasset` / `.umap`은 100MB 이하로 제한하고, 대형 소스 파일 커밋을 지양합니다.
-
-자세한 내용은 [팀 개발 규약](Docs/TEAM_DEVELOPMENT_CONVENTION.md)을 참고하세요.
-
 ## 문서
 
 | 문서 | 설명 |
@@ -136,14 +125,6 @@ NovaRevolution/
 | [UNIT_AI_ARCHITECTURE.md](Docs/UNIT_AI_ARCHITECTURE.md) | 유닛 AI 아키텍처 |
 | [AI_PLAYER_SYSTEM.md](Docs/AI_PLAYER_SYSTEM.md) | AI 플레이어 시스템 |
 | [OBJECT_POOL_SYSTEM.md](Docs/OBJECT_POOL_SYSTEM.md) | 오브젝트 풀 시스템 |
-
-## 팀
-
-언리얼 8기 4조 팀 프로젝트 (3인)
-
-- [ThunderVolt45](https://github.com/ThunderVolt45)
-- SeongAA-Park
-- BlueBaek
 
 ## 라이선스
 
